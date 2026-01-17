@@ -1,0 +1,880 @@
+import React, { useState, useMemo, useRef, useEffect, memo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  ScrollView,
+  Platform,
+  Modal,
+  Switch,
+} from 'react-native';
+import {
+  ChevronUp,
+  ChevronDown,
+  Camera,
+  Radio,
+  Zap,
+  EyeOff,
+  Eye,
+  Settings,
+  Activity,
+  Smartphone,
+  Globe,
+  Check,
+  X,
+  Trash2,
+  Shield,
+  ShieldOff,
+} from 'lucide-react-native';
+import type { AccelerometerData, GyroscopeData } from '@/hooks/useMotionSensors';
+import type { SimulationConfig, SimulationPattern, WebsiteSettings } from '@/types/browser';
+import type { CaptureDevice } from '@/types/device';
+import { PATTERN_PRESETS } from '@/constants/motionPatterns';
+
+interface ControlToolbarProps {
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+  activeTemplate: { name: string; captureDevices: CaptureDevice[] } | null;
+  stealthMode: boolean;
+  isSimulating: boolean;
+  simulatingDevicesCount: number;
+  activeCamerasCount: number;
+  currentUrl: string;
+  currentWebsiteSettings: WebsiteSettings | null;
+  onStealthModeToggle: () => void;
+  onOpenDevices: () => void;
+  onOpenSiteSettings: () => void;
+  simulationActive: boolean;
+  useRealSensors: boolean;
+  accelData: AccelerometerData;
+  gyroData: GyroscopeData;
+  simConfig: SimulationConfig;
+  onToggleSimulation: () => void;
+  onToggleRealSensors: () => void;
+  onSetSimConfig: (config: SimulationConfig) => void;
+}
+
+const ControlToolbar = memo(function ControlToolbar({
+  isExpanded,
+  onToggleExpanded,
+  activeTemplate,
+  stealthMode,
+  isSimulating,
+  simulatingDevicesCount,
+  activeCamerasCount,
+  currentUrl,
+  currentWebsiteSettings,
+  onStealthModeToggle,
+  onOpenDevices,
+  onOpenSiteSettings,
+  simulationActive,
+  useRealSensors,
+  accelData,
+  gyroData,
+  simConfig,
+  onToggleSimulation,
+  onToggleRealSensors,
+  onSetSimConfig,
+}: ControlToolbarProps) {
+  const [showMotionSection, setShowMotionSection] = useState(false);
+  const expandAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(expandAnim, {
+      toValue: isExpanded ? 1 : 0,
+      useNativeDriver: false,
+      friction: 10,
+    }).start();
+  }, [isExpanded, expandAnim]);
+
+  useEffect(() => {
+    if (isSimulating) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [isSimulating, pulseAnim]);
+
+  const formatValue = (value: number) => value.toFixed(2);
+
+  const siteStealthActive = currentWebsiteSettings?.useStealthByDefault ?? stealthMode;
+
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity 
+        style={styles.collapseBar} 
+        onPress={onToggleExpanded}
+        activeOpacity={0.8}
+      >
+        <View style={styles.statusRow}>
+          <View style={styles.statusIndicators}>
+            {isSimulating && (
+              <Animated.View style={[
+                styles.simIndicator,
+                { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }
+              ]}>
+                <Radio size={12} color="#ff4444" />
+                <Text style={styles.simIndicatorText}>SIM</Text>
+              </Animated.View>
+            )}
+            
+            <View style={[styles.statusBadge, siteStealthActive && styles.statusBadgeActive]}>
+              {siteStealthActive ? (
+                <EyeOff size={12} color="#0a0a0a" />
+              ) : (
+                <Eye size={12} color="rgba(255,255,255,0.6)" />
+              )}
+            </View>
+
+            <View style={styles.countBadge}>
+              <Camera size={12} color="#00ff88" />
+              <Text style={styles.countText}>{activeCamerasCount}</Text>
+            </View>
+
+            {simulatingDevicesCount > 0 && (
+              <View style={[styles.countBadge, styles.simCountBadge]}>
+                <Zap size={12} color="#ff6b35" />
+                <Text style={[styles.countText, styles.simCountText]}>{simulatingDevicesCount}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.collapseRight}>
+            <Text style={styles.templateName} numberOfLines={1}>
+              {activeTemplate?.name || 'No Template'}
+            </Text>
+            {isExpanded ? (
+              <ChevronDown size={18} color="rgba(255,255,255,0.5)" />
+            ) : (
+              <ChevronUp size={18} color="rgba(255,255,255,0.5)" />
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      <Animated.View style={[
+        styles.expandedContent,
+        {
+          maxHeight: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
+          opacity: expandAnim,
+        }
+      ]}>
+        <View style={styles.statusDashboard}>
+          <Text style={styles.sectionTitle}>Status Dashboard</Text>
+          
+          <View style={styles.dashboardGrid}>
+            <TouchableOpacity style={styles.dashboardCard} onPress={onOpenDevices}>
+              <View style={styles.cardIcon}>
+                <Camera size={20} color="#00ff88" />
+              </View>
+              <Text style={styles.cardValue}>{activeTemplate?.captureDevices.length || 0}</Text>
+              <Text style={styles.cardLabel}>Cameras</Text>
+            </TouchableOpacity>
+
+            <View 
+              style={[styles.dashboardCard, simulatingDevicesCount > 0 && styles.dashboardCardActive]} 
+            >
+              <View style={[styles.cardIcon, simulatingDevicesCount > 0 && styles.cardIconActive]}>
+                <Zap size={20} color={simulatingDevicesCount > 0 ? '#0a0a0a' : '#ff6b35'} />
+              </View>
+              <Text style={[styles.cardValue, simulatingDevicesCount > 0 && styles.cardValueActive]}>
+                {simulatingDevicesCount}
+              </Text>
+              <Text style={[styles.cardLabel, simulatingDevicesCount > 0 && styles.cardLabelActive]}>
+                Simulating
+              </Text>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.dashboardCard, siteStealthActive && styles.dashboardCardStealth]} 
+              onPress={onStealthModeToggle}
+            >
+              <View style={[styles.cardIcon, siteStealthActive && styles.cardIconStealth]}>
+                {siteStealthActive ? (
+                  <ShieldOff size={20} color="#0a0a0a" />
+                ) : (
+                  <Shield size={20} color="#00aaff" />
+                )}
+              </View>
+              <Text style={[styles.cardValue, siteStealthActive && styles.cardValueStealth]}>
+                {siteStealthActive ? 'ON' : 'OFF'}
+              </Text>
+              <Text style={[styles.cardLabel, siteStealthActive && styles.cardLabelStealth]}>
+                Stealth
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.siteSettingsButton}
+          onPress={onOpenSiteSettings}
+        >
+          <Globe size={16} color="#00aaff" />
+          <View style={styles.siteSettingsInfo}>
+            <Text style={styles.siteSettingsLabel}>Site Settings</Text>
+            <Text style={styles.siteSettingsUrl} numberOfLines={1}>
+              {currentUrl ? new URL(currentUrl).hostname : 'No site loaded'}
+            </Text>
+          </View>
+          {currentWebsiteSettings && (
+            <View style={styles.siteSettingsBadge}>
+              <Check size={12} color="#00ff88" />
+            </View>
+          )}
+          <ChevronDown size={16} color="rgba(255,255,255,0.4)" />
+        </TouchableOpacity>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionButton} onPress={onOpenDevices}>
+            <Smartphone size={16} color="#ffffff" />
+            <Text style={styles.actionButtonText}>Devices</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.settingsButton]} 
+            onPress={() => setShowMotionSection(!showMotionSection)}
+          >
+            <Settings size={16} color={showMotionSection ? '#0a0a0a' : '#ffffff'} />
+            <Text style={[styles.actionButtonText, showMotionSection && styles.actionButtonTextActive]}>
+              Motion
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {showMotionSection && (
+          <View style={styles.motionSection}>
+            <Text style={styles.sectionTitle}>Motion Simulation</Text>
+            
+            <View style={styles.modeToggle}>
+              <TouchableOpacity
+                style={[styles.modeButton, useRealSensors && styles.modeButtonActive]}
+                onPress={onToggleRealSensors}
+              >
+                <Smartphone size={14} color={useRealSensors ? '#0a0a0a' : '#ffffff'} />
+                <Text style={[styles.modeButtonText, useRealSensors && styles.modeButtonTextActive]}>
+                  Real Sensors
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeButton, simulationActive && styles.modeButtonActive]}
+                onPress={onToggleSimulation}
+              >
+                <Activity size={14} color={simulationActive ? '#0a0a0a' : '#ffffff'} />
+                <Text style={[styles.modeButtonText, simulationActive && styles.modeButtonTextActive]}>
+                  Simulate
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {simulationActive && (
+              <View style={styles.patternGrid}>
+                {(Object.keys(PATTERN_PRESETS) as SimulationPattern[]).map((pattern) => (
+                  <TouchableOpacity
+                    key={pattern}
+                    style={[
+                      styles.patternChip,
+                      simConfig.pattern === pattern && styles.patternChipActive,
+                    ]}
+                    onPress={() => onSetSimConfig({ ...simConfig, pattern })}
+                  >
+                    <Text style={[
+                      styles.patternChipText,
+                      simConfig.pattern === pattern && styles.patternChipTextActive,
+                    ]}>
+                      {PATTERN_PRESETS[pattern].label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.sensorReadout}>
+              <View style={styles.sensorColumn}>
+                <Text style={styles.sensorTitle}>Accel</Text>
+                <Text style={styles.sensorValue}>
+                  X: {formatValue(accelData.x)} Y: {formatValue(accelData.y)} Z: {formatValue(accelData.z)}
+                </Text>
+              </View>
+              <View style={styles.sensorColumn}>
+                <Text style={styles.sensorTitle}>Gyro</Text>
+                <Text style={styles.sensorValue}>
+                  X: {formatValue(gyroData.x)} Y: {formatValue(gyroData.y)} Z: {formatValue(gyroData.z)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </Animated.View>
+    </View>
+  );
+});
+
+export default ControlToolbar;
+
+interface SiteSettingsModalProps {
+  visible: boolean;
+  currentUrl: string;
+  currentSettings: WebsiteSettings | null;
+  globalStealthMode: boolean;
+  allSiteSettings: WebsiteSettings[];
+  onClose: () => void;
+  onSave: (url: string, settings: { useStealthByDefault: boolean; applyToSubdomains: boolean }) => void;
+  onDelete: (id: string) => void;
+}
+
+export function SiteSettingsModal({
+  visible,
+  currentUrl,
+  currentSettings,
+  globalStealthMode,
+  allSiteSettings,
+  onClose,
+  onSave,
+  onDelete,
+}: SiteSettingsModalProps) {
+  const [useStealthByDefault, setUseStealthByDefault] = useState(currentSettings?.useStealthByDefault ?? true);
+  const [applyToSubdomains, setApplyToSubdomains] = useState(currentSettings?.applyToSubdomains ?? true);
+
+  useEffect(() => {
+    if (currentSettings) {
+      setUseStealthByDefault(currentSettings.useStealthByDefault);
+      setApplyToSubdomains(currentSettings.applyToSubdomains);
+    } else {
+      // Default to true for both - stealth and subdomains enabled by default
+      setUseStealthByDefault(true);
+      setApplyToSubdomains(true);
+    }
+  }, [currentSettings]);
+
+  const hostname = useMemo(() => {
+    try {
+      return new URL(currentUrl).hostname;
+    } catch {
+      return currentUrl;
+    }
+  }, [currentUrl]);
+
+  const handleSave = () => {
+    onSave(currentUrl, { useStealthByDefault, applyToSubdomains });
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.content}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>Site Settings</Text>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={modalStyles.body}>
+            <View style={modalStyles.currentSite}>
+              <Globe size={20} color="#00aaff" />
+              <Text style={modalStyles.currentSiteText}>{hostname}</Text>
+            </View>
+
+            <View style={modalStyles.settingRow}>
+              <View style={modalStyles.settingInfo}>
+                <Text style={modalStyles.settingLabel}>Use Stealth Mode by Default</Text>
+                <Text style={modalStyles.settingHint}>
+                  When enabled, stealth mode will automatically activate when visiting this site
+                </Text>
+              </View>
+              <Switch
+                value={useStealthByDefault}
+                onValueChange={setUseStealthByDefault}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={useStealthByDefault ? '#ffffff' : '#888888'}
+              />
+            </View>
+
+            <View style={modalStyles.settingRow}>
+              <View style={modalStyles.settingInfo}>
+                <Text style={modalStyles.settingLabel}>Apply to All Subdomains</Text>
+                <Text style={modalStyles.settingHint}>
+                  Settings will apply to *.{hostname} (all subdomains)
+                </Text>
+              </View>
+              <Switch
+                value={applyToSubdomains}
+                onValueChange={setApplyToSubdomains}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={applyToSubdomains ? '#ffffff' : '#888888'}
+              />
+            </View>
+
+            <TouchableOpacity style={modalStyles.saveButton} onPress={handleSave}>
+              <Check size={18} color="#0a0a0a" />
+              <Text style={modalStyles.saveButtonText}>Save Settings</Text>
+            </TouchableOpacity>
+
+            {allSiteSettings.length > 0 && (
+              <View style={modalStyles.savedSites}>
+                <Text style={modalStyles.savedSitesTitle}>Saved Site Settings</Text>
+                {allSiteSettings.map(site => (
+                  <View key={site.id} style={modalStyles.savedSiteItem}>
+                    <View style={modalStyles.savedSiteInfo}>
+                      <Text style={modalStyles.savedSiteUrl}>{site.baseUrl}</Text>
+                      <View style={modalStyles.savedSiteBadges}>
+                        {site.useStealthByDefault && (
+                          <View style={modalStyles.savedSiteBadge}>
+                            <EyeOff size={10} color="#ff6b35" />
+                            <Text style={modalStyles.savedSiteBadgeText}>Stealth</Text>
+                          </View>
+                        )}
+                        {site.applyToSubdomains && (
+                          <View style={modalStyles.savedSiteBadge}>
+                            <Globe size={10} color="#00aaff" />
+                            <Text style={modalStyles.savedSiteBadgeText}>Subdomains</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity 
+                      style={modalStyles.deleteSiteBtn}
+                      onPress={() => onDelete(site.id)}
+                    >
+                      <Trash2 size={16} color="#ff4757" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#151515',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 255, 136, 0.3)',
+  },
+  collapseBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusIndicators: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  simIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.4)',
+  },
+  simIndicatorText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: '#ff4444',
+    letterSpacing: 0.5,
+  },
+  statusBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBadgeActive: {
+    backgroundColor: '#ff6b35',
+  },
+  countBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#00ff88',
+  },
+  simCountBadge: {
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+  },
+  simCountText: {
+    color: '#ff6b35',
+  },
+  collapseRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  templateName: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    maxWidth: 120,
+  },
+  expandedContent: {
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+  },
+  statusDashboard: {
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  dashboardGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dashboardCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  dashboardCardActive: {
+    backgroundColor: '#ff6b35',
+    borderColor: '#ff6b35',
+  },
+  dashboardCardStealth: {
+    backgroundColor: '#ff6b35',
+    borderColor: '#ff6b35',
+  },
+  cardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  cardIconActive: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  cardIconStealth: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  cardValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+  },
+  cardValueActive: {
+    color: '#0a0a0a',
+  },
+  cardValueStealth: {
+    color: '#0a0a0a',
+  },
+  cardLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  cardLabelActive: {
+    color: 'rgba(0,0,0,0.6)',
+  },
+  cardLabelStealth: {
+    color: 'rgba(0,0,0,0.6)',
+  },
+  siteSettingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0, 170, 255, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 170, 255, 0.2)',
+  },
+  siteSettingsInfo: {
+    flex: 1,
+  },
+  siteSettingsLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  siteSettingsUrl: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  siteSettingsBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 255, 136, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  settingsButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  actionButtonTextActive: {
+    color: '#0a0a0a',
+  },
+  motionSection: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  modeButtonActive: {
+    backgroundColor: '#00ff88',
+  },
+  modeButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  modeButtonTextActive: {
+    color: '#0a0a0a',
+  },
+  patternGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+  },
+  patternChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  patternChipActive: {
+    backgroundColor: '#ff6b35',
+  },
+  patternChipText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  patternChipTextActive: {
+    color: '#ffffff',
+  },
+  sensorReadout: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sensorColumn: {
+    flex: 1,
+  },
+  sensorTitle: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.4)',
+    textTransform: 'uppercase' as const,
+    marginBottom: 4,
+  },
+  sensorValue: {
+    fontSize: 10,
+    color: '#00ff88',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end',
+  },
+  content: {
+    backgroundColor: '#1a1a1a',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+  },
+  body: {
+    padding: 16,
+  },
+  currentSite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0, 170, 255, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+  },
+  currentSiteText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  settingHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 4,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#00ff88',
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginTop: 20,
+  },
+  saveButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#0a0a0a',
+  },
+  savedSites: {
+    marginTop: 24,
+  },
+  savedSitesTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 12,
+  },
+  savedSiteItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  savedSiteInfo: {
+    flex: 1,
+  },
+  savedSiteUrl: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  savedSiteBadges: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  savedSiteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  savedSiteBadgeText: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  deleteSiteBtn: {
+    padding: 8,
+  },
+});

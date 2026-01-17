@@ -1,0 +1,66 @@
+import type { CompatibilityCheckItem } from '../types';
+import { IDEAL_WEBCAM_SPECS, ACCEPTABLE_SPECS } from '../specs';
+import { isAspectRatioCompatible } from '../helpers';
+
+export const checkAspectRatio = (
+  aspectRatio: string | undefined,
+  width: number | undefined,
+  height: number | undefined
+): CompatibilityCheckItem => {
+  let actualRatio = aspectRatio;
+  
+  if (!actualRatio && width && height) {
+    const ratio = width / height;
+    if (Math.abs(ratio - 9/16) < 0.05) actualRatio = '9:16';
+    else if (Math.abs(ratio - 16/9) < 0.05) actualRatio = '16:9';
+    else if (Math.abs(ratio - 4/3) < 0.05) actualRatio = '4:3';
+    else if (Math.abs(ratio - 3/4) < 0.05) actualRatio = '3:4';
+    else actualRatio = `${width}:${height}`;
+  }
+  
+  if (!actualRatio) {
+    return {
+      name: 'Aspect Ratio',
+      status: 'warning',
+      currentValue: 'Unknown',
+      idealValue: IDEAL_WEBCAM_SPECS.aspectRatio,
+      message: 'Aspect ratio could not be determined',
+    };
+  }
+  
+  const isIdeal = actualRatio === IDEAL_WEBCAM_SPECS.aspectRatio;
+  const isCompatible = isAspectRatioCompatible(
+    actualRatio,
+    IDEAL_WEBCAM_SPECS.aspectRatio,
+    ACCEPTABLE_SPECS.aspectRatioTolerance
+  );
+  
+  if (isIdeal) {
+    return {
+      name: 'Aspect Ratio',
+      status: 'perfect',
+      currentValue: actualRatio,
+      idealValue: IDEAL_WEBCAM_SPECS.aspectRatio,
+      message: 'Perfect 9:16 aspect ratio',
+    };
+  }
+  
+  if (isCompatible) {
+    return {
+      name: 'Aspect Ratio',
+      status: 'compatible',
+      currentValue: actualRatio,
+      idealValue: IDEAL_WEBCAM_SPECS.aspectRatio,
+      message: 'Aspect ratio is close to 9:16',
+    };
+  }
+  
+  return {
+    name: 'Aspect Ratio',
+    status: 'incompatible',
+    currentValue: actualRatio,
+    idealValue: IDEAL_WEBCAM_SPECS.aspectRatio,
+    message: 'Aspect ratio must be 9:16',
+    fixSuggestion: 'Crop video to 9:16 aspect ratio',
+  };
+};
