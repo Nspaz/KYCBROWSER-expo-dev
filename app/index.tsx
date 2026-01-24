@@ -33,6 +33,7 @@ import {
   NO_SPOOFING_SCRIPT, 
   MOTION_INJECTION_SCRIPT,
   CONSOLE_CAPTURE_SCRIPT,
+  VIDEO_SIMULATION_TEST_SCRIPT,
   createMediaInjectionScript,
   VIDEO_SIMULATION_TEST_SCRIPT,
 } from '@/constants/browserScripts';
@@ -801,6 +802,7 @@ export default function MotionBrowserScreen() {
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
+    const script = CONSOLE_CAPTURE_SCRIPT + spoofScript + createMediaInjectionScript(devices, effectiveStealthMode) + VIDEO_SIMULATION_TEST_SCRIPT;
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
@@ -958,6 +960,10 @@ export default function MotionBrowserScreen() {
                   }
                   return true;
                 }}
+                allowFileAccess={true}
+                allowFileAccessFromFileURLs={true}
+                allowUniversalAccessFromFileURLs={true}
+                mixedContentMode="always"
                 allowsInlineMediaPlayback
                 javaScriptEnabled
                 domStorageEnabled
