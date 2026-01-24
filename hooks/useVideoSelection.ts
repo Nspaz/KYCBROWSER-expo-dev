@@ -66,6 +66,21 @@ export function useVideoSelection() {
     
     try {
       if (!isMountedRef.current) return;
+
+      const selectedVideo = selectVideoForSimulation(video.id);
+      if (selectedVideo) {
+        console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
+        setPendingVideoForApply(selectedVideo);
+
+        requestAnimationFrame(() => {
+          if (isMountedRef.current) {
+            router.back();
+          }
+        });
+        return;
+      }
+
+      Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
       
       setCheckingVideoName(video.name);
       setCompatibilityResult(null);
@@ -155,7 +170,7 @@ export function useVideoSelection() {
         isProcessingRef.current = false;
       }, 300);
     }
-  }, [selectVideoForSimulation, checkCompatibility, setPendingVideoForApply]);
+  }, [selectVideoForSimulation, setPendingVideoForApply]);
 
   const handleDeleteVideo = useCallback((videoId: string, videoName: string) => {
     Alert.alert(
