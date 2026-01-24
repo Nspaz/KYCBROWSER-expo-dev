@@ -1468,7 +1468,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       await new Promise(function(r) { setTimeout(r, 100); });
       
       // Create stream from video
-      const stream = await createCanvasStreamFromVideo(video, res, wantsAudio);
+      const stream = await createCanvasStreamFromVideo(video, res, wantsAudio, device);
       
       // Setup health monitoring
       setupStreamHealthCheck(stream, video, device);
@@ -1639,7 +1639,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     }
   };
   
-  function createCanvasStreamFromVideo(video, res, wantsAudio) {
+  function createCanvasStreamFromVideo(video, res, wantsAudio, device) {
     return new Promise(function(resolve, reject) {
       const canvas = document.createElement('canvas');
       canvas.width = res.width;
