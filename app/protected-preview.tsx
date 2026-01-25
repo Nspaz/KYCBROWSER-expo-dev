@@ -11,33 +11,28 @@ import {
 import { Stack, router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
-import { ChevronLeft, Shield, Film, Settings, Lock } from 'lucide-react-native';
+import { ChevronLeft, Shield, Film, FlaskConical, Settings, Lock } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
-import TestingWatermark from '@/components/TestingWatermark';
-import { ChevronLeft, Shield, Film, FlaskConical, AlertTriangle } from 'lucide-react-native';
-import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
+import TestingWatermark from '@/components/TestingWatermark';
 
 export default function ProtectedPreviewScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
-  const { 
-    developerMode, 
-    protocolSettings, 
-    isProtocolEditable,
-    updateProtectedSettings 
-  } = useDeveloperMode();
-
-  const protectedSettings = protocolSettings.protected;
-    protectedSettings, 
+  const { developerMode } = useDeveloperMode();
+  const {
+    protectedSettings,
     updateProtectedSettings,
     developerModeEnabled,
     presentationMode,
     mlSafetyEnabled,
+    protocols,
   } = useProtocol();
+
+  const protocolEnabled = protocols.protected?.enabled ?? true;
 
   const simulateBodyDetected = protectedSettings.bodyDetectionEnabled;
 
@@ -83,17 +78,17 @@ export default function ProtectedPreviewScreen() {
         {/* Protocol Status Banner */}
         <View style={styles.protocolBanner}>
           <View style={styles.protocolBannerLeft}>
-            <View style={[styles.protocolIcon, protectedSettings.enabled && styles.protocolIconActive]}>
-              <Shield size={16} color={protectedSettings.enabled ? '#0a0a0a' : '#ff6b35'} />
+          <View style={[styles.protocolIcon, protocolEnabled && styles.protocolIconActive]}>
+              <Shield size={16} color={protocolEnabled ? '#0a0a0a' : '#ff6b35'} />
             </View>
             <View>
               <Text style={styles.protocolBannerTitle}>Protocol 3: Protected Preview</Text>
               <Text style={styles.protocolBannerStatus}>
-                {protectedSettings.enabled ? 'LIVE - Ready for Testing' : 'Disabled'}
+                {protocolEnabled ? 'LIVE - Ready for Testing' : 'Disabled'}
               </Text>
             </View>
           </View>
-          {!isProtocolEditable && (
+          {!developerModeEnabled && (
             <View style={styles.lockedIndicator}>
               <Lock size={12} color="#ff6b35" />
             </View>
@@ -107,7 +102,7 @@ export default function ProtectedPreviewScreen() {
           </View>
           <Text style={styles.previewSubtitle}>
             Simulates body detection and swaps to a safe looping video.
-            {'\n'}Sensitivity: {protectedSettings.bodyDetectionSensitivity.toUpperCase()}
+            {'\n'}Sensitivity: {protectedSettings.sensitivityLevel.toUpperCase()}
           </Text>
 
           <View style={styles.previewWindow}>
@@ -146,7 +141,7 @@ export default function ProtectedPreviewScreen() {
                     </Text>
                   </View>
                 )}
-                {protectedSettings.showOverlayLabel && (
+                {protectedSettings.showProtectedBadge && (
                   <View style={styles.overlayLabel}>
                     <Text style={styles.overlayLabelText}>Protected Replacement Active</Text>
                   </View>
@@ -215,7 +210,7 @@ export default function ProtectedPreviewScreen() {
           <View style={styles.settingsHeader}>
             <Settings size={16} color="#00aaff" />
             <Text style={styles.settingsTitle}>Protocol Settings</Text>
-            {!isProtocolEditable && (
+            {!developerModeEnabled && (
               <View style={styles.settingsLocked}>
                 <Lock size={10} color="#ff6b35" />
                 <Text style={styles.settingsLockedText}>Developer Mode Required</Text>
@@ -225,15 +220,15 @@ export default function ProtectedPreviewScreen() {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Overlay Label</Text>
-              <Text style={styles.settingHint}>Display "Protected" indicator</Text>
+              <Text style={styles.settingLabel}>Show Protected Badge</Text>
+              <Text style={styles.settingHint}>Display protection indicator</Text>
             </View>
             <Switch
-              value={protectedSettings.showOverlayLabel}
-              onValueChange={(val) => isProtocolEditable && updateProtectedSettings({ showOverlayLabel: val })}
-              disabled={!isProtocolEditable}
+              value={protectedSettings.showProtectedBadge}
+              onValueChange={(val) => developerModeEnabled && updateProtectedSettings({ showProtectedBadge: val })}
+              disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-              thumbColor={protectedSettings.showOverlayLabel ? '#ffffff' : '#888888'}
+              thumbColor={protectedSettings.showProtectedBadge ? '#ffffff' : '#888888'}
             />
           </View>
 
@@ -247,14 +242,14 @@ export default function ProtectedPreviewScreen() {
                   key={level}
                   style={[
                     styles.segmentButton,
-                    protectedSettings.bodyDetectionSensitivity === level && styles.segmentButtonActive,
+                    protectedSettings.sensitivityLevel === level && styles.segmentButtonActive,
                   ]}
-                  onPress={() => isProtocolEditable && updateProtectedSettings({ bodyDetectionSensitivity: level })}
-                  disabled={!isProtocolEditable}
+                  onPress={() => developerModeEnabled && updateProtectedSettings({ sensitivityLevel: level })}
+                  disabled={!developerModeEnabled}
                 >
                   <Text style={[
                     styles.segmentButtonText,
-                    protectedSettings.bodyDetectionSensitivity === level && styles.segmentButtonTextActive,
+                    protectedSettings.sensitivityLevel === level && styles.segmentButtonTextActive,
                   ]}>
                     {level.charAt(0).toUpperCase() + level.slice(1)}
                   </Text>
@@ -265,15 +260,15 @@ export default function ProtectedPreviewScreen() {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Fallback to Placeholder</Text>
-              <Text style={styles.settingHint}>Use placeholder if no video selected</Text>
+              <Text style={styles.settingLabel}>Blur Fallback</Text>
+              <Text style={styles.settingHint}>Blur preview if no video selected</Text>
             </View>
             <Switch
-              value={protectedSettings.fallbackToPlaceholder}
-              onValueChange={(val) => isProtocolEditable && updateProtectedSettings({ fallbackToPlaceholder: val })}
-              disabled={!isProtocolEditable}
+              value={protectedSettings.blurFallback}
+              onValueChange={(val) => developerModeEnabled && updateProtectedSettings({ blurFallback: val })}
+              disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-              thumbColor={protectedSettings.fallbackToPlaceholder ? '#ffffff' : '#888888'}
+              thumbColor={protectedSettings.blurFallback ? '#ffffff' : '#888888'}
             />
           </View>
         </View>

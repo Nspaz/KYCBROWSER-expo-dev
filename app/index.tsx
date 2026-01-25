@@ -10,6 +10,8 @@ import {
   Alert,
   Modal,
   TouchableOpacity,
+  UIManager,
+  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -514,6 +516,10 @@ export default function MotionBrowserScreen() {
   }, [inputUrl, normalizeUrl]);
 
   const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -553,6 +559,20 @@ export default function MotionBrowserScreen() {
     setInputUrl(testUrl);
     console.log('[App] Navigating to webcam test:', testUrl);
   }, []);
+
+  const handleOpenInBrowser = useCallback(async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('Unsupported URL', 'This device cannot open the URL.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error('[App] Failed to open browser:', error);
+      Alert.alert('Error', 'Unable to open the browser.');
+    }
+  }, [url]);
 
 
 
@@ -616,6 +636,17 @@ export default function MotionBrowserScreen() {
             )}
             {isWeb ? (
               <View style={styles.greenScreen} />
+            ) : !webViewAvailable ? (
+              <View style={styles.webViewFallback}>
+                <Text style={styles.webViewFallbackTitle}>WebView unavailable</Text>
+                <Text style={styles.webViewFallbackText}>
+                  Expo Snack does not include the native WebView module by default. Open the
+                  target URL in your browser to continue testing.
+                </Text>
+                <TouchableOpacity style={styles.webViewFallbackButton} onPress={handleOpenInBrowser}>
+                  <Text style={styles.webViewFallbackButtonText}>Open in Browser</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <WebView
                 ref={webViewRef}
@@ -864,6 +895,37 @@ const styles = StyleSheet.create({
     aspectRatio: 9 / 16,
     alignSelf: 'center',
     maxHeight: '100%',
+  },
+  webViewFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+    backgroundColor: '#111111',
+  },
+  webViewFallbackTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  webViewFallbackText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center' as const,
+    lineHeight: 18,
+  },
+  webViewFallbackButton: {
+    backgroundColor: '#00ff88',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  webViewFallbackButtonText: {
+    color: '#0a0a0a',
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
   modalOverlay: {
     flex: 1,
