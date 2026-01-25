@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet, 
   Platform, 
-  InteractionManager,
   KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
@@ -12,19 +11,15 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { CompatibilityCheckModal, ImportProgressModal } from '@/components/browser/modals';
-import type { ImportProgress } from '@/components/browser/modals';
-import type { CompatibilityResult } from '@/utils/videoCompatibilityChecker';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
 import { 
@@ -44,9 +39,12 @@ import BrowserHeader from '@/components/browser/BrowserHeader';
 import DevicesList from '@/components/browser/DevicesList';
 import TemplateModal from '@/components/browser/TemplateModal';
 
-import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlToolbar';
+import ControlToolbar, { SiteSettingsModal, ProtocolSettingsModal } from '@/components/browser/ControlToolbar';
 import SetupRequired from '@/components/SetupRequired';
 
+
+const ALLOWLIST_ENABLED_KEY = '@injection_allowlist_enabled';
+const ALLOWLIST_DOMAINS_KEY = '@injection_allowlist_domains';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -85,15 +83,7 @@ export default function MotionBrowserScreen() {
     isLoading: isTemplateLoading,
   } = useDeviceTemplate();
 
-  const { saveLocalVideo, checkCompatibility, processingState, clearProcessingState, pendingVideoForApply, setPendingVideoForApply } = useVideoLibrary();
-
-  const [compatibilityModalVisible, setCompatibilityModalVisible] = useState(false);
-  const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityResult | null>(null);
-  const [isCheckingCompatibility, setIsCheckingCompatibility] = useState(false);
-  const [checkingVideoName, setCheckingVideoName] = useState<string>('');
-  const [pendingSavedVideo, setPendingSavedVideo] = useState<SavedVideo | null>(null);
-  const [pendingApplyTarget, setPendingApplyTarget] = useState<'all' | string | null>(null);
-  const [importingVideoName, setImportingVideoName] = useState<string>('');
+  const { pendingVideoForApply, setPendingVideoForApply } = useVideoLibrary();
 
   
 
@@ -126,21 +116,108 @@ export default function MotionBrowserScreen() {
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [autoAcceptPermissions, setAutoAcceptPermissions] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [safariModeEnabled, setSafariModeEnabled] = useState(true);
   const [toolbarExpanded, setToolbarExpanded] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
 
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
+  const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
+  const [allowlistEnabled, setAllowlistEnabled] = useState(false);
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
 
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
+
+  useEffect(() => {
+    const loadAllowlistSettings = async () => {
+      try {
+        const [enabledValue, domainsValue] = await Promise.all([
+          AsyncStorage.getItem(ALLOWLIST_ENABLED_KEY),
+          AsyncStorage.getItem(ALLOWLIST_DOMAINS_KEY),
+        ]);
+        if (enabledValue !== null) {
+          setAllowlistEnabled(enabledValue === 'true');
+        }
+        if (domainsValue) {
+          const parsed = JSON.parse(domainsValue);
+          if (Array.isArray(parsed)) {
+            setAllowedDomains(parsed.filter(domain => typeof domain === 'string'));
+          }
+        }
+      } catch (error) {
+        console.warn('[Allowlist] Failed to load settings:', error);
+      }
+    };
+    loadAllowlistSettings();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem(ALLOWLIST_ENABLED_KEY, String(allowlistEnabled)).catch(error => {
+      console.warn('[Allowlist] Failed to persist enabled flag:', error);
+    });
+  }, [allowlistEnabled]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(ALLOWLIST_DOMAINS_KEY, JSON.stringify(allowedDomains)).catch(error => {
+      console.warn('[Allowlist] Failed to persist domains:', error);
+    });
+  }, [allowedDomains]);
+
+  const normalizeAllowlistDomain = useCallback((value: string): string | null => {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return null;
+
+    try {
+      const parsed = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+      return parsed.hostname.replace(/^www\./, '');
+    } catch {
+      return trimmed.split('/')[0].replace(/^www\./, '');
+    }
+  }, []);
+
+  const handleAddAllowlistDomain = useCallback((value: string) => {
+    const normalized = normalizeAllowlistDomain(value);
+    if (!normalized) return;
+
+    setAllowedDomains(prev => {
+      if (prev.includes(normalized)) return prev;
+      return [...prev, normalized];
+    });
+  }, [normalizeAllowlistDomain]);
+
+  const handleRemoveAllowlistDomain = useCallback((domain: string) => {
+    setAllowedDomains(prev => prev.filter(item => item !== domain));
+  }, []);
 
   const currentWebsiteSettings = useMemo(() => 
     getWebsiteSettings(url),
     [getWebsiteSettings, url]
   );
+
+  const currentHostname = useMemo(() => {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  }, [url]);
+
+  const isAllowlisted = useMemo(() => {
+    if (!allowlistEnabled) return true;
+    if (!currentHostname) return false;
+    return allowedDomains.some(domain =>
+      currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+    );
+  }, [allowlistEnabled, allowedDomains, currentHostname]);
+
+  const allowlistStatusLabel = useMemo(() => {
+    if (!allowlistEnabled) return 'Allowlist: Off';
+    if (allowedDomains.length === 0) return 'Allowlist: On (no domains)';
+    return isAllowlisted ? 'Allowlist: On (site allowed)' : 'Allowlist: On (site blocked)';
+  }, [allowlistEnabled, allowedDomains.length, isAllowlisted]);
+
+  const allowlistBlocked = allowlistEnabled && !isAllowlisted;
 
   const effectiveStealthMode = useMemo(() =>
     shouldUseStealthForUrl(url),
@@ -183,6 +260,11 @@ export default function MotionBrowserScreen() {
       return;
     }
 
+    if (allowlistEnabled && !isAllowlisted) {
+      console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || url);
+      return;
+    }
+
     const normalizedDevices = activeTemplate.captureDevices.map(d => {
       if (!d.assignedVideoUri) return d;
       return {
@@ -215,7 +297,7 @@ export default function MotionBrowserScreen() {
       })();
       true;
     `);
-  }, [activeTemplate, effectiveStealthMode]);
+  }, [activeTemplate, effectiveStealthMode, allowlistEnabled, isAllowlisted, currentHostname, url]);
 
   const injectMediaConfig = useCallback(() => {
     if (!isMountedRef.current) {
@@ -317,6 +399,13 @@ export default function MotionBrowserScreen() {
   }, [simulationActive, simConfig, injectMotionData]);
 
   useEffect(() => {
+    if (webViewRef.current) {
+      console.log('[App] Allowlist settings changed, reloading WebView');
+      webViewRef.current.reload();
+    }
+  }, [allowlistEnabled, allowedDomains]);
+
+  useEffect(() => {
     if (useRealSensors && !simulationActive) {
       injectMotionData(realAccelData, realGyroData, realOrientData, true);
     }
@@ -344,93 +433,6 @@ export default function MotionBrowserScreen() {
     }
     setUseRealSensors(!useRealSensors);
   }, [useRealSensors, realAccelData, realGyroData, realOrientData, injectMotionData]);
-
-  const runCompatibilityCheckAndApply = useCallback(async (video: SavedVideo, applyTarget: 'all' | string) => {
-    console.log('[VideoSim] ========== START COMPATIBILITY CHECK ==========');
-    console.log('[VideoSim] Video details:', {
-      id: video.id,
-      name: video.name,
-      uri: video.uri,
-      fileSize: video.fileSize,
-      metadata: video.metadata,
-    });
-    console.log('[VideoSim] Apply target:', applyTarget);
-    
-    // Add timeout to prevent infinite hangs
-    const timeoutPromise = new Promise<null>((_, reject) => {
-      setTimeout(() => reject(new Error('Compatibility check timed out after 30 seconds')), 30000);
-    });
-    
-    try {
-      console.log('[VideoSim] Setting up modal state...');
-      setCheckingVideoName(video.name);
-      setCompatibilityResult(null);
-      setCompatibilityModalVisible(true);
-      setIsCheckingCompatibility(true);
-      setPendingSavedVideo(video);
-      setPendingApplyTarget(applyTarget);
-      console.log('[VideoSim] Modal state set successfully');
-      
-      console.log('[VideoSim] Calling checkCompatibility with video object directly...');
-      const result = await Promise.race([
-        checkCompatibility(video),
-        timeoutPromise,
-      ]);
-      console.log('[VideoSim] checkCompatibility returned:', result ? 'result object' : 'null');
-      
-      console.log('[VideoSim] Updating state with result...');
-      setIsCheckingCompatibility(false);
-      setCompatibilityResult(result);
-      
-      if (result) {
-        console.log('[VideoSim] Compatibility result details:', {
-          overallStatus: result.overallStatus,
-          score: result.score,
-          readyForSimulation: result.readyForSimulation,
-          itemCount: result.items?.length,
-          modifications: result.modifications,
-        });
-      } else {
-        console.error('[VideoSim] ERROR: checkCompatibility returned null!');
-        // Still allow proceeding with a warning result
-        setCompatibilityResult({
-          overallStatus: 'warning',
-          score: 50,
-          items: [],
-          summary: 'Could not fully analyze video. It may still work.',
-          readyForSimulation: true,
-          requiresModification: false,
-          modifications: [],
-        });
-      }
-      console.log('[VideoSim] ========== END COMPATIBILITY CHECK ==========');
-    } catch (error) {
-      console.error('[VideoSim] CRITICAL ERROR in runCompatibilityCheckAndApply:', error);
-      console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
-      setIsCheckingCompatibility(false);
-      
-      // Provide a fallback result so the user can still try using the video
-      const isTimeout = error instanceof Error && error.message.includes('timed out');
-      if (isTimeout) {
-        console.log('[VideoSim] Timeout occurred, providing fallback result');
-        setCompatibilityResult({
-          overallStatus: 'warning',
-          score: 50,
-          items: [],
-          summary: 'Analysis timed out. Video may still work - try applying it.',
-          readyForSimulation: true,
-          requiresModification: false,
-          modifications: [],
-        });
-      } else {
-        setCompatibilityResult(null);
-        setCompatibilityModalVisible(false);
-        setPendingSavedVideo(null);
-        setPendingApplyTarget(null);
-        Alert.alert('Error', `Failed to check video compatibility: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-  }, [checkCompatibility]);
 
   useEffect(() => {
     if (pendingVideoForApply && activeTemplate) {
@@ -495,232 +497,19 @@ export default function MotionBrowserScreen() {
     }
   }, [pendingVideoForApply, activeTemplate, setPendingVideoForApply, assignVideoToAllDevices, injectMediaConfig]);
 
-  const handleApplyCompatibleVideo = useCallback(async () => {
-    console.log('[VideoSim] ========== START APPLY VIDEO ==========');
-    console.log('[VideoSim] Timestamp:', new Date().toISOString());
-    console.log('[VideoSim] Apply state check:', {
-      hasPendingSavedVideo: !!pendingSavedVideo,
-      pendingVideoName: pendingSavedVideo?.name,
-      pendingVideoUri: pendingSavedVideo?.uri,
-      pendingApplyTarget,
-      compatibilityReady: compatibilityResult?.readyForSimulation,
-      hasActiveTemplate: !!activeTemplate,
-      activeTemplateId: activeTemplate?.id,
-      isApplyingVideoRefCurrent: isApplyingVideoRef.current,
-    });
-    
-    if (!pendingSavedVideo || !pendingApplyTarget || !compatibilityResult?.readyForSimulation || !activeTemplate) {
-      console.error('[VideoSim] Cannot apply video - validation failed:', {
-        noPendingSavedVideo: !pendingSavedVideo,
-        noPendingApplyTarget: !pendingApplyTarget,
-        notReady: !compatibilityResult?.readyForSimulation,
-        noActiveTemplate: !activeTemplate,
-      });
-      return;
-    }
-    
-    // Prevent double-click
-    if (isApplyingVideoRef.current) {
-      console.warn('[VideoSim] Apply already in progress, ignoring duplicate call');
-      return;
-    }
-    
-    // Capture values before any state changes
-    const videoToApply = pendingSavedVideo;
-    const targetToApply = pendingApplyTarget;
-    const templateId = activeTemplate.id;
-    
-    // Prevent double-injection by marking apply as in progress
-    isApplyingVideoRef.current = true;
-    console.log('[VideoSim] isApplyingVideoRef set to TRUE');
-    
-    // Close modal first to prevent UI freeze
-    console.log('[VideoSim] Closing modal first to prevent freeze...');
-    setCompatibilityModalVisible(false);
-    
-    // Clear pending state immediately to prevent re-triggers
-    setPendingSavedVideo(null);
-    setPendingApplyTarget(null);
-    
-    // Safety timeout to reset ref if something hangs
-    const safetyTimeout = setTimeout(() => {
-      if (isApplyingVideoRef.current) {
-        console.error('[VideoSim] SAFETY TIMEOUT: Resetting isApplyingVideoRef after 15s');
-        isApplyingVideoRef.current = false;
-      }
-    }, 15000);
-    
-    try {
-      console.log('[VideoSim] Applying compatible video:', videoToApply.name);
-      console.log('[VideoSim] Video URI:', videoToApply.uri);
-      console.log('[VideoSim] Target:', targetToApply);
-      
-      // Allow UI to update before heavy operations
-      await new Promise(resolve => setTimeout(resolve, 50));
-      console.log('[VideoSim] UI tick complete, starting assignment...');
-      
-      if (targetToApply === 'all') {
-        console.log('[VideoSim] Assigning to all devices...');
-        await assignVideoToAllDevices(templateId, videoToApply.uri, videoToApply.name, undefined, true);
-        console.log('[VideoSim] All devices assignment complete');
-      } else {
-        console.log('[VideoSim] Assigning to single device:', targetToApply);
-        await assignVideoToDevice(templateId, targetToApply, videoToApply.uri, videoToApply.name);
-        console.log('[VideoSim] Single device assignment complete');
-      }
-      
-      clearTimeout(safetyTimeout);
-      
-      // Allow useEffect to handle injection now
-      isApplyingVideoRef.current = false;
-      console.log('[VideoSim] isApplyingVideoRef set to FALSE');
-      
-      // Defer the media config injection to next tick
-      setTimeout(() => {
-        console.log('[VideoSim] Injecting media config after apply...');
-        injectMediaConfig();
-        console.log('[VideoSim] Media config injected');
-      }, 100);
-      
-      console.log('[VideoSim] ========== APPLY VIDEO SUCCESS ==========');
-      Alert.alert('Success', `Video applied to ${targetToApply === 'all' ? 'all cameras' : 'device'}. Reload the page to see changes.`);
-    } catch (error) {
-      clearTimeout(safetyTimeout);
-      console.error('[VideoSim] CRITICAL ERROR in handleApplyCompatibleVideo:', error);
-      console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
-      isApplyingVideoRef.current = false;
-      console.log('[VideoSim] isApplyingVideoRef reset to FALSE after error');
-      Alert.alert('Error', `Failed to apply video: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }, [pendingSavedVideo, pendingApplyTarget, compatibilityResult, activeTemplate, assignVideoToAllDevices, assignVideoToDevice, injectMediaConfig]);
-
-  const pickMediaFromPhotos = useCallback(async (deviceId: string | null) => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please grant media library access to upload files.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: false,
-        quality: 1,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0 && activeTemplate) {
-        const media = result.assets[0];
-        const mediaUri = media.uri;
-        const isVideo = media.type === 'video';
-        const defaultExt = isVideo ? 'mp4' : 'jpg';
-        const fileName = media.fileName || mediaUri.split('/').pop() || `uploaded_file.${defaultExt}`;
-        
-        console.log('[Media Upload] Saving video to library first:', fileName);
-        setImportingVideoName(fileName);
-        
-        const savedVideo = await saveLocalVideo(mediaUri, fileName);
-        
-        setImportingVideoName('');
-        clearProcessingState();
-        
-        if (!savedVideo) {
-          Alert.alert('Error', 'Failed to save video to library. Please try again.');
-          return;
-        }
-        
-        console.log('[Media Upload] Video saved to library:', savedVideo.id);
-        console.log('[Media Upload] Running compatibility check before applying...');
-        
-        const applyTarget = deviceId || 'all';
-        runCompatibilityCheckAndApply(savedVideo, applyTarget);
-      }
-    } catch (error) {
-      console.error('[Media Upload] Error picking file from photos:', error);
-      Alert.alert('Error', 'Failed to pick file. Please try again.');
-    }
-  }, [activeTemplate, saveLocalVideo, runCompatibilityCheckAndApply, clearProcessingState]);
-
-  const pickMediaFromFiles = useCallback(async (deviceId: string | null) => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['video/*', 'image/*'],
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0 && activeTemplate) {
-        const file = result.assets[0];
-        const fileUri = file.uri;
-        const fileName = file.name || fileUri.split('/').pop() || 'uploaded_file';
-        const mimeType = file.mimeType || '';
-        
-        console.log('[Media Upload] Saving video from Files to library first:', fileName, 'mime:', mimeType);
-        setImportingVideoName(fileName);
-        
-        const savedVideo = await saveLocalVideo(fileUri, fileName);
-        
-        setImportingVideoName('');
-        clearProcessingState();
-        
-        if (!savedVideo) {
-          Alert.alert('Error', 'Failed to save video to library. Please try again.');
-          return;
-        }
-        
-        console.log('[Media Upload] Video saved to library:', savedVideo.id);
-        console.log('[Media Upload] Running compatibility check before applying...');
-        
-        const applyTarget = deviceId || 'all';
-        runCompatibilityCheckAndApply(savedVideo, applyTarget);
-      }
-    } catch (error) {
-      console.error('[Media Upload] Error picking file from Files:', error);
-      Alert.alert('Error', 'Failed to pick file. Please try again.');
-    }
-  }, [activeTemplate, saveLocalVideo, runCompatibilityCheckAndApply, clearProcessingState]);
-
-  const showMediaPickerOptions = useCallback((deviceId: string | null) => {
-    Alert.alert(
-      'Select Source',
-      'Choose where to pick your video or photo from',
-      [
-        {
-          text: 'Photos Library',
-          onPress: () => pickMediaFromPhotos(deviceId),
-        },
-        {
-          text: 'Files App',
-          onPress: () => pickMediaFromFiles(deviceId),
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
-  }, [pickMediaFromPhotos, pickMediaFromFiles]);
-
-  const pickMediaForDevice = useCallback(async (deviceId: string) => {
-    showMediaPickerOptions(deviceId);
-  }, [showMediaPickerOptions]);
-
-  const pickMediaForAllDevices = useCallback(async () => {
-    showMediaPickerOptions(null);
-  }, [showMediaPickerOptions]);
-
-  const applyVideoUrlToDevice = useCallback(async (deviceId: string, url: string, autoEnableSim: boolean = false) => {
-    if (url.trim() && activeTemplate) {
-      await assignVideoToDevice(activeTemplate.id, deviceId, url.trim(), 'URL Video', autoEnableSim);
-      Keyboard.dismiss();
-      console.log('[App] Video assigned to device:', deviceId, 'autoEnableSim:', autoEnableSim);
-    }
-  }, [activeTemplate, assignVideoToDevice]);
-
-  const applyVideoToAllDevices = useCallback(async (url: string, videoName: string, autoEnableSim: boolean = false) => {
-    if (url.trim() && activeTemplate) {
-      await assignVideoToAllDevices(activeTemplate.id, url.trim(), videoName, undefined, autoEnableSim);
+  const applySavedVideoToDevice = useCallback(async (deviceId: string, video: SavedVideo) => {
+    if (activeTemplate) {
+      await assignVideoToDevice(activeTemplate.id, deviceId, video.uri, video.name, true);
       injectMediaConfig();
-      console.log('[App] Video assigned to all devices, autoEnableSim:', autoEnableSim);
+      console.log('[App] Compatible video assigned to device:', deviceId, video.name);
+    }
+  }, [activeTemplate, assignVideoToDevice, injectMediaConfig]);
+
+  const applySavedVideoToAll = useCallback(async (video: SavedVideo) => {
+    if (activeTemplate) {
+      await assignVideoToAllDevices(activeTemplate.id, video.uri, video.name, undefined, true);
+      injectMediaConfig();
+      console.log('[App] Compatible video assigned to all devices:', video.name);
     }
   }, [activeTemplate, assignVideoToAllDevices, injectMediaConfig]);
 
@@ -776,14 +565,15 @@ export default function MotionBrowserScreen() {
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
+    const shouldInjectMedia = !allowlistEnabled || isAllowlisted;
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
-      createMediaInjectionScript(devices, effectiveStealthMode) +
+      (shouldInjectMedia ? createMediaInjectionScript(devices, effectiveStealthMode) : '') +
       VIDEO_SIMULATION_TEST_SCRIPT;
-    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode);
+    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode, 'allowlisted:', shouldInjectMedia);
     return script;
-  }, [activeTemplate, safariModeEnabled, effectiveStealthMode]);
+  }, [activeTemplate, safariModeEnabled, effectiveStealthMode, allowlistEnabled, isAllowlisted]);
 
   const getAfterLoadScript = useCallback(() => {
     return MOTION_INJECTION_SCRIPT;
@@ -966,8 +756,12 @@ export default function MotionBrowserScreen() {
             currentWebsiteSettings={currentWebsiteSettings}
             onStealthModeToggle={toggleStealthMode}
             onOpenDevices={() => setShowDevicesModal(true)}
+            onOpenMyVideos={() => router.push('/my-videos')}
+            onOpenProtocols={() => setShowProtocolSettingsModal(true)}
 
             onOpenSiteSettings={() => setShowSiteSettingsModal(true)}
+            allowlistStatusLabel={allowlistStatusLabel}
+            allowlistBlocked={allowlistBlocked}
             simulationActive={simulationActive}
             useRealSensors={useRealSensors}
             accelData={accelData}
@@ -976,6 +770,8 @@ export default function MotionBrowserScreen() {
             onToggleSimulation={toggleSimulation}
             onToggleRealSensors={toggleRealSensors}
             onSetSimConfig={setSimConfig}
+            onApplyVideoToDevice={applySavedVideoToDevice}
+            onApplyVideoToAll={applySavedVideoToAll}
           />
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -1008,9 +804,7 @@ export default function MotionBrowserScreen() {
             </View>
             <DevicesList
               activeTemplate={activeTemplate}
-              autoAcceptPermissions={autoAcceptPermissions}
               stealthMode={effectiveStealthMode}
-              onAutoAcceptToggle={() => setAutoAcceptPermissions(!autoAcceptPermissions)}
               onStealthModeToggle={toggleStealthMode}
               onTemplateHeaderPress={() => {
                 setShowDevicesModal(false);
@@ -1026,16 +820,6 @@ export default function MotionBrowserScreen() {
                 requestAnimationFrame(() => {
                   setTimeout(() => router.push('/my-videos'), 0);
                 });
-              }}
-              onPickVideo={pickMediaForDevice}
-              onPickVideoForAll={pickMediaForAllDevices}
-              onApplyVideoUrl={applyVideoUrlToDevice}
-              onApplyVideoToAll={applyVideoToAllDevices}
-              onRestartRequired={() => {
-                console.log('[App] Restart required - reloading WebView with updated config');
-                setTimeout(() => {
-                  webViewRef.current?.reload();
-                }, 50);
               }}
               onToggleDeviceSimulation={handleToggleDeviceSimulation}
               onClearDeviceVideo={handleClearDeviceVideo}
@@ -1057,27 +841,23 @@ export default function MotionBrowserScreen() {
         onDelete={handleDeleteWebsiteSettings}
       />
 
-      <CompatibilityCheckModal
-        visible={compatibilityModalVisible}
-        onClose={() => {
-          setCompatibilityModalVisible(false);
-          setPendingSavedVideo(null);
-          setPendingApplyTarget(null);
+      <ProtocolSettingsModal
+        visible={showProtocolSettingsModal}
+        allowlistEnabled={allowlistEnabled}
+        allowedDomains={allowedDomains}
+        currentHostname={currentHostname}
+        onToggleAllowlist={() => setAllowlistEnabled(prev => !prev)}
+        onAddDomain={handleAddAllowlistDomain}
+        onRemoveDomain={handleRemoveAllowlistDomain}
+        onOpenProtectedPreview={() => {
+          setShowProtocolSettingsModal(false);
+          router.push('/protected-preview');
         }}
-        result={compatibilityResult}
-        isChecking={isCheckingCompatibility}
-        videoName={checkingVideoName}
-        onApply={compatibilityResult?.readyForSimulation ? handleApplyCompatibleVideo : undefined}
-      />
-
-      <ImportProgressModal
-        visible={processingState.isProcessing && processingState.stage !== 'complete'}
-        progress={{
-          progress: processingState.progress,
-          stage: processingState.stage as ImportProgress['stage'],
-          message: processingState.message,
+        onOpenTestHarness={() => {
+          setShowProtocolSettingsModal(false);
+          router.push('/test-harness');
         }}
-        videoName={importingVideoName}
+        onClose={() => setShowProtocolSettingsModal(false)}
       />
     </View>
   );
