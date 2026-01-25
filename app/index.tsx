@@ -35,7 +35,6 @@ import {
   CONSOLE_CAPTURE_SCRIPT,
   VIDEO_SIMULATION_TEST_SCRIPT,
   createMediaInjectionScript,
-  VIDEO_SIMULATION_TEST_SCRIPT,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
@@ -802,7 +801,6 @@ export default function MotionBrowserScreen() {
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
-    const script = CONSOLE_CAPTURE_SCRIPT + spoofScript + createMediaInjectionScript(devices, effectiveStealthMode) + VIDEO_SIMULATION_TEST_SCRIPT;
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
@@ -960,10 +958,6 @@ export default function MotionBrowserScreen() {
                   }
                   return true;
                 }}
-                allowFileAccess={true}
-                allowFileAccessFromFileURLs={true}
-                allowUniversalAccessFromFileURLs={true}
-                mixedContentMode="always"
                 allowsInlineMediaPlayback
                 javaScriptEnabled
                 domStorageEnabled
