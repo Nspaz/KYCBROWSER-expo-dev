@@ -7,14 +7,13 @@ import {
   Switch,
   Platform,
   ScrollView,
+  UIManager,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { WebView } from 'react-native-webview';
-import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity } from 'lucide-react-native';
+import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity, Shield } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
-import { ChevronLeft, Monitor, Film, FlaskConical, Shield, Settings } from 'lucide-react-native';
-import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
 import TestingWatermark from '@/components/TestingWatermark';
@@ -69,7 +68,7 @@ const TEST_HARNESS_HTML = `
         background: rgba(0, 0, 0, 0.6);
         padding: 6px 10px;
         border-radius: 8px;
-        ont-size: 12px;
+        font-size: 12px;
         color: #00ff88;
       }
     </style>
@@ -122,24 +121,27 @@ export default function TestHarnessScreen() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
-  const { 
-    developerMode, 
-    protocolSettings, 
-    isProtocolEditable,
-    updateHarnessSettings 
-  } = useDeveloperMode();
-
-  const harnessSettings = protocolSettings.harness;
+  const { developerMode } = useDeveloperMode();
   const {
     harnessSettings,
     updateHarnessSettings,
     developerModeEnabled,
     presentationMode,
     mlSafetyEnabled,
+    protocols,
   } = useProtocol();
+
+  const protocolEnabled = protocols.harness?.enabled ?? true;
+  const webViewAvailable = Platform.OS !== 'web' && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  const isHighFrameRate = harnessSettings.captureFrameRate >= 60;
 
   const overlayEnabled = harnessSettings.overlayEnabled;
   const setOverlayEnabled = (enabled: boolean) => updateHarnessSettings({ overlayEnabled: enabled });
+  const setHighFrameRate = (enabled: boolean) =>
+    updateHarnessSettings({ captureFrameRate: enabled ? 60 : 30 });
 
   const compatibleVideos = useMemo(() => {
     return savedVideos.filter(video => {
@@ -205,20 +207,20 @@ export default function TestHarnessScreen() {
         {/* Protocol Status Banner */}
         <View style={styles.protocolBanner}>
           <View style={styles.protocolBannerLeft}>
-            <View style={[styles.protocolIcon, harnessSettings.enabled && styles.protocolIconActive]}>
-              <FlaskConical size={16} color={harnessSettings.enabled ? '#0a0a0a' : '#8a2be2'} />
+            <View style={[styles.protocolIcon, protocolEnabled && styles.protocolIconActive]}>
+              <FlaskConical size={16} color={protocolEnabled ? '#0a0a0a' : '#8a2be2'} />
             </View>
             <View>
               <Text style={styles.protocolBannerTitle}>Protocol 4: Test Harness</Text>
               <Text style={styles.protocolBannerStatus}>
-                {harnessSettings.enabled ? 'LIVE - Benchmark Ready' : 'Disabled'}
+                {protocolEnabled ? 'LIVE - Benchmark Ready' : 'Disabled'}
               </Text>
             </View>
           </View>
-          {harnessSettings.recordTestResults && (
+          {overlayEnabled && (
             <View style={styles.benchmarkIndicator}>
               <Activity size={12} color="#00ff88" />
-              <Text style={styles.benchmarkText}>Recording</Text>
+              <Text style={styles.benchmarkText}>Overlay</Text>
             </View>
           )}
         </View>
@@ -320,6 +322,10 @@ export default function TestHarnessScreen() {
             <Text style={styles.emptyText}>
               WebView test harness is not available on web builds.
             </Text>
+          ) : !webViewAvailable ? (
+            <Text style={styles.emptyText}>
+              WebView is unavailable in this Expo Snack preview.
+            </Text>
           ) : (
             <WebView
               ref={webViewRef}
@@ -343,7 +349,7 @@ export default function TestHarnessScreen() {
           <View style={styles.settingsHeader}>
             <Settings size={16} color="#00aaff" />
             <Text style={styles.settingsTitle}>Protocol Settings</Text>
-            {!isProtocolEditable && (
+            {!developerModeEnabled && (
               <View style={styles.settingsLocked}>
                 <Lock size={10} color="#ff6b35" />
                 <Text style={styles.settingsLockedText}>Developer Mode Required</Text>
@@ -353,57 +359,43 @@ export default function TestHarnessScreen() {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Debug Overlay</Text>
-              <Text style={styles.settingHint}>Display FPS and timing info</Text>
+              <Text style={styles.settingLabel}>Audio Passthrough</Text>
+              <Text style={styles.settingHint}>Allow microphone audio in overlay</Text>
             </View>
             <Switch
-              value={harnessSettings.showDebugOverlay}
-              onValueChange={(val) => isProtocolEditable && updateHarnessSettings({ showDebugOverlay: val })}
-              disabled={!isProtocolEditable}
+              value={harnessSettings.enableAudioPassthrough}
+              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })}
+              disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-              thumbColor={harnessSettings.showDebugOverlay ? '#ffffff' : '#888888'}
+              thumbColor={harnessSettings.enableAudioPassthrough ? '#ffffff' : '#888888'}
             />
           </View>
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Console Logging</Text>
-              <Text style={styles.settingHint}>Log events to console</Text>
+              <Text style={styles.settingLabel}>Test Pattern Fallback</Text>
+              <Text style={styles.settingHint}>Show test pattern when no video</Text>
             </View>
             <Switch
-              value={harnessSettings.enableConsoleLogging}
-              onValueChange={(val) => isProtocolEditable && updateHarnessSettings({ enableConsoleLogging: val })}
-              disabled={!isProtocolEditable}
+              value={harnessSettings.testPatternOnNoVideo}
+              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })}
+              disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-              thumbColor={harnessSettings.enableConsoleLogging ? '#ffffff' : '#888888'}
+              thumbColor={harnessSettings.testPatternOnNoVideo ? '#ffffff' : '#888888'}
             />
           </View>
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Benchmark Mode</Text>
-              <Text style={styles.settingHint}>Record performance metrics</Text>
+              <Text style={styles.settingLabel}>High Frame Rate</Text>
+              <Text style={styles.settingHint}>Capture at 60fps (default 30fps)</Text>
             </View>
             <Switch
-              value={harnessSettings.recordTestResults}
-              onValueChange={(val) => isProtocolEditable && updateHarnessSettings({ recordTestResults: val })}
-              disabled={!isProtocolEditable}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-              thumbColor={harnessSettings.recordTestResults ? '#ffffff' : '#888888'}
-            />
-          </View>
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Simulate Low Bandwidth</Text>
-              <Text style={styles.settingHint}>Test under constrained conditions</Text>
-            </View>
-            <Switch
-              value={harnessSettings.simulateLowBandwidth}
-              onValueChange={(val) => isProtocolEditable && updateHarnessSettings({ simulateLowBandwidth: val })}
-              disabled={!isProtocolEditable}
+              value={isHighFrameRate}
+              onValueChange={(val) => developerModeEnabled && setHighFrameRate(val)}
+              disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-              thumbColor={harnessSettings.simulateLowBandwidth ? '#ffffff' : '#888888'}
+              thumbColor={isHighFrameRate ? '#ffffff' : '#888888'}
             />
           </View>
         </View>
