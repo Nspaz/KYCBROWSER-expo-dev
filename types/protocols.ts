@@ -120,8 +120,10 @@ export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
-  enabled: true, // Enabled by default for prototype/beta
-  pinCode: null,
+  // For safety in wider testing, developer mode defaults to disabled.
+  enabled: false,
+  // Default PIN requested by you: '0000'
+  pinCode: '0000',
   showWatermark: true,
   showDebugInfo: false,
   allowProtocolEditing: true,
