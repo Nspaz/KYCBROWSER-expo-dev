@@ -218,16 +218,23 @@ export function validateBase64Video(dataUri: string): Base64VideoInfo {
 /**
  * Convert base64 string to Uint8Array in chunks to avoid memory issues
  * Suitable for large videos
+ * Note: This function uses atob() which is only available on web platforms.
+ * On native platforms, use processBase64Video which checks for platform compatibility.
  */
 export function base64ToUint8Array(
   base64: string,
   onProgress?: (progress: number) => void
 ): Uint8Array {
+  // Check if atob is available (only on web platforms)
+  if (typeof atob !== 'function') {
+    throw new Error('base64ToUint8Array is only supported on web platforms. atob is not available.');
+  }
+  
   // Remove any whitespace
   const cleanBase64 = base64.replace(/\s/g, '');
   
-  // Use native atob if available for smaller strings
-  if (cleanBase64.length < 100000 && typeof atob === 'function') {
+  // Use native atob for smaller strings (fast path)
+  if (cleanBase64.length < 100000) {
     try {
       const binaryString = atob(cleanBase64);
       const bytes = new Uint8Array(binaryString.length);
@@ -241,7 +248,7 @@ export function base64ToUint8Array(
     }
   }
 
-  // For larger strings, process in chunks
+  // For larger strings, process in chunks to avoid memory issues
   const chunkSize = BASE64_VIDEO_CONSTANTS.CHUNK_SIZE;
   const totalChunks = Math.ceil(cleanBase64.length / chunkSize);
   const outputChunks: Uint8Array[] = [];

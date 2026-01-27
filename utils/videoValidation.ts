@@ -413,7 +413,9 @@ export async function validateVideoUrl(
   url: string,
   config: VideoValidationConfig = DEFAULT_VALIDATION_CONFIG
 ): Promise<VideoValidationResult> {
-  console.log('[VideoValidation] Starting URL validation for:', url?.substring(0, 100));
+  // Safely log URL - truncate if too long
+  const logUrl = url && url.length > 100 ? url.substring(0, 100) + '...' : url;
+  console.log('[VideoValidation] Starting URL validation for:', logUrl);
   
   const warnings: string[] = [];
   
@@ -463,11 +465,11 @@ export async function validateVideoUrl(
     const format = getFormatFromMimeType(base64Validation.mimeType);
     const fileSizeMB = base64Validation.estimatedSizeBytes / (1024 * 1024);
     
+    // Check file size limit (also flags large file warning)
     if (fileSizeMB > config.maxFileSizeMB) {
-      warnings.push(`Large video detected (${fileSizeMB.toFixed(1)}MB). Processing may take longer.`);
-    }
-    
-    if (base64Validation.isLargeFile) {
+      warnings.push(`Large video detected (${fileSizeMB.toFixed(1)}MB, max: ${config.maxFileSizeMB}MB). Processing may take longer.`);
+    } else if (base64Validation.isLargeFile) {
+      // Only add performance warning if not already flagged for size
       warnings.push('Very large base64 video. Consider using a file URL for better performance.');
     }
     

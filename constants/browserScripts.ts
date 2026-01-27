@@ -997,9 +997,9 @@ export const createMediaInjectionScript = (
       
       let errorType = 'UNKNOWN';
       
-      // Check URL type
-      const isBase64Uri = videoUrl && videoUrl.startsWith && videoUrl.startsWith('data:');
-      const isBlobUri = videoUrl && videoUrl.startsWith && videoUrl.startsWith('blob:');
+      // Check URL type - simplified checks (videoUrl is already validated as truthy string above)
+      const isBase64Uri = videoUrl && typeof videoUrl === 'string' && videoUrl.startsWith('data:');
+      const isBlobUri = videoUrl && typeof videoUrl === 'string' && videoUrl.startsWith('blob:');
       const isExternalUrl = videoUrl && (videoUrl.startsWith('http://') || videoUrl.startsWith('https://'));
       const isKnownBlockingSite = videoUrl && (
         videoUrl.includes('imgur.com') ||
@@ -1448,6 +1448,9 @@ export const createMediaInjectionScript = (
   // ============ VIDEO LOADING WITH RETRY ============
   
   // Helper to check if URI is a base64 data URI
+  // NOTE: This duplicates logic from utils/base64VideoHandler.ts, but is necessary because
+  // this script is injected into a WebView and cannot import external modules.
+  // Keep patterns in sync with BASE64_VIDEO_CONSTANTS.VIDEO_DATA_URI_PATTERNS
   function isBase64VideoUri(uri) {
     if (!uri || typeof uri !== 'string') return false;
     const patterns = [
