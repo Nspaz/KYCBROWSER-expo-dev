@@ -550,12 +550,13 @@ export default function MotionBrowserScreen() {
       
       // If we have a video URL, try to load it via the bulletproof config
       if (videoUrl) {
+        const truncatedVideoUrlForLog = JSON.stringify(videoUrl).substring(0, 50);
         injectionScript += `
 (function() {
   // Configure bulletproof with assigned video
   if (window.__bulletproofConfig && window.__bulletproofConfig.setVideoUrl) {
     window.__bulletproofConfig.setVideoUrl(${JSON.stringify(videoUrl)});
-    console.log('[App] Bulletproof configured with video:', ${JSON.stringify(videoUrl).substring(0, 50)});
+    console.log('[App] Bulletproof configured with video:', ${truncatedVideoUrlForLog});
   }
 })();
 true;
