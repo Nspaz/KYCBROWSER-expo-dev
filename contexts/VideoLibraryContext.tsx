@@ -190,7 +190,7 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     
     // Keep built-in test video even though it has no file
     const validMetadata = storedMetadata.filter(v => 
-      actualUris.has(v.uri) || v.id === BUILTIN_TEST_VIDEO_ID || v.uri.startsWith('canvas:')
+      actualUris.has(v.uri) || v.uri.startsWith('canvas:')
     );
 
     const metadataUris = new Set(storedMetadata.map(v => v.uri));
