@@ -165,36 +165,38 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
   }, [saveVideosMetadata]);
 
   const syncWithFileSystem = useCallback(async (): Promise<SavedVideo[]> => {
-    console.log('[VideoLibrary] Syncing with file system...');
-    
+    const storedMetadata = await loadVideosMetadata();
+    const existingSample = storedMetadata.find(isBundledSampleVideo) || null;
+    const sampleVideo = await ensureBundledSampleVideo(existingSample);
+
     if (Platform.OS === 'web') {
-      const webVideos = await loadVideosMetadata();
-      // Ensure built-in test video exists on web too
-      const hasBuiltin = webVideos.some(v => v.id === BUILTIN_TEST_VIDEO_ID);
-      if (!hasBuiltin) {
-        console.log('[VideoLibrary] Adding built-in test video (web)');
-        const builtinVideo = createBuiltinTestVideoEntry();
-        const allVideos = [builtinVideo, ...webVideos];
+      const filtered = storedMetadata.filter(video => !isBundledSampleVideo(video));
+      const allVideos = sampleVideo ? [sampleVideo, ...filtered] : filtered;
+      const shouldSave = Boolean(sampleVideo && (!existingSample || existingSample.uri !== sampleVideo.uri));
+
+      if (shouldSave) {
         await saveVideosMetadata(allVideos);
-        return allVideos;
       }
-      return webVideos;
+
+      return allVideos;
     }
 
     ensureVideosDirectory();
 
-    const storedMetadata = await loadVideosMetadata();
     const actualFiles = listSavedVideos();
-
     const actualUris = new Set(actualFiles.map(f => f.uri));
-    
-    // Keep built-in test video even though it has no file
-    const validMetadata = storedMetadata.filter(v => 
-      actualUris.has(v.uri) || v.uri.startsWith('canvas:')
+    const fallbackSample = existingSample && actualUris.has(existingSample.uri) ? existingSample : null;
+    const sampleToUse = sampleVideo || fallbackSample;
+    const sampleUri = sampleToUse?.uri;
+
+    const validMetadata = storedMetadata.filter(v =>
+      actualUris.has(v.uri) && !isBundledSampleVideo(v)
     );
 
-    const metadataUris = new Set(storedMetadata.map(v => v.uri));
-    const newFiles = actualFiles.filter(f => !metadataUris.has(f.uri));
+    const metadataUris = new Set(validMetadata.map(v => v.uri));
+    const newFiles = actualFiles.filter(f =>
+      !metadataUris.has(f.uri) && (!sampleUri || f.uri !== sampleUri)
+    );
 
     const newVideosPromises = newFiles.map(async (file) => {
       const info = getVideoFileInfo(file);
@@ -213,12 +215,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     const newVideos = await Promise.all(newVideosPromises);
     let allVideos = [...validMetadata, ...newVideos];
 
-    // Ensure built-in test video exists
-    const hasBuiltin = allVideos.some(v => v.id === BUILTIN_TEST_VIDEO_ID);
-    if (!hasBuiltin) {
-      console.log('[VideoLibrary] Adding built-in test video');
-      const builtinVideo = createBuiltinTestVideoEntry();
-      allVideos = [builtinVideo, ...allVideos];
+    if (sampleToUse) {
+      allVideos = [
+        sampleToUse,
+        ...allVideos.filter(video => !isBundledSampleVideo(video)),
+      ];
     }
 
     // Sort: built-in first, then by date
@@ -229,7 +230,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    if (validMetadata.length !== storedMetadata.length || newVideos.length > 0 || !hasBuiltin) {
+    const baseChanged = validMetadata.length !== storedMetadata.filter(v => !isBundledSampleVideo(v)).length;
+    const sampleChanged = Boolean(sampleToUse && (!existingSample || existingSample.uri !== sampleToUse.uri));
+    const shouldSave = baseChanged || newVideos.length > 0 || sampleChanged;
+
+    if (shouldSave) {
       await saveVideosMetadata(allVideos);
     }
 
@@ -454,6 +459,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     const video = savedVideos.find(v => v.id === id);
     if (!video) {
       console.warn('[VideoLibrary] Video not found:', id);
+      return false;
+    }
+    if (isBundledSampleVideo(video)) {
+      console.warn('[VideoLibrary] Attempted to delete bundled sample video');
       return false;
     }
 

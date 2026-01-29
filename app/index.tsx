@@ -38,6 +38,7 @@ import {
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
+import { isBundledSampleVideo } from '@/utils/sampleVideo';
 import { APP_CONFIG } from '@/constants/app';
 import type { SimulationConfig } from '@/types/browser';
 import BrowserHeader from '@/components/browser/BrowserHeader';
@@ -86,7 +87,12 @@ export default function MotionBrowserScreen() {
     isLoading: isTemplateLoading,
   } = useDeviceTemplate();
 
-  const { pendingVideoForApply, setPendingVideoForApply } = useVideoLibrary();
+  const {
+    savedVideos,
+    isVideoReady,
+    pendingVideoForApply,
+    setPendingVideoForApply,
+  } = useVideoLibrary();
 
   const { developerMode, isAllowlistEditable } = useDeveloperMode();
 
@@ -100,7 +106,10 @@ export default function MotionBrowserScreen() {
     showTestingWatermark,
     activeProtocol,
     protocols,
+    standardSettings,
     allowlistSettings,
+    protectedSettings,
+    harnessSettings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -148,6 +157,34 @@ export default function MotionBrowserScreen() {
   const allowlistEnabled = allowlistSettings.enabled;
   const allowedDomains = allowlistSettings.domains;
 
+  const compatibleVideos = useMemo(() => {
+    return savedVideos.filter(video => {
+      const status = video.compatibility?.overallStatus;
+      const isFullyCompatible = status === 'perfect' || status === 'compatible';
+      return isFullyCompatible && isVideoReady(video.id);
+    });
+  }, [savedVideos, isVideoReady]);
+
+  const bundledSampleVideo = useMemo(() => {
+    return compatibleVideos.find(isBundledSampleVideo) || null;
+  }, [compatibleVideos]);
+
+  const protectedReplacementVideo = useMemo(() => {
+    if (!protectedSettings.replacementVideoId) return null;
+    return compatibleVideos.find(video => video.id === protectedSettings.replacementVideoId) || null;
+  }, [compatibleVideos, protectedSettings.replacementVideoId]);
+
+  const fallbackVideo = useMemo(() => {
+    if (activeProtocol === 'protected' && protectedReplacementVideo) {
+      return protectedReplacementVideo;
+    }
+    return bundledSampleVideo || compatibleVideos[0] || null;
+  }, [activeProtocol, protectedReplacementVideo, bundledSampleVideo, compatibleVideos]);
+
+  const fallbackVideoUri = useMemo(() => {
+    return fallbackVideo ? formatVideoUriForWebView(fallbackVideo.uri) : null;
+  }, [fallbackVideo]);
+
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
 
@@ -178,16 +215,57 @@ export default function MotionBrowserScreen() {
 
   const allowlistStatusLabel = useMemo(() => {
     if (!allowlistEnabled) return 'Allowlist: Off';
-    if (allowedDomains.length === 0) return 'Allowlist: On (no domains)';
-    return isAllowlisted ? 'Allowlist: On (site allowed)' : 'Allowlist: On (site blocked)';
-  }, [allowlistEnabled, allowedDomains.length, isAllowlisted]);
+    if (allowedDomains.length === 0) {
+      return allowlistSettings.blockUnlisted
+        ? 'Allowlist: On (no domains)'
+        : 'Allowlist: On (monitoring)';
+    }
+    if (isAllowlisted) return 'Allowlist: On (site allowed)';
+    return allowlistSettings.blockUnlisted
+      ? 'Allowlist: On (site blocked)'
+      : 'Allowlist: On (site not listed)';
+  }, [allowlistEnabled, allowedDomains.length, isAllowlisted, allowlistSettings.blockUnlisted]);
 
-  const allowlistBlocked = allowlistEnabled && !isAllowlisted;
+  const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
-  const effectiveStealthMode = useMemo(() =>
-    shouldUseStealthForUrl(url),
-    [shouldUseStealthForUrl, url]
-  );
+  const effectiveStealthMode = useMemo(() => {
+    if (activeProtocol === 'protected' || activeProtocol === 'harness') {
+      return true;
+    }
+    return standardSettings.stealthByDefault && shouldUseStealthForUrl(url);
+  }, [activeProtocol, standardSettings.stealthByDefault, shouldUseStealthForUrl, url]);
+
+  const protocolForceSimulation = activeProtocol === 'protected'
+    || (activeProtocol === 'harness' && harnessSettings.overlayEnabled);
+
+  const protocolMirrorVideo = activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+
+  const protocolOverlayLabel = useMemo(() => {
+    if (activeProtocol === 'protected') {
+      return 'Protected Replacement Active';
+    }
+    if (activeProtocol === 'harness') {
+      return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
+    }
+    if (activeProtocol === 'allowlist' && allowlistEnabled) {
+      return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
+    }
+    return '';
+  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked]);
+
+  const showProtocolOverlayLabel = useMemo(() => {
+    if (activeProtocol === 'protected') {
+      return protectedSettings.showProtectedBadge;
+    }
+    if (activeProtocol === 'harness') {
+      return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
+    }
+    return false;
+  }, [activeProtocol, protectedSettings.showProtectedBadge, harnessSettings.showDebugInfo, harnessSettings.overlayEnabled]);
+
+  const autoInjectEnabled = (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+    ? standardSettings.autoInject
+    : true;
 
   const simulatingDevicesCount = useMemo(() =>
     activeTemplate?.captureDevices.filter(d => d.simulationEnabled).length || 0,
@@ -195,6 +273,7 @@ export default function MotionBrowserScreen() {
   );
 
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
+    if (!standardSettings.injectMotionData) return;
     if (!webViewRef.current) return;
     
     const message = JSON.stringify({
@@ -213,7 +292,7 @@ export default function MotionBrowserScreen() {
       window.__updateMotionData && window.__updateMotionData(${message}.payload);
       true;
     `);
-  }, []);
+  }, [standardSettings.injectMotionData]);
 
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
@@ -225,44 +304,85 @@ export default function MotionBrowserScreen() {
       return;
     }
 
-    if (allowlistEnabled && !isAllowlisted) {
+    if (allowlistBlocked) {
       console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || url);
       return;
     }
 
     const normalizedDevices = activeTemplate.captureDevices.map(d => {
-      if (!d.assignedVideoUri) return d;
+      const assignedUri = d.assignedVideoUri
+        ? formatVideoUriForWebView(d.assignedVideoUri)
+        : null;
+      const resolvedUri = assignedUri || fallbackVideoUri || undefined;
       return {
         ...d,
-        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+        assignedVideoUri: resolvedUri,
+        assignedVideoName: d.assignedVideoName || fallbackVideo?.name,
       };
     });
-    
+
     const config = {
       stealthMode: effectiveStealthMode,
       devices: normalizedDevices,
+      fallbackVideoUri,
+      forceSimulation: protocolForceSimulation,
+      protocolId: activeProtocol,
+      overlayLabelText: protocolOverlayLabel,
+      showOverlayLabel: showProtocolOverlayLabel,
+      loopVideo: standardSettings.loopVideo,
+      mirrorVideo: protocolMirrorVideo,
+      debugEnabled: developerModeEnabled,
     };
-    
+
     console.log('[App] Injecting media config:', {
       stealthMode: effectiveStealthMode,
       deviceCount: activeTemplate.captureDevices.length,
       simulatingDevices: activeTemplate.captureDevices.filter(d => d.simulationEnabled && d.assignedVideoUri).map(d => d.name),
+      protocol: activeProtocol,
+      fallback: fallbackVideo?.name || 'none',
     });
     
     lastInjectionTimeRef.current = Date.now();
     
+    const fallbackScript = createMediaInjectionScript(normalizedDevices, {
+      stealthMode: effectiveStealthMode,
+      fallbackVideoUri,
+      forceSimulation: protocolForceSimulation,
+      protocolId: activeProtocol,
+      protocolLabel: protocolOverlayLabel,
+      showOverlayLabel: showProtocolOverlayLabel,
+      loopVideo: standardSettings.loopVideo,
+      mirrorVideo: protocolMirrorVideo,
+      debugEnabled: developerModeEnabled,
+    });
+
     webViewRef.current.injectJavaScript(`
       (function() {
         if (window.__updateMediaConfig) {
           window.__updateMediaConfig(${JSON.stringify(config)});
           console.log('[MediaSim] Config injected from RN - devices:', ${activeTemplate.captureDevices.length});
         } else {
-          console.warn('[MediaSim] __updateMediaConfig not available yet');
+          ${fallbackScript}
         }
       })();
       true;
     `);
-  }, [activeTemplate, effectiveStealthMode, allowlistEnabled, isAllowlisted, currentHostname, url]);
+  }, [
+    activeTemplate,
+    effectiveStealthMode,
+    allowlistBlocked,
+    currentHostname,
+    url,
+    fallbackVideoUri,
+    fallbackVideo?.name,
+    protocolForceSimulation,
+    activeProtocol,
+    protocolOverlayLabel,
+    showProtocolOverlayLabel,
+    standardSettings.loopVideo,
+    protocolMirrorVideo,
+    developerModeEnabled,
+  ]);
 
   const injectMediaConfig = useCallback(() => {
     if (!isMountedRef.current) {
@@ -293,6 +413,9 @@ export default function MotionBrowserScreen() {
   }, [injectMediaConfigImmediate]);
 
   useEffect(() => {
+    if (!autoInjectEnabled) {
+      return;
+    }
     if (!isMountedRef.current) {
       console.log('[App] Skipping auto-inject - component not mounted');
       return;
@@ -310,7 +433,7 @@ export default function MotionBrowserScreen() {
     }, 150);
     
     return () => clearTimeout(timeoutId);
-  }, [activeTemplate, effectiveStealthMode, injectMediaConfig]);
+  }, [activeTemplate, effectiveStealthMode, injectMediaConfig, autoInjectEnabled]);
 
   // Safety: Reset stuck applying ref on mount and periodically
   useEffect(() => {
@@ -324,6 +447,7 @@ export default function MotionBrowserScreen() {
   }, []);
 
   useEffect(() => {
+    if (!standardSettings.injectMotionData) return;
     if (!simulationActive) return;
 
     const preset = PATTERN_PRESETS[simConfig.pattern];
@@ -361,7 +485,7 @@ export default function MotionBrowserScreen() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationActive, simConfig, injectMotionData]);
+  }, [simulationActive, simConfig, injectMotionData, standardSettings.injectMotionData]);
 
   useEffect(() => {
     if (webViewRef.current) {
@@ -371,10 +495,11 @@ export default function MotionBrowserScreen() {
   }, [allowlistSettings.enabled, allowlistSettings.domains]);
 
   useEffect(() => {
+    if (!standardSettings.injectMotionData) return;
     if (useRealSensors && !simulationActive) {
       injectMotionData(realAccelData, realGyroData, realOrientData, true);
     }
-  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData]);
+  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, standardSettings.injectMotionData]);
 
   const toggleToolbar = useCallback(() => {
     setToolbarExpanded(prev => !prev);
@@ -527,59 +652,61 @@ export default function MotionBrowserScreen() {
 
   const getBeforeLoadScript = useCallback(() => {
     const devices = (activeTemplate?.captureDevices || []).map(d => {
-      if (!d.assignedVideoUri) return d;
+      const assignedUri = d.assignedVideoUri
+        ? formatVideoUriForWebView(d.assignedVideoUri)
+        : null;
+      const resolvedUri = assignedUri || fallbackVideoUri || undefined;
       return {
         ...d,
-        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+        assignedVideoUri: resolvedUri,
+        assignedVideoName: d.assignedVideoName || fallbackVideo?.name,
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
-    const shouldInjectMedia = !allowlistEnabled || isAllowlisted;
-    
-    // Find the first device with an assigned video for the bulletproof script
-    const firstAssignedVideo = devices.find(d => d.simulationEnabled && d.assignedVideoUri);
-    const videoUrl = firstAssignedVideo?.assignedVideoUri;
-    
-    // Use BULLETPROOF injection first (always works), then the complex one as enhancement
-    // The bulletproof script provides a guaranteed working test pattern
-    // The complex script adds video loading capabilities on top
-    let injectionScript = '';
-    if (shouldInjectMedia) {
-      // Start with bulletproof script (guaranteed to work)
-      injectionScript = BULLETPROOF_INJECTION_SCRIPT;
-      
-      // If we have a video URL, try to load it via the bulletproof config
-      if (videoUrl) {
-        const truncatedVideoUrlForLog = JSON.stringify(videoUrl).substring(0, 50);
-        injectionScript += `
-(function() {
-  // Configure bulletproof with assigned video
-  if (window.__bulletproofConfig && window.__bulletproofConfig.setVideoUrl) {
-    window.__bulletproofConfig.setVideoUrl(${JSON.stringify(videoUrl)});
-    console.log('[App] Bulletproof configured with video:', ${truncatedVideoUrlForLog});
-  }
-})();
-true;
-`;
-      }
-      
-      // Also inject the full media simulation for additional features
-      injectionScript += createMediaInjectionScript(devices, effectiveStealthMode);
-    }
-    
+    const shouldInjectMedia = !allowlistBlocked;
+    const injectionOptions = {
+      stealthMode: effectiveStealthMode,
+      fallbackVideoUri,
+      forceSimulation: protocolForceSimulation,
+      protocolId: activeProtocol,
+      protocolLabel: protocolOverlayLabel,
+      showOverlayLabel: showProtocolOverlayLabel,
+      loopVideo: standardSettings.loopVideo,
+      mirrorVideo: protocolMirrorVideo,
+      debugEnabled: developerModeEnabled,
+    };
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
-      injectionScript +
+      (shouldInjectMedia ? createMediaInjectionScript(devices, injectionOptions) : '') +
       VIDEO_SIMULATION_TEST_SCRIPT;
-      
-    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode, 'allowlisted:', shouldInjectMedia, 'videoUrl:', videoUrl ? 'yes' : 'test pattern');
+    console.log('[App] Preparing before-load script with', {
+      devices: devices.length,
+      stealth: effectiveStealthMode,
+      allowlisted: shouldInjectMedia,
+      protocol: activeProtocol,
+      fallback: fallbackVideo?.name || 'none',
+    });
     return script;
-  }, [activeTemplate, safariModeEnabled, effectiveStealthMode, allowlistEnabled, isAllowlisted]);
+  }, [
+    activeTemplate,
+    safariModeEnabled,
+    effectiveStealthMode,
+    allowlistBlocked,
+    fallbackVideoUri,
+    fallbackVideo?.name,
+    protocolForceSimulation,
+    activeProtocol,
+    protocolOverlayLabel,
+    showProtocolOverlayLabel,
+    standardSettings.loopVideo,
+    protocolMirrorVideo,
+    developerModeEnabled,
+  ]);
 
   const getAfterLoadScript = useCallback(() => {
-    return MOTION_INJECTION_SCRIPT;
-  }, []);
+    return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
+  }, [standardSettings.injectMotionData]);
 
   const toggleSafariMode = useCallback(() => {
     setSafariModeEnabled(prev => !prev);
@@ -694,8 +821,10 @@ true;
                 onLoadEnd={() => {
                   setIsLoading(false);
                   setTimeout(() => {
-                    injectMediaConfig();
-                    console.log('[App] WebView loaded, media config injected');
+                    if (autoInjectEnabled) {
+                      injectMediaConfig();
+                      console.log('[App] WebView loaded, media config injected');
+                    }
                   }, 100);
                 }}
                 onNavigationStateChange={(navState) => {
@@ -719,6 +848,8 @@ true;
                       console.log(`[WebView ${logLevel.toUpperCase()}] [${timestamp}]`, data.message);
                     } else if (data.type === 'error') {
                       console.error('[WebView ERROR]', data.message, data.stack || '');
+                    } else if (data.type === 'mediaInjectionReady') {
+                      console.log('[WebView Injection Ready]', data.payload);
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
                     } else if (data.type === 'videoError') {
