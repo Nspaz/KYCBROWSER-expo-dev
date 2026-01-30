@@ -62,17 +62,18 @@ export default function ProtocolSettingsModal({
     setActiveProtocol,
     protocols,
     standardSettings,
-    holographicSettings,
+    allowlistSettings,
     protectedSettings,
     harnessSettings,
+    holographicSettings,
     updateStandardSettings,
-    updateHolographicSettings,
+    updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    // Legacy helpers removed/stubbed
-    // addAllowlistDomain,
-    // removeAllowlistDomain,
-    // isAllowlisted,
+    updateHolographicSettings,
+    addAllowlistDomain,
+    removeAllowlistDomain,
+    isAllowlisted,
     httpsEnforced,
     setHttpsEnforced,
     mlSafetyEnabled,
@@ -84,10 +85,20 @@ export default function ProtocolSettingsModal({
   const [domainInput, setDomainInput] = useState('');
   const [expandedProtocol, setExpandedProtocol] = useState<ProtocolType | null>(activeProtocol);
 
-  // Legacy allowlist logic removed
-  const currentAllowlisted = true;
+  const currentAllowlisted = useMemo(() => {
+    return isAllowlisted(currentHostname);
+  }, [isAllowlisted, currentHostname]);
 
-  const handlePinSubmit = async () => {
+  const handleAddDomain = () => {
+    if (!domainInput.trim()) return;
+    addAllowlistDomain(domainInput);
+    setDomainInput('');
+  };
+
+  const handleAddCurrentSite = () => {
+    if (!currentHostname) return;
+    addAllowlistDomain(currentHostname);
+  };
     if (pinInput.length < 4) {
       Alert.alert('Invalid PIN', 'PIN must be at least 4 characters.');
       return;
@@ -128,8 +139,8 @@ export default function ProtocolSettingsModal({
   };
 
   // Legacy handlers removed
-  const handleAddDomain = () => {};
-  const handleAddCurrentSite = () => {};
+  // const handleAddDomain = () => {};
+  // const handleAddCurrentSite = () => {};
 
   const toggleProtocol = (protocol: ProtocolType) => {
     setExpandedProtocol(expandedProtocol === protocol ? null : protocol);
@@ -213,6 +224,100 @@ export default function ProtocolSettingsModal({
         );
 
       case 'allowlist':
+        return (
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Enable Allowlist</Text>
+                <Text style={styles.settingHint}>Only inject on allowed domains</Text>
+              </View>
+              <Switch
+                value={allowlistSettings.enabled}
+                onValueChange={(v) => updateAllowlistSettings({ enabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={allowlistSettings.enabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {currentHostname && (
+              <View style={styles.currentSiteRow}>
+                <Globe size={14} color="#00aaff" />
+                <Text style={styles.currentSiteText}>{currentHostname}</Text>
+                <View style={[
+                  styles.statusBadge,
+                  currentAllowlisted ? styles.statusAllowed : styles.statusBlocked,
+                ]}>
+                  <Text style={styles.statusBadgeText}>
+                    {currentAllowlisted ? 'Allowed' : 'Blocked'}
+                  </Text>
+                </View>
+                {!currentAllowlisted && (
+                  <TouchableOpacity style={styles.addCurrentBtn} onPress={handleAddCurrentSite}>
+                    <Text style={styles.addCurrentBtnText}>Add</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Block Unlisted</Text>
+                <Text style={styles.settingHint}>Block injection on unlisted domains</Text>
+              </View>
+              <Switch
+                value={allowlistSettings.blockUnlisted}
+                onValueChange={(v) => updateAllowlistSettings({ blockUnlisted: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff4757' }}
+                thumbColor={allowlistSettings.blockUnlisted ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Blocked Indicator</Text>
+                <Text style={styles.settingHint}>Display indicator when blocked</Text>
+              </View>
+              <Switch
+                value={allowlistSettings.showBlockedIndicator}
+                onValueChange={(v) => updateAllowlistSettings({ showBlockedIndicator: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={allowlistSettings.showBlockedIndicator ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.domainInputRow}>
+              <TextInput
+                style={styles.domainInput}
+                value={domainInput}
+                onChangeText={setDomainInput}
+                placeholder="Add domain (e.g., example.com)"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={handleAddDomain}>
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+
+            {allowlistSettings.domains.length > 0 ? (
+              <View style={styles.domainList}>
+                {allowlistSettings.domains.map((domain) => (
+                  <View key={domain} style={styles.domainItem}>
+                    <Text style={styles.domainText}>{domain}</Text>
+                    <TouchableOpacity onPress={() => removeAllowlistDomain(domain)}>
+                      <Trash2 size={14} color="#ff4757" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>No domains in allowlist</Text>
+            )}
+          </View>
+        );
+
+      case 'holographic':
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -458,6 +563,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    holographic: <ZapOff size={18} color="#00ff88" />,
   };
 
   return (

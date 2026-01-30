@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -19,6 +19,14 @@ export interface StandardProtocolSettings {
   respectSiteSettings: boolean;
   injectMotionData: boolean;
   loopVideo: boolean;
+}
+
+export interface AllowlistProtocolSettings {
+  enabled: boolean;
+  domains: string[];
+  blockUnlisted: boolean;
+  showBlockedIndicator: boolean;
+  autoAddCurrentSite: boolean;
 }
 
 export interface HolographicProtocolSettings {
@@ -78,15 +86,17 @@ export interface ProtocolContextValue {
   
   // Protocol-specific settings
   standardSettings: StandardProtocolSettings;
-  holographicSettings: HolographicProtocolSettings;
+  allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
-  
+  holographicSettings: HolographicProtocolSettings;
+
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
-  updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
+  updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
+  updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -113,9 +123,10 @@ const STORAGE_KEYS = {
   ACTIVE_PROTOCOL: '@protocol_active',
   PROTOCOLS_CONFIG: '@protocols_config',
   STANDARD_SETTINGS: '@protocol_standard_settings',
-  HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
+  ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
+  HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -128,6 +139,14 @@ const DEFAULT_STANDARD_SETTINGS: StandardProtocolSettings = {
   respectSiteSettings: true,
   injectMotionData: true,
   loopVideo: true,
+};
+
+const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
+  enabled: false,
+  domains: [],
+  blockUnlisted: true,
+  showBlockedIndicator: true,
+  autoAddCurrentSite: false,
 };
 
 const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicProtocolSettings = {
@@ -170,8 +189,8 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   },
   allowlist: {
     id: 'allowlist',
-    name: 'Protocol 2: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
+    name: 'Protocol 2: Allowlist Test Mode',
+    description: 'Limits injection to explicitly allowed domains. Recommended for safe testing.',
     enabled: true,
     settings: {},
   },
@@ -186,6 +205,13 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     id: 'harness',
     name: 'Protocol 4: Local Test Harness',
     description: 'Local sandbox page for safe overlay testing without third-party sites.',
+    enabled: true,
+    settings: {},
+  },
+  holographic: {
+    id: 'holographic',
+    name: 'Protocol 5: Holographic Stream Injection',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
     enabled: true,
     settings: {},
   },
@@ -204,9 +230,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
-  const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
+  const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
+  const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -220,9 +247,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           activeProto,
           protocolsConfig,
           standard,
-          holographic,
+          allowlist,
           protected_,
           harness,
+          holographic,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -233,9 +261,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_PROTOCOL),
           AsyncStorage.getItem(STORAGE_KEYS.PROTOCOLS_CONFIG),
           AsyncStorage.getItem(STORAGE_KEYS.STANDARD_SETTINGS),
-          AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -260,11 +289,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             console.warn('[Protocol] Failed to parse standard settings:', e);
           }
         }
-        if (holographic) {
+        if (allowlist) {
           try {
-            setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
+            setAllowlistSettings({ ...DEFAULT_ALLOWLIST_SETTINGS, ...JSON.parse(allowlist) });
           } catch (e) {
-            console.warn('[Protocol] Failed to parse holographic settings:', e);
+            console.warn('[Protocol] Failed to parse allowlist settings:', e);
           }
         }
         if (protected_) {
@@ -279,6 +308,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHarnessSettings({ ...DEFAULT_HARNESS_SETTINGS, ...JSON.parse(harness) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse harness settings:', e);
+          }
+        }
+        if (holographic) {
+          try {
+            setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse holographic settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -364,11 +400,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.STANDARD_SETTINGS, JSON.stringify(newSettings));
   }, [standardSettings]);
 
-  const updateHolographicSettings = useCallback(async (settings: Partial<HolographicProtocolSettings>) => {
-    const newSettings = { ...holographicSettings, ...settings };
-    setHolographicSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS, JSON.stringify(newSettings));
-  }, [holographicSettings]);
+  const updateAllowlistSettings = useCallback(async (settings: Partial<AllowlistProtocolSettings>) => {
+    const newSettings = { ...allowlistSettings, ...settings };
+    setAllowlistSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.ALLOWLIST_SETTINGS, JSON.stringify(newSettings));
+  }, [allowlistSettings]);
 
   const updateProtectedSettings = useCallback(async (settings: Partial<ProtectedProtocolSettings>) => {
     const newSettings = { ...protectedSettings, ...settings };
@@ -382,10 +418,33 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
-  // Allowlist helpers - Stubbed
-  const addAllowlistDomain = useCallback(async (domain: string) => { console.log('Legacy allowlist add', domain); }, []);
-  const removeAllowlistDomain = useCallback(async (domain: string) => { console.log('Legacy allowlist remove', domain); }, []);
-  const isAllowlisted = useCallback((hostname: string): boolean => true, []);
+  const updateHolographicSettings = useCallback(async (settings: Partial<HolographicProtocolSettings>) => {
+    const newSettings = { ...holographicSettings, ...settings };
+    setHolographicSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS, JSON.stringify(newSettings));
+  }, [holographicSettings]);
+
+  // Allowlist helpers
+  const addAllowlistDomain = useCallback(async (domain: string) => {
+    const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
+    if (!normalized || allowlistSettings.domains.includes(normalized)) return;
+    
+    const newDomains = [...allowlistSettings.domains, normalized];
+    await updateAllowlistSettings({ domains: newDomains });
+  }, [allowlistSettings.domains, updateAllowlistSettings]);
+
+  const removeAllowlistDomain = useCallback(async (domain: string) => {
+    const newDomains = allowlistSettings.domains.filter(d => d !== domain);
+    await updateAllowlistSettings({ domains: newDomains });
+  }, [allowlistSettings.domains, updateAllowlistSettings]);
+
+  const isAllowlisted = useCallback((hostname: string): boolean => {
+    if (!allowlistSettings.enabled) return true;
+    const normalizedHostname = hostname.toLowerCase().replace(/^www\./, '');
+    return allowlistSettings.domains.some(domain =>
+      normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
+    );
+  }, [allowlistSettings.enabled, allowlistSettings.domains]);
 
   const setHttpsEnforced = useCallback(async (enforced: boolean) => {
     setHttpsEnforcedState(enforced);
@@ -412,17 +471,19 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     protocols,
     updateProtocolConfig,
     standardSettings,
-    holographicSettings,
+    allowlistSettings,
     protectedSettings,
     harnessSettings,
+    holographicSettings,
     updateStandardSettings,
-    updateHolographicSettings,
+    updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    // allowlist helpers - deprecated/stubbed for compatibility if needed, or removed
-    addAllowlistDomain: async () => {},
-    removeAllowlistDomain: async () => {},
-    isAllowlisted: () => true,
+    updateHolographicSettings,
+    // allowlist helpers
+    addAllowlistDomain,
+    removeAllowlistDomain,
+    isAllowlisted,
     httpsEnforced,
     setHttpsEnforced,
     mlSafetyEnabled,

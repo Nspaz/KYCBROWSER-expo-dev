@@ -3,7 +3,7 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -25,7 +25,16 @@ export interface StandardInjectionSettings {
   loggingLevel: 'none' | 'minimal' | 'verbose';
 }
 
-// Protocol 2: Holographic Stream Injection (HSI)
+// Protocol 2: Allowlist Mode Settings
+export interface AllowlistSettings {
+  enabled: boolean;
+  domains: string[];
+  blockByDefault: boolean;
+  showBlockedNotification: boolean;
+  autoAddCurrentSite: boolean;
+}
+
+// Protocol 5: Holographic Stream Injection (HSI)
 export interface HolographicSettings {
   enabled: boolean;
   // Network Layer
@@ -66,9 +75,10 @@ export interface TestHarnessSettings {
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
-  holographic: HolographicSettings;
+  allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  holographic: HolographicSettings;
 }
 
 // Developer Mode Settings
@@ -93,6 +103,14 @@ export const DEFAULT_STANDARD_SETTINGS: StandardInjectionSettings = {
   retryOnFail: true,
   maxRetries: 3,
   loggingLevel: 'minimal',
+};
+
+export const DEFAULT_ALLOWLIST_SETTINGS: AllowlistSettings = {
+  enabled: false,
+  domains: [],
+  blockByDefault: true,
+  showBlockedNotification: true,
+  autoAddCurrentSite: false,
 };
 
 export const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicSettings = {
@@ -127,9 +145,10 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
-  holographic: DEFAULT_HOLOGRAPHIC_SETTINGS,
+  allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  holographic: DEFAULT_HOLOGRAPHIC_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -156,10 +175,10 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     isLive: true,
     requiresDeveloperMode: false,
   },
-  holographic: {
-    id: 'allowlist', // Keeping ID stable for now, but behavior is changed
-    name: 'Protocol 2: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. The most advanced injection method available.',
+  allowlist: {
+    id: 'allowlist',
+    name: 'Protocol 2: Allowlist Test Mode',
+    description: 'Limits injection to domains you explicitly allow. Recommended for safe testing. Editing requires Developer Mode.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
@@ -179,5 +198,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  holographic: {
+    id: 'holographic',
+    name: 'Protocol 5: Holographic Stream Injection',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. The most advanced injection method available.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };
