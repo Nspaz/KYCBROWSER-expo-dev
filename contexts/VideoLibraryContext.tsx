@@ -112,10 +112,14 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     }
   }, []);
 
-  const queueSaveVideos = useCallback((videos: SavedVideo[]) => {
+  const queueSaveVideos = useCallback((videos: SavedVideo[]): Promise<void> => {
     saveQueueRef.current = saveQueueRef.current
-      .then(() => saveVideosMetadata(videos))
-      .catch(() => saveVideosMetadata(videos));
+      .catch((error) => {
+        console.error('[VideoLibrary] Previous metadata save failed:', error);
+      })
+      .then(() => saveVideosMetadata(videos));
+
+    return saveQueueRef.current;
   }, [saveVideosMetadata]);
 
   const persistCompatibilityResult = useCallback((videoId: string, result: CompatibilityResult) => {
@@ -148,7 +152,7 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       const shouldSave = Boolean(sampleVideo && (!existingSample || existingSample.uri !== sampleVideo.uri));
 
       if (shouldSave) {
-        await saveVideosMetadata(allVideos);
+        await queueSaveVideos(allVideos);
       }
 
       return allVideos;
@@ -203,12 +207,12 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     const shouldSave = baseChanged || newVideos.length > 0 || sampleChanged;
 
     if (shouldSave) {
-      await saveVideosMetadata(allVideos);
+      await queueSaveVideos(allVideos);
     }
 
     console.log('[VideoLibrary] Sync complete:', allVideos.length, 'videos');
     return allVideos;
-  }, [loadVideosMetadata, saveVideosMetadata]);
+  }, [loadVideosMetadata, queueSaveVideos]);
 
   const refreshVideoList = useCallback(async (): Promise<void> => {
     if (isRefreshingRef.current) {
@@ -324,11 +328,12 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       message: 'Saving to library...',
     });
 
+    let nextVideos: SavedVideo[] = [];
     setSavedVideos(prev => {
-      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
-      queueSaveVideos(updatedVideos);
-      return updatedVideos;
+      nextVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      return nextVideos;
     });
+    await queueSaveVideos(nextVideos);
 
     setProcessingState({
       isProcessing: false,
@@ -410,11 +415,12 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       message: 'Saving to library...',
     });
 
+    let nextVideos: SavedVideo[] = [];
     setSavedVideos(prev => {
-      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
-      queueSaveVideos(updatedVideos);
-      return updatedVideos;
+      nextVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      return nextVideos;
     });
+    await queueSaveVideos(nextVideos);
 
     setProcessingState({
       isProcessing: false,
@@ -443,15 +449,16 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       console.error('[VideoLibrary] Failed to delete file');
     }
 
+    let nextVideos: SavedVideo[] = [];
     setSavedVideos(prev => {
-      const updatedVideos = prev.filter(v => v.id !== id);
-      void saveVideosMetadata(updatedVideos);
-      return updatedVideos;
+      nextVideos = prev.filter(v => v.id !== id);
+      return nextVideos;
     });
+    await queueSaveVideos(nextVideos);
 
     console.log('[VideoLibrary] Video removed:', id);
     return true;
-  }, [savedVideos, saveVideosMetadata]);
+  }, [savedVideos, queueSaveVideos]);
 
   const clearProcessingState = useCallback(() => {
     setProcessingState(initialProcessingState);
@@ -474,17 +481,16 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return false;
     }
 
+    let nextVideos: SavedVideo[] = [];
     setSavedVideos(prev => {
-      const updatedVideos = prev.map(v =>
-        v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v
-      );
-      void saveVideosMetadata(updatedVideos);
-      return updatedVideos;
+      nextVideos = prev.map(v => v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v);
+      return nextVideos;
     });
+    await queueSaveVideos(nextVideos);
 
     console.log('[VideoLibrary] Thumbnail regenerated for:', video.name);
     return true;
-  }, [savedVideos, saveVideosMetadata]);
+  }, [savedVideos, queueSaveVideos]);
 
   const isVideoReady = useCallback((id: string): boolean => {
     const video = savedVideos.find(v => v.id === id);

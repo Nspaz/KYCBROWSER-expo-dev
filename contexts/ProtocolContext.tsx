@@ -337,6 +337,10 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   },
 };
 
+const isProtocolType = (value: string): value is ProtocolType => {
+  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness';
+};
+
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
   const [isLoading, setIsLoading] = useState(true);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
@@ -404,10 +408,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
         if (activeProto) {
-          if (activeProto in DEFAULT_PROTOCOLS) {
-            setActiveProtocolState(activeProto as ProtocolType);
+          if (isProtocolType(activeProto)) {
+            setActiveProtocolState(activeProto);
           } else {
-            console.warn('[Protocol] Invalid active protocol found:', activeProto);
+            console.warn('[Protocol] Unknown active protocol in storage:', activeProto);
             setActiveProtocolState('standard');
             await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, 'standard');
           }
