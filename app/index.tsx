@@ -21,7 +21,6 @@ import { router } from 'expo-router';
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
@@ -92,7 +91,6 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
-  const { developerMode, isAllowlistEditable } = useDeveloperMode();
 
   
 
@@ -108,6 +106,7 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    codexSettings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -155,6 +154,8 @@ export default function MotionBrowserScreen() {
     () => protocols[activeProtocol]?.enabled ?? true,
     [protocols, activeProtocol]
   );
+
+  const codexModeActive = activeProtocol === 'gpt52' && isProtocolEnabled;
 
   // Use protocol context for allowlist (only when allowlist protocol is active/enabled)
   const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
@@ -239,9 +240,26 @@ export default function MotionBrowserScreen() {
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
+  useEffect(() => {
+    if (!allowlistEnabled || !allowlistSettings.autoAddCurrentSite) return;
+    if (!currentHostname || isAllowlisted) return;
+    addAllowlistDomain(currentHostname);
+  }, [
+    allowlistEnabled,
+    allowlistSettings.autoAddCurrentSite,
+    currentHostname,
+    isAllowlisted,
+    addAllowlistDomain,
+  ]);
+
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
+    }
+    if (activeProtocol === 'gpt52') {
+      if (codexSettings.forceStealth) {
+        return true;
+      }
     }
     if (!standardSettings.stealthByDefault) {
       return false;
@@ -252,6 +270,7 @@ export default function MotionBrowserScreen() {
     return shouldUseStealthForUrl(url);
   }, [
     activeProtocol,
+    codexSettings.forceStealth,
     standardSettings.stealthByDefault,
     standardSettings.respectSiteSettings,
     shouldUseStealthForUrl,
@@ -261,9 +280,14 @@ export default function MotionBrowserScreen() {
   const protocolForceSimulation = isProtocolEnabled && (
     activeProtocol === 'protected'
     || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
+    || (activeProtocol === 'gpt52' && codexSettings.forceSimulation)
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+
+  const adaptiveQualityEnabled = codexModeActive && codexSettings.adaptiveQuality;
+  const maxRetryAttempts = codexModeActive && codexSettings.aggressiveRetries ? 8 : 4;
+  const videoLoadTimeoutMs = codexModeActive && codexSettings.aggressiveRetries ? 16000 : 12000;
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -275,11 +299,21 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'harness') {
       return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
     }
+    if (activeProtocol === 'gpt52') {
+      return codexSettings.showOverlayLabel ? 'GPT-5.2 Codex High Active' : '';
+    }
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
+  }, [
+    activeProtocol,
+    harnessSettings.overlayEnabled,
+    codexSettings.showOverlayLabel,
+    allowlistEnabled,
+    allowlistBlocked,
+    isProtocolEnabled,
+  ]);
 
   const showProtocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -291,17 +325,21 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'harness') {
       return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
+    if (activeProtocol === 'gpt52') {
+      return codexSettings.showOverlayLabel;
+    }
     return false;
   }, [
     activeProtocol,
     protectedSettings.showProtectedBadge,
     harnessSettings.showDebugInfo,
     harnessSettings.overlayEnabled,
+    codexSettings.showOverlayLabel,
     isProtocolEnabled,
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
-    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+    (activeProtocol === 'standard' || activeProtocol === 'allowlist' || activeProtocol === 'gpt52')
       ? standardSettings.autoInject
       : true
   );
@@ -375,6 +413,9 @@ export default function MotionBrowserScreen() {
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
+      adaptiveQuality: adaptiveQualityEnabled,
+      maxRetryAttempts,
+      videoLoadTimeoutMs,
       debugEnabled: developerModeEnabled,
     };
 
@@ -397,6 +438,9 @@ export default function MotionBrowserScreen() {
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
+      adaptiveQuality: adaptiveQualityEnabled,
+      maxRetryAttempts,
+      videoLoadTimeoutMs,
       debugEnabled: developerModeEnabled,
     });
 
@@ -426,6 +470,9 @@ export default function MotionBrowserScreen() {
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
     protocolMirrorVideo,
+    adaptiveQualityEnabled,
+    maxRetryAttempts,
+    videoLoadTimeoutMs,
     developerModeEnabled,
   ]);
 
@@ -732,6 +779,9 @@ export default function MotionBrowserScreen() {
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
+      adaptiveQuality: adaptiveQualityEnabled,
+      maxRetryAttempts,
+      videoLoadTimeoutMs,
       debugEnabled: developerModeEnabled,
     };
     const script =
@@ -760,6 +810,9 @@ export default function MotionBrowserScreen() {
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
     protocolMirrorVideo,
+    adaptiveQualityEnabled,
+    maxRetryAttempts,
+    videoLoadTimeoutMs,
     developerModeEnabled,
     isProtocolEnabled,
   ]);
@@ -824,7 +877,7 @@ export default function MotionBrowserScreen() {
       
       {/* Testing Watermark */}
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark && !presentationMode}
         position="top-right"
         variant="minimal"
         showPulse={true}

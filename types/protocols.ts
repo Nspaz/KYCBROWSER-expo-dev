@@ -1,9 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'gpt52';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,12 +54,23 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
+// Protocol 5: GPT-5.2 Codex High Settings
+export interface CodexInjectionSettings {
+  enabled: boolean;
+  adaptiveQuality: boolean;
+  forceStealth: boolean;
+  forceSimulation: boolean;
+  aggressiveRetries: boolean;
+  showOverlayLabel: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  codex: CodexInjectionSettings;
 }
 
 // Developer Mode Settings
@@ -112,11 +123,21 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
+export const DEFAULT_CODEX_SETTINGS: CodexInjectionSettings = {
+  enabled: true,
+  adaptiveQuality: true,
+  forceStealth: true,
+  forceSimulation: true,
+  aggressiveRetries: true,
+  showOverlayLabel: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  codex: DEFAULT_CODEX_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -163,6 +184,14 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     id: 'harness',
     name: 'Protocol 4: Local Test Harness',
     description: 'A local sandbox page for safe overlay testing without touching third-party sites.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: false,
+  },
+  gpt52: {
+    id: 'gpt52',
+    name: 'Protocol 5: GPT-5.2 Codex High',
+    description: 'Most advanced adaptive injection mode with resilience, stealth-first defaults, and performance tuning.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,

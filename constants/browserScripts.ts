@@ -661,6 +661,9 @@ export interface MediaInjectionOptions {
   showOverlayLabel?: boolean;
   loopVideo?: boolean;
   mirrorVideo?: boolean;
+  adaptiveQuality?: boolean;
+  maxRetryAttempts?: number;
+  videoLoadTimeoutMs?: number;
   debugEnabled?: boolean;
 }
 
@@ -677,6 +680,9 @@ export const createMediaInjectionScript = (
     showOverlayLabel = false,
     loopVideo = true,
     mirrorVideo = false,
+    adaptiveQuality = false,
+    maxRetryAttempts = 4,
+    videoLoadTimeoutMs = 12000,
     debugEnabled,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
@@ -701,6 +707,9 @@ export const createMediaInjectionScript = (
         showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
+        adaptiveQuality: ${adaptiveQuality ? 'true' : 'false'},
+        maxRetryAttempts: ${maxRetryAttempts},
+        videoLoadTimeoutMs: ${videoLoadTimeoutMs},
         debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
       });
     }
@@ -721,8 +730,9 @@ export const createMediaInjectionScript = (
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
-    VIDEO_LOAD_TIMEOUT: 12000,
-    MAX_RETRY_ATTEMPTS: 4,
+    ADAPTIVE_QUALITY: ${adaptiveQuality ? 'true' : 'false'},
+    VIDEO_LOAD_TIMEOUT: ${videoLoadTimeoutMs},
+    MAX_RETRY_ATTEMPTS: ${maxRetryAttempts},
     INITIAL_RETRY_DELAY: 500,
     HEALTH_CHECK_INTERVAL: 5000,
     MIN_ACCEPTABLE_FPS: 15,
@@ -855,6 +865,10 @@ export const createMediaInjectionScript = (
         if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) {
           this.fpsHistory.shift();
         }
+        if (CONFIG.ADAPTIVE_QUALITY) {
+          QualityAdapter.recordFps(fps);
+          QualityAdapter.adapt();
+        }
       }
       this.lastFrameTime = now;
       this.frameCount++;
@@ -960,6 +974,11 @@ export const createMediaInjectionScript = (
       if (prevLevel !== this.currentLevel) {
         this.lastAdaptTime = now;
         var quality = this.getCurrentQuality();
+        RenderCache.frameSkipThreshold = quality.name === 'low'
+          ? 0.03
+          : quality.name === 'medium'
+            ? 0.01
+            : 0.001;
         Logger.log('Quality adapted:', quality.name, '| FPS:', avgFps.toFixed(1));
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -974,8 +993,21 @@ export const createMediaInjectionScript = (
       return { width: Math.round(w * q.scale), height: Math.round(h * q.scale), fps: q.fps };
     },
     
-    reset: function() { this.currentLevel = 0; this.fpsHistory = []; this.lastAdaptTime = 0; }
+    reset: function() {
+      this.currentLevel = 0;
+      this.fpsHistory = [];
+      this.lastAdaptTime = 0;
+      RenderCache.frameSkipThreshold = 0.001;
+    }
   };
+
+  function getTargetFps() {
+    return CONFIG.ADAPTIVE_QUALITY ? QualityAdapter.getCurrentQuality().fps : CONFIG.TARGET_FPS;
+  }
+
+  function getTargetFrameTime() {
+    return 1000 / getTargetFps();
+  }
   
   // ============ PAGE LIFECYCLE CLEANUP ============
   window.addEventListener('beforeunload', function() {
@@ -1232,6 +1264,9 @@ export const createMediaInjectionScript = (
     forceSimulation: CONFIG.FORCE_SIMULATION,
     loopVideo: CONFIG.LOOP_VIDEO,
     mirrorVideo: CONFIG.MIRROR_VIDEO,
+    adaptiveQuality: CONFIG.ADAPTIVE_QUALITY,
+    maxRetryAttempts: CONFIG.MAX_RETRY_ATTEMPTS,
+    videoLoadTimeoutMs: CONFIG.VIDEO_LOAD_TIMEOUT,
     protocolId: CONFIG.PROTOCOL_ID,
     overlayLabelText: CONFIG.PROTOCOL_LABEL,
     showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
@@ -1281,6 +1316,21 @@ export const createMediaInjectionScript = (
     Logger.log('Config updated - devices:', window.__mediaSimConfig.devices?.length || 0);
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
+    }
+    if (config.adaptiveQuality !== undefined) {
+      CONFIG.ADAPTIVE_QUALITY = !!config.adaptiveQuality;
+      window.__mediaSimConfig.adaptiveQuality = CONFIG.ADAPTIVE_QUALITY;
+      if (!CONFIG.ADAPTIVE_QUALITY) {
+        QualityAdapter.reset();
+      }
+    }
+    if (config.maxRetryAttempts !== undefined) {
+      CONFIG.MAX_RETRY_ATTEMPTS = Math.max(1, Number(config.maxRetryAttempts));
+      window.__mediaSimConfig.maxRetryAttempts = CONFIG.MAX_RETRY_ATTEMPTS;
+    }
+    if (config.videoLoadTimeoutMs !== undefined) {
+      CONFIG.VIDEO_LOAD_TIMEOUT = Math.max(1000, Number(config.videoLoadTimeoutMs));
+      window.__mediaSimConfig.videoLoadTimeoutMs = CONFIG.VIDEO_LOAD_TIMEOUT;
     }
     if (
       config.loopVideo !== undefined ||
@@ -1933,7 +1983,7 @@ export const createMediaInjectionScript = (
       let fallbackAttempt = 0;
       const start = Date.now();
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
+      const minFrameRatio = 0.9;
       
       // Get the current fallback renderer
       let currentRenderer = VIDEO_FORMAT_FALLBACKS[0].render;
@@ -1942,7 +1992,7 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < targetFrameTime * 0.9) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(render);
           return;
         }
@@ -1975,7 +2025,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
@@ -2089,8 +2139,7 @@ export const createMediaInjectionScript = (
       
       let isRunning = true;
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
-      const minFrameTime = targetFrameTime * 0.9;
+      const minFrameRatio = 0.9;
       let frameCount = 0;
       
       // Pre-cache canvas dimensions
@@ -2102,7 +2151,7 @@ export const createMediaInjectionScript = (
         
         // Optimized frame rate limiting
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < minFrameTime) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(draw);
           return;
         }
@@ -2160,7 +2209,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('captureStream failed'));
             return;
@@ -2337,7 +2386,7 @@ export const createMediaInjectionScript = (
       const start = Date.now();
       let isRunning = true;
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
+      const minFrameRatio = 0.9;
       let currentFallbackIdx = 0;
       let errorCount = 0;
       const MAX_ERRORS_BEFORE_FALLBACK = 3;
@@ -2346,7 +2395,7 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < targetFrameTime * 0.9) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(render);
           return;
         }
@@ -2387,7 +2436,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
