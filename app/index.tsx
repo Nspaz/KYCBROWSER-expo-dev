@@ -106,6 +106,7 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    codexSettings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -159,6 +160,7 @@ export default function MotionBrowserScreen() {
   const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
   const allowlistEnabled = allowlistModeActive && allowlistSettings.enabled;
   const allowedDomains = allowlistSettings.domains;
+  const codexModeActive = activeProtocol === 'codex' && isProtocolEnabled;
 
   const compatibleVideos = useMemo(() => {
     return savedVideos.filter(video => {
@@ -242,6 +244,9 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
     }
+    if (activeProtocol === 'codex' && codexSettings.enhancedStealth) {
+      return true;
+    }
     if (!standardSettings.stealthByDefault) {
       return false;
     }
@@ -251,6 +256,7 @@ export default function MotionBrowserScreen() {
     return shouldUseStealthForUrl(currentPageUrl);
   }, [
     activeProtocol,
+    codexSettings.enhancedStealth,
     standardSettings.stealthByDefault,
     standardSettings.respectSiteSettings,
     shouldUseStealthForUrl,
@@ -260,9 +266,11 @@ export default function MotionBrowserScreen() {
   const protocolForceSimulation = isProtocolEnabled && (
     activeProtocol === 'protected'
     || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
+    || (activeProtocol === 'codex' && codexSettings.forceSimulation)
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const performanceProfile = codexModeActive && codexSettings.adaptiveQuality ? 'codex' : 'standard';
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -274,11 +282,21 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'harness') {
       return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
     }
+    if (activeProtocol === 'codex') {
+      return codexSettings.adaptiveQuality ? 'Codex Adaptive Injection' : 'Codex High Fidelity';
+    }
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
+  }, [
+    activeProtocol,
+    harnessSettings.overlayEnabled,
+    codexSettings.adaptiveQuality,
+    allowlistEnabled,
+    allowlistBlocked,
+    isProtocolEnabled,
+  ]);
 
   const showProtocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -290,19 +308,25 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'harness') {
       return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
+    if (activeProtocol === 'codex') {
+      return codexSettings.diagnosticsOverlay;
+    }
     return false;
   }, [
     activeProtocol,
     protectedSettings.showProtectedBadge,
     harnessSettings.showDebugInfo,
     harnessSettings.overlayEnabled,
+    codexSettings.diagnosticsOverlay,
     isProtocolEnabled,
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
-    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
-      ? standardSettings.autoInject
-      : true
+    activeProtocol === 'codex'
+      ? codexSettings.autoInject
+      : (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+        ? standardSettings.autoInject
+        : true
   );
 
   const simulatingDevicesCount = useMemo(() =>
@@ -310,8 +334,27 @@ export default function MotionBrowserScreen() {
     [activeTemplate]
   );
 
+  const shouldInjectMotionData = useMemo(() => {
+    if (!isProtocolEnabled) {
+      return false;
+    }
+    if (allowlistBlocked) {
+      return false;
+    }
+    if (activeProtocol === 'codex') {
+      return codexSettings.injectMotionData;
+    }
+    return standardSettings.injectMotionData;
+  }, [
+    activeProtocol,
+    allowlistBlocked,
+    codexSettings.injectMotionData,
+    standardSettings.injectMotionData,
+    isProtocolEnabled,
+  ]);
+
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
-    if (!standardSettings.injectMotionData) return;
+    if (!shouldInjectMotionData) return;
     if (!webViewRef.current) return;
     
     const message = JSON.stringify({
@@ -330,7 +373,7 @@ export default function MotionBrowserScreen() {
       window.__updateMotionData && window.__updateMotionData(${message}.payload);
       true;
     `);
-  }, [standardSettings.injectMotionData]);
+  }, [shouldInjectMotionData]);
 
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
@@ -348,7 +391,7 @@ export default function MotionBrowserScreen() {
     }
 
     if (allowlistBlocked) {
-      console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || url);
+      console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || currentPageUrl);
       return;
     }
 
@@ -370,6 +413,7 @@ export default function MotionBrowserScreen() {
       fallbackVideoUri,
       forceSimulation: protocolForceSimulation,
       protocolId: activeProtocol,
+      performanceProfile,
       overlayLabelText: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
@@ -392,6 +436,7 @@ export default function MotionBrowserScreen() {
       fallbackVideoUri,
       forceSimulation: protocolForceSimulation,
       protocolId: activeProtocol,
+      performanceProfile,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
@@ -415,12 +460,13 @@ export default function MotionBrowserScreen() {
     effectiveStealthMode,
     allowlistBlocked,
     currentHostname,
-    url,
+    currentPageUrl,
     fallbackVideoUri,
     fallbackVideo?.name,
     protocolForceSimulation,
     activeProtocol,
     isProtocolEnabled,
+    performanceProfile,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
@@ -491,7 +537,7 @@ export default function MotionBrowserScreen() {
   }, []);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!shouldInjectMotionData) return;
     if (!simulationActive) return;
 
     const preset = PATTERN_PRESETS[simConfig.pattern];
@@ -529,7 +575,7 @@ export default function MotionBrowserScreen() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationActive, simConfig, injectMotionData, standardSettings.injectMotionData]);
+  }, [simulationActive, simConfig, injectMotionData, shouldInjectMotionData]);
 
   useEffect(() => {
     if (!allowlistModeActive) {
@@ -542,11 +588,11 @@ export default function MotionBrowserScreen() {
   }, [allowlistModeActive, allowlistSettings.enabled, allowlistSettings.domains]);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!shouldInjectMotionData) return;
     if (useRealSensors && !simulationActive) {
       injectMotionData(realAccelData, realGyroData, realOrientData, true);
     }
-  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, standardSettings.injectMotionData]);
+  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, shouldInjectMotionData]);
 
   const toggleToolbar = useCallback(() => {
     setToolbarExpanded(prev => !prev);
@@ -728,6 +774,7 @@ export default function MotionBrowserScreen() {
       fallbackVideoUri,
       forceSimulation: protocolForceSimulation,
       protocolId: activeProtocol,
+      performanceProfile,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
       loopVideo: standardSettings.loopVideo,
@@ -756,6 +803,7 @@ export default function MotionBrowserScreen() {
     fallbackVideo?.name,
     protocolForceSimulation,
     activeProtocol,
+    performanceProfile,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
@@ -765,8 +813,8 @@ export default function MotionBrowserScreen() {
   ]);
 
   const getAfterLoadScript = useCallback(() => {
-    return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
-  }, [standardSettings.injectMotionData]);
+    return shouldInjectMotionData ? MOTION_INJECTION_SCRIPT : '';
+  }, [shouldInjectMotionData]);
 
   const toggleSafariMode = useCallback(() => {
     setSafariModeEnabled(prev => !prev);
@@ -948,6 +996,7 @@ export default function MotionBrowserScreen() {
                     const httpsUrl = forceHttps(request.url);
                     setUrl(httpsUrl);
                     setInputUrl(httpsUrl);
+                    setCurrentPageUrl(httpsUrl);
                     return false;
                   }
                   return true;
