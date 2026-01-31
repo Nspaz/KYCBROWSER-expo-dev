@@ -100,7 +100,7 @@ export default function ProtectedPreviewScreen() {
           )}
         </View>
         
-        {isDeveloperModeEnabled && (
+        {developerModeEnabled && (
           <View style={styles.protocolBadge}>
             <FlaskConical size={14} color="#ffcc00" />
             <Text style={styles.protocolBadgeText}>Developer Mode Active</Text>
@@ -182,8 +182,8 @@ export default function ProtectedPreviewScreen() {
                     styles.sensitivityBtn,
                     protectedSettings.bodyDetectionSensitivity === level && styles.sensitivityBtnActive,
                   ]}
-                  onPress={() => isProtocolEditable && updateProtectedSettings({ bodyDetectionSensitivity: level })}
-                  disabled={!isProtocolEditable}
+                  onPress={() => developerModeEnabled && updateProtectedSettings({ bodyDetectionSensitivity: level })}
+                  disabled={!developerModeEnabled}
                 >
                   <Text style={[
                     styles.sensitivityBtnText,
@@ -197,7 +197,7 @@ export default function ProtectedPreviewScreen() {
           </View>
           
           <Text style={styles.toggleHint}>
-            {isProtocolEditable 
+            {developerModeEnabled
               ? 'Settings are editable in developer mode. ML-based body detection will trigger replacement.'
               : 'Enable developer mode in Protocols to modify settings.'}
           </Text>
