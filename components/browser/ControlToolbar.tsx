@@ -707,7 +707,6 @@ export function ProtocolSettingsModal({
   const [expandedProtocol, setExpandedProtocol] = useState<ProtocolId | null>(null);
   
   const {
-    developerMode,
     isDeveloperModeEnabled,
     isAllowlistEditable,
     isProtocolEditable,
