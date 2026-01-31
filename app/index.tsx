@@ -21,7 +21,6 @@ import { router } from 'expo-router';
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
@@ -92,7 +91,6 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
-  const { developerMode, isAllowlistEditable } = useDeveloperMode();
 
   
 
@@ -118,6 +116,7 @@ export default function MotionBrowserScreen() {
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
   const [inputUrl, setInputUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
+  const [currentPageUrl, setCurrentPageUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
   const [canGoBack, setCanGoBack] = useState<boolean>(false);
   const [canGoForward, setCanGoForward] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -200,18 +199,18 @@ export default function MotionBrowserScreen() {
     removeAllowlistDomain(domain);
   }, [removeAllowlistDomain]);
 
-  const currentWebsiteSettings = useMemo(() => 
-    getWebsiteSettings(url),
-    [getWebsiteSettings, url]
+  const currentWebsiteSettings = useMemo(
+    () => getWebsiteSettings(currentPageUrl),
+    [getWebsiteSettings, currentPageUrl]
   );
 
   const currentHostname = useMemo(() => {
     try {
-      return new URL(url).hostname.toLowerCase();
+      return new URL(currentPageUrl).hostname.toLowerCase();
     } catch {
       return '';
     }
-  }, [url]);
+  }, [currentPageUrl]);
 
   const isAllowlisted = useMemo(() => {
     return checkIsAllowlisted(currentHostname);
@@ -249,13 +248,13 @@ export default function MotionBrowserScreen() {
     if (!standardSettings.respectSiteSettings) {
       return true;
     }
-    return shouldUseStealthForUrl(url);
+    return shouldUseStealthForUrl(currentPageUrl);
   }, [
     activeProtocol,
     standardSettings.stealthByDefault,
     standardSettings.respectSiteSettings,
     shouldUseStealthForUrl,
-    url,
+    currentPageUrl,
   ]);
 
   const protocolForceSimulation = isProtocolEnabled && (
@@ -691,6 +690,7 @@ export default function MotionBrowserScreen() {
     const normalizedUrl = normalizeUrl(inputUrl);
     setUrl(normalizedUrl);
     setInputUrl(normalizedUrl);
+    setCurrentPageUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
   const isWeb = Platform.OS === 'web';
@@ -779,22 +779,23 @@ export default function MotionBrowserScreen() {
     const testUrl = APP_CONFIG.WEBVIEW.TEST_URL;
     setUrl(testUrl);
     setInputUrl(testUrl);
+    setCurrentPageUrl(testUrl);
     console.log('[App] Navigating to webcam test:', testUrl);
   }, []);
 
   const handleOpenInBrowser = useCallback(async () => {
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      const canOpen = await Linking.canOpenURL(currentPageUrl);
       if (!canOpen) {
         Alert.alert('Unsupported URL', 'This device cannot open the URL.');
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(currentPageUrl);
     } catch (error) {
       console.error('[App] Failed to open browser:', error);
       Alert.alert('Error', 'Unable to open the browser.');
     }
-  }, [url]);
+  }, [currentPageUrl]);
 
 
 
@@ -824,7 +825,7 @@ export default function MotionBrowserScreen() {
       
       {/* Testing Watermark */}
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark}
         position="top-right"
         variant="minimal"
         showPulse={true}
@@ -893,6 +894,7 @@ export default function MotionBrowserScreen() {
                   
                   if (navState.url) {
                     const normalizedUrl = httpsEnforced ? forceHttps(navState.url) : navState.url;
+                    setCurrentPageUrl(normalizedUrl);
                     setInputUrl(normalizedUrl);
                     if (httpsEnforced && navState.url !== normalizedUrl) {
                       setUrl(normalizedUrl);
@@ -979,7 +981,7 @@ export default function MotionBrowserScreen() {
             isSimulating={simulatingDevicesCount > 0}
             simulatingDevicesCount={simulatingDevicesCount}
             activeCamerasCount={activeTemplate?.captureDevices.length || 0}
-            currentUrl={url}
+            currentUrl={currentPageUrl}
             currentWebsiteSettings={currentWebsiteSettings}
             onStealthModeToggle={toggleStealthMode}
             onOpenDevices={() => setShowDevicesModal(true)}
@@ -1060,7 +1062,7 @@ export default function MotionBrowserScreen() {
 
       <SiteSettingsModal
         visible={showSiteSettingsModal}
-        currentUrl={url}
+        currentUrl={currentPageUrl}
         currentSettings={currentWebsiteSettings}
         globalStealthMode={stealthMode}
         allSiteSettings={websiteSettings}
