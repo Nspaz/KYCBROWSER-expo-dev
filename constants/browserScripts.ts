@@ -662,6 +662,7 @@ export interface MediaInjectionOptions {
   loopVideo?: boolean;
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
+  permissionPromptEnabled?: boolean;
 }
 
 export const createMediaInjectionScript = (
@@ -678,6 +679,7 @@ export const createMediaInjectionScript = (
     loopVideo = true,
     mirrorVideo = false,
     debugEnabled,
+    permissionPromptEnabled = true,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
@@ -701,7 +703,8 @@ export const createMediaInjectionScript = (
         showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
-        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
+        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)},
+        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'}
       });
     }
     return;
@@ -718,6 +721,7 @@ export const createMediaInjectionScript = (
     SHOW_OVERLAY_LABEL: ${showOverlayLabel ? 'true' : 'false'},
     LOOP_VIDEO: ${loopVideo ? 'true' : 'false'},
     MIRROR_VIDEO: ${mirrorVideo ? 'true' : 'false'},
+    PERMISSION_PROMPT_ENABLED: ${permissionPromptEnabled ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
@@ -1234,7 +1238,8 @@ export const createMediaInjectionScript = (
     mirrorVideo: CONFIG.MIRROR_VIDEO,
     protocolId: CONFIG.PROTOCOL_ID,
     overlayLabelText: CONFIG.PROTOCOL_LABEL,
-    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
+    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL,
+    permissionPromptEnabled: CONFIG.PERMISSION_PROMPT_ENABLED
   };
 
   // ============ PROTOCOL OVERLAY BADGE ============
@@ -1457,6 +1462,66 @@ export const createMediaInjectionScript = (
     const fallback = getFallbackVideoUri();
     return fallback || 'canvas:default';
   }
+
+  function createPermissionError(name, message) {
+    const err = new Error(message);
+    err.name = name;
+    return err;
+  }
+
+  const PermissionPrompt = {
+    pending: {},
+    request: function(payload) {
+      const cfg = window.__mediaSimConfig || {};
+      if (cfg.permissionPromptEnabled === false) {
+        return Promise.resolve({ action: 'auto' });
+      }
+      if (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage) {
+        return Promise.resolve({ action: 'deny' });
+      }
+      const requestId = 'perm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      return new Promise(function(resolve) {
+        PermissionPrompt.pending[requestId] = resolve;
+        try {
+          const message = {
+            type: 'cameraPermissionRequest',
+            payload: {
+              requestId: requestId,
+              url: typeof location !== 'undefined' ? location.href : '',
+              origin: typeof location !== 'undefined' ? location.origin : '',
+              wantsVideo: !!payload.wantsVideo,
+              wantsAudio: !!payload.wantsAudio,
+              requestedFacing: payload.requestedFacing || null,
+              requestedDeviceId: payload.requestedDeviceId || null
+            }
+          };
+          window.ReactNativeWebView.postMessage(JSON.stringify(message));
+        } catch (err) {
+          Logger.warn('Permission prompt postMessage failed:', err?.message || err);
+          delete PermissionPrompt.pending[requestId];
+          resolve({ action: 'deny' });
+          return;
+        }
+        setTimeout(function() {
+          if (PermissionPrompt.pending[requestId]) {
+            Logger.warn('Permission prompt timed out, denying');
+            PermissionPrompt.pending[requestId]({ action: 'deny' });
+            delete PermissionPrompt.pending[requestId];
+          }
+        }, 30000);
+      });
+    },
+    resolve: function(requestId, decision) {
+      if (!requestId || !PermissionPrompt.pending[requestId]) return;
+      const resolver = PermissionPrompt.pending[requestId];
+      delete PermissionPrompt.pending[requestId];
+      resolver(decision || { action: 'deny' });
+    }
+  };
+
+  window.__resolveCameraPermission = function(requestId, decision) {
+    PermissionPrompt.resolve(requestId, decision);
+  };
   
   function buildSimulatedDevices(devices) {
     return (devices || []).map(function(d) {
@@ -1558,56 +1623,101 @@ export const createMediaInjectionScript = (
     };
 
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = function(constraints) {
+    mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
-      
-      return new Promise(function(resolve, reject) {
-        const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const cfg = window.__mediaSimConfig || {};
-        const wantsVideo = !!constraints?.video;
-        const wantsAudio = !!constraints?.audio;
-        
-        let reqDeviceId = null;
-        let reqFacing = null;
-        
-        if (wantsVideo && typeof constraints.video === 'object') {
-          reqDeviceId = getConstraintValue(constraints.video.deviceId);
-          reqFacing = normalizeFacingMode(getConstraintValue(constraints.video.facingMode));
-        }
-        
-        const selectedDevice = selectDevice(cfg.devices, reqDeviceId, reqFacing);
-        const device = normalizeDevice(selectedDevice);
-        
-        // Register pending request
-        if (!window.__pendingRequests) window.__pendingRequests = {};
-        window.__pendingRequests[requestId] = {
-          resolve: resolve,
-          reject: reject,
-          constraints: constraints,
-          device: device,
-          wantsAudio: wantsAudio,
-          wantsVideo: wantsVideo
-        };
-        
-        Logger.log('Requesting permission from App:', requestId);
-        
-        // Notify React Native
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'permissionRequest',
-            requestId: requestId,
-            origin: window.location.origin,
-            constraints: constraints
-          }));
-        } else {
-          // Fallback if not in WebView
-          Logger.warn('Not in WebView, allowing by default');
-          window.__handlePermissionResponse({
-            requestId: requestId,
-            action: 'allow'
+
+      const cfg = window.__mediaSimConfig || {};
+      const wantsVideo = !!constraints?.video;
+      const wantsAudio = !!constraints?.audio;
+
+      let reqDeviceId = null;
+      let reqFacing = null;
+
+      if (wantsVideo && typeof constraints.video === 'object') {
+        reqDeviceId = getConstraintValue(constraints.video.deviceId);
+        reqFacing = normalizeFacingMode(getConstraintValue(constraints.video.facingMode));
+      }
+
+      const selectedDevice = selectDevice(cfg.devices, reqDeviceId, reqFacing);
+      const device = normalizeDevice(selectedDevice);
+      const resolvedUri = resolveVideoUri(device);
+      const hasVideoUri = resolvedUri && !resolvedUri.startsWith('canvas:');
+      const forceSimulation = !!cfg.forceSimulation;
+
+      Logger.log(
+        'Device:', device?.name || 'none',
+        '| ReqId:', reqDeviceId || 'none',
+        '| Facing:', reqFacing || 'any',
+        '| SimEnabled:', device?.simulationEnabled,
+        '| ForceSim:', forceSimulation,
+        '| URI:', resolvedUri ? resolvedUri.substring(0, 40) : 'none'
+      );
+
+      let permissionDecision = null;
+      if (wantsVideo) {
+        try {
+          permissionDecision = await PermissionPrompt.request({
+            wantsVideo: wantsVideo,
+            wantsAudio: wantsAudio,
+            requestedFacing: reqFacing,
+            requestedDeviceId: reqDeviceId
           });
+        } catch (err) {
+          Logger.warn('Permission prompt failed:', err?.message || err);
         }
-      });
+      }
+
+      const decisionAction = permissionDecision && typeof permissionDecision === 'object'
+        ? permissionDecision.action
+        : null;
+
+      if (decisionAction === 'deny') {
+        throw createPermissionError('NotAllowedError', 'Camera permission denied by user');
+      }
+
+      if (decisionAction === 'real') {
+        if (_origGetUserMedia) {
+          Logger.log('User selected real camera access');
+          return _origGetUserMedia(constraints);
+        }
+        throw createPermissionError('NotSupportedError', 'Real camera access is not available');
+      }
+
+      const shouldSimulate = decisionAction === 'simulate'
+        ? true
+        : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
+
+      if (shouldSimulate && wantsVideo) {
+        if (hasVideoUri) {
+          Logger.log('Creating simulated stream from video');
+          try {
+            const deviceForSim = {
+              ...device,
+              assignedVideoUri: resolvedUri,
+              simulationEnabled: true
+            };
+            const stream = await createVideoStream(deviceForSim, !!wantsAudio);
+            Logger.log('SUCCESS - tracks:', stream.getTracks().length);
+            return stream;
+          } catch (err) {
+            Logger.error('Video stream failed:', err.message);
+            Logger.log('Falling back to canvas pattern');
+          }
+        }
+
+        const deviceForCanvas = {
+          ...device,
+          assignedVideoUri: resolvedUri,
+          simulationEnabled: true
+        };
+        return await createCanvasStream(deviceForCanvas, !!wantsAudio, 'default');
+      }
+
+      if (_origGetUserMedia) {
+        return _origGetUserMedia(constraints);
+      }
+
+      throw createPermissionError('NotSupportedError', 'Real camera access is not available');
     };
 
     const overrideEnumerateDevices = navigator.mediaDevices.enumerateDevices;

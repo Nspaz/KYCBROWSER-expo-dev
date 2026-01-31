@@ -23,6 +23,7 @@ import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
+import type { ProtocolType } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
 import { 
@@ -47,6 +48,18 @@ import TestingWatermark from '@/components/TestingWatermark';
 import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlToolbar';
 import { ProtocolSettingsModal, PermissionRequestModal } from '@/components/browser/modals';
 import SetupRequired from '@/components/SetupRequired';
+
+type CameraPermissionRequest = {
+  requestId: string;
+  url?: string;
+  origin?: string;
+  wantsVideo: boolean;
+  wantsAudio: boolean;
+  requestedFacing?: string | null;
+  requestedDeviceId?: string | null;
+};
+
+type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -99,6 +112,7 @@ export default function MotionBrowserScreen() {
     presentationMode,
     showTestingWatermark,
     activeProtocol,
+    setActiveProtocol,
     protocols,
     standardSettings,
     allowlistSettings,
@@ -143,6 +157,28 @@ export default function MotionBrowserScreen() {
 
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
+  const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
+  const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
+  const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
+  const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
+
+  const protocolOptions = useMemo(() => {
+    return Object.values(protocols).map(protocol => ({
+      id: protocol.id,
+      name: protocol.name,
+      enabled: protocol.enabled,
+    }));
+  }, [protocols]);
+
+  const enabledProtocolOptions = useMemo(
+    () => protocolOptions.filter(option => option.enabled),
+    [protocolOptions]
+  );
+
+  const selectedProtocolOption = useMemo(
+    () => protocolOptions.find(option => option.id === selectedProtocol),
+    [protocolOptions, selectedProtocol]
+  );
 
   const [permissionRequest, setPermissionRequest] = useState<{
     requestId: string;
@@ -231,6 +267,18 @@ export default function MotionBrowserScreen() {
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
+  const permissionSiteLabel = useMemo(() => {
+    if (!pendingPermissionRequest?.url && !pendingPermissionRequest?.origin) {
+      return '';
+    }
+    const raw = pendingPermissionRequest?.url || pendingPermissionRequest?.origin || '';
+    try {
+      return new URL(raw).hostname || raw;
+    } catch {
+      return raw;
+    }
+  }, [pendingPermissionRequest]);
+
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
@@ -303,6 +351,25 @@ export default function MotionBrowserScreen() {
     [activeTemplate]
   );
 
+  useEffect(() => {
+    if (pendingPermissionRequest || permissionQueue.length === 0) {
+      return;
+    }
+    const [nextRequest, ...remaining] = permissionQueue;
+    const fallbackProtocol = enabledProtocolOptions[0]?.id ?? activeProtocol;
+    const defaultProtocol = protocols[activeProtocol]?.enabled ? activeProtocol : fallbackProtocol;
+    setPermissionQueue(remaining);
+    setSelectedProtocol(defaultProtocol);
+    setProtocolDropdownOpen(false);
+    setPendingPermissionRequest(nextRequest);
+  }, [
+    activeProtocol,
+    enabledProtocolOptions,
+    pendingPermissionRequest,
+    permissionQueue,
+    protocols,
+  ]);
+
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
     if (!standardSettings.injectMotionData) return;
     if (!webViewRef.current) return;
@@ -368,6 +435,7 @@ export default function MotionBrowserScreen() {
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      permissionPromptEnabled: true,
     };
 
     console.log('[App] Injecting media config:', {
@@ -390,6 +458,7 @@ export default function MotionBrowserScreen() {
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      permissionPromptEnabled: true,
     });
 
     webViewRef.current.injectJavaScript(`
@@ -449,6 +518,59 @@ export default function MotionBrowserScreen() {
     injectMediaConfigImmediate();
   }, [injectMediaConfigImmediate]);
 
+  const sendPermissionDecision = useCallback((
+    requestId: string,
+    decision: { action: PermissionAction; protocolId?: ProtocolType }
+  ) => {
+    if (!webViewRef.current) {
+      console.warn('[App] Unable to send permission decision - no WebView');
+      return;
+    }
+    const requestJson = JSON.stringify(requestId);
+    const decisionJson = JSON.stringify(decision);
+    webViewRef.current.injectJavaScript(`
+      if (window.__resolveCameraPermission) {
+        window.__resolveCameraPermission(${requestJson}, ${decisionJson});
+      }
+      true;
+    `);
+  }, []);
+
+  const handlePermissionAction = useCallback((action: PermissionAction) => {
+    if (!pendingPermissionRequest) {
+      return;
+    }
+    const requestId = pendingPermissionRequest.requestId;
+    let protocolToApply = selectedProtocol;
+    if (!protocols[protocolToApply]?.enabled) {
+      protocolToApply = enabledProtocolOptions[0]?.id ?? activeProtocol;
+      setSelectedProtocol(protocolToApply);
+    }
+
+    if (action === 'simulate') {
+      if (protocolToApply !== activeProtocol) {
+        void setActiveProtocol(protocolToApply);
+      } else {
+        injectMediaConfig();
+      }
+      sendPermissionDecision(requestId, { action, protocolId: protocolToApply });
+    } else {
+      sendPermissionDecision(requestId, { action });
+    }
+
+    setProtocolDropdownOpen(false);
+    setPendingPermissionRequest(null);
+  }, [
+    activeProtocol,
+    enabledProtocolOptions,
+    injectMediaConfig,
+    pendingPermissionRequest,
+    protocols,
+    selectedProtocol,
+    sendPermissionDecision,
+    setActiveProtocol,
+  ]);
+
   useEffect(() => {
     if (!autoInjectEnabled) {
       return;
@@ -471,6 +593,32 @@ export default function MotionBrowserScreen() {
     
     return () => clearTimeout(timeoutId);
   }, [activeTemplate, effectiveStealthMode, injectMediaConfig, autoInjectEnabled]);
+
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      return;
+    }
+    if (isApplyingVideoRef.current) {
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      if (isMountedRef.current && !isApplyingVideoRef.current) {
+        injectMediaConfig();
+      }
+    }, 120);
+    return () => clearTimeout(timeoutId);
+  }, [
+    activeProtocol,
+    protocolForceSimulation,
+    protocolMirrorVideo,
+    protocolOverlayLabel,
+    showProtocolOverlayLabel,
+    standardSettings.loopVideo,
+    developerModeEnabled,
+    allowlistBlocked,
+    isProtocolEnabled,
+    injectMediaConfig,
+  ]);
 
   // Safety: Reset stuck applying ref on mount and periodically
   useEffect(() => {
@@ -734,6 +882,7 @@ export default function MotionBrowserScreen() {
       loopVideo: standardSettings.loopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      permissionPromptEnabled: true,
     };
     const script =
       CONSOLE_CAPTURE_SCRIPT +
@@ -930,6 +1079,22 @@ export default function MotionBrowserScreen() {
                       console.log('[WebView Injection Ready]', data.payload);
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
+                    } else if (data.type === 'cameraPermissionRequest') {
+                      const payload = data.payload || {};
+                      if (!payload.requestId) {
+                        console.warn('[App] Permission request missing requestId');
+                        return;
+                      }
+                      const request: CameraPermissionRequest = {
+                        requestId: String(payload.requestId),
+                        url: payload.url,
+                        origin: payload.origin,
+                        wantsVideo: Boolean(payload.wantsVideo),
+                        wantsAudio: Boolean(payload.wantsAudio),
+                        requestedFacing: payload.requestedFacing || null,
+                        requestedDeviceId: payload.requestedDeviceId || null,
+                      };
+                      setPermissionQueue(queue => [...queue, request]);
                     } else if (data.type === 'videoError') {
                       console.error('[WebView Video Error]', data.payload?.error?.message);
                       const errorMsg = data.payload?.error?.message || 'Video failed to load';
@@ -1081,7 +1246,83 @@ export default function MotionBrowserScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-
+      <Modal
+        visible={Boolean(pendingPermissionRequest)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => handlePermissionAction('deny')}
+      >
+        <View style={styles.permissionOverlay}>
+          <View style={styles.permissionCard}>
+            <Text style={styles.permissionTitle}>Camera Permission Request</Text>
+            <Text style={styles.permissionSubtitle}>
+              {permissionSiteLabel
+                ? `${permissionSiteLabel} wants access to your camera.`
+                : 'A site wants access to your camera.'}
+            </Text>
+            <View style={styles.permissionSection}>
+              <Text style={styles.permissionSectionTitle}>Simulate video</Text>
+              <Text style={styles.permissionSectionHint}>
+                Use your configured simulated camera feed with a selected protocol.
+              </Text>
+              <TouchableOpacity
+                style={styles.permissionDropdown}
+                onPress={() => setProtocolDropdownOpen(prev => !prev)}
+              >
+                <Text style={styles.permissionDropdownText}>
+                  {selectedProtocolOption?.name || 'Select protocol'}
+                </Text>
+              </TouchableOpacity>
+              {protocolDropdownOpen && (
+                <View style={styles.permissionDropdownList}>
+                  {enabledProtocolOptions.map(option => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.permissionDropdownItem,
+                        option.id === selectedProtocol && styles.permissionDropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedProtocol(option.id);
+                        setProtocolDropdownOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.permissionDropdownItemText,
+                          option.id === selectedProtocol && styles.permissionDropdownItemTextActive,
+                        ]}
+                      >
+                        {option.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            <View style={styles.permissionActions}>
+              <TouchableOpacity
+                style={styles.permissionSimulateButton}
+                onPress={() => handlePermissionAction('simulate')}
+              >
+                <Text style={styles.permissionSimulateText}>Simulate Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.permissionRealButton}
+                onPress={() => handlePermissionAction('real')}
+              >
+                <Text style={styles.permissionRealText}>Don&apos;t Simulate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.permissionDenyButton}
+                onPress={() => handlePermissionAction('deny')}
+              >
+                <Text style={styles.permissionDenyText}>Deny Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <SiteSettingsModal
         visible={showSiteSettingsModal}
@@ -1220,5 +1461,120 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#00ff88',
+  },
+  permissionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  permissionCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  permissionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  permissionSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  permissionSection: {
+    marginBottom: 16,
+  },
+  permissionSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+    marginBottom: 6,
+  },
+  permissionSectionHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 10,
+  },
+  permissionDropdown: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#111111',
+  },
+  permissionDropdownText: {
+    color: '#ffffff',
+    fontSize: 13,
+  },
+  permissionDropdownList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    backgroundColor: '#101010',
+    overflow: 'hidden',
+  },
+  permissionDropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  permissionDropdownItemActive: {
+    backgroundColor: 'rgba(0,255,136,0.15)',
+  },
+  permissionDropdownItemText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+  },
+  permissionDropdownItemTextActive: {
+    color: '#00ff88',
+    fontWeight: '600' as const,
+  },
+  permissionActions: {
+    gap: 10,
+  },
+  permissionSimulateButton: {
+    backgroundColor: '#00ff88',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  permissionSimulateText: {
+    color: '#0a0a0a',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  permissionRealButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  permissionRealText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  permissionDenyButton: {
+    backgroundColor: 'rgba(255,71,87,0.15)',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,71,87,0.4)',
+  },
+  permissionDenyText: {
+    color: '#ff4757',
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
 });
