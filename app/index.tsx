@@ -32,6 +32,8 @@ import {
   CONSOLE_CAPTURE_SCRIPT,
   VIDEO_SIMULATION_TEST_SCRIPT,
   createMediaInjectionScript,
+  getPerformanceProfilePreset,
+  type PerformanceProfile,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
@@ -254,6 +256,28 @@ export default function MotionBrowserScreen() {
     addAllowlistDomain,
   ]);
 
+  useEffect(() => {
+    if (!allowlistEnabled || !allowlistSettings.autoAddCurrentSite) return;
+    if (!currentHostname) return;
+    addAllowlistDomain(currentHostname);
+  }, [
+    allowlistEnabled,
+    allowlistSettings.autoAddCurrentSite,
+    currentHostname,
+    addAllowlistDomain,
+  ]);
+
+  const isCodexProtocol = activeProtocol === 'gpt-5.2-codex-high';
+  const performanceProfile: PerformanceProfile = useMemo(() => {
+    if (!isCodexProtocol) return 'standard';
+    return codexSettings.aggressiveTuning ? 'aggressive' : 'advanced';
+  }, [isCodexProtocol, codexSettings.aggressiveTuning]);
+  const performancePreset = useMemo(
+    () => getPerformanceProfilePreset(performanceProfile),
+    [performanceProfile]
+  );
+  const adaptiveQualityEnabled = isCodexProtocol && codexSettings.adaptiveQuality;
+
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness' || activeProtocol === 'gpt52') {
       return true;
@@ -398,6 +422,11 @@ export default function MotionBrowserScreen() {
     [activeTemplate]
   );
 
+  const motionInjectionEnabled = useMemo(() => (
+    standardSettings.injectMotionData
+    || (activeProtocol === 'gpt-5.2-codex-high' && codexSettings.injectMotionData)
+  ), [standardSettings.injectMotionData, activeProtocol, codexSettings.injectMotionData]);
+
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
     if (!motionInjectionEnabled) return;
     if (!webViewRef.current) return;
@@ -430,13 +459,44 @@ export default function MotionBrowserScreen() {
       return;
     }
 
-    if (!isProtocolEnabled) {
-      console.log('[App] Protocol disabled - injection skipped:', activeProtocol);
-      return;
-    }
-
-    if (allowlistBlocked) {
-      console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || url);
+    if (!isProtocolEnabled || allowlistBlocked) {
+      console.log('[App] Injection disabled:', {
+        protocol: activeProtocol,
+        allowlistBlocked,
+        protocolEnabled: isProtocolEnabled,
+      });
+      if (webViewRef.current) {
+        const disablePreset = getPerformanceProfilePreset('standard');
+        const disableConfig = {
+          devices: [],
+          stealthMode: false,
+          forceSimulation: false,
+          fallbackVideoUri: null,
+          protocolId: activeProtocol,
+          overlayLabelText: '',
+          showOverlayLabel: false,
+          adaptiveQualityEnabled: false,
+          performanceProfile: 'standard',
+          videoLoadTimeout: disablePreset.videoLoadTimeout,
+          maxRetryAttempts: disablePreset.maxRetryAttempts,
+          initialRetryDelay: disablePreset.initialRetryDelay,
+          healthCheckInterval: disablePreset.healthCheckInterval,
+          minAcceptableFps: disablePreset.minAcceptableFps,
+          qualityAdaptationInterval: disablePreset.qualityAdaptationInterval,
+          performanceSampleSize: disablePreset.performanceSampleSize,
+        };
+        webViewRef.current.injectJavaScript(`
+          (function() {
+            if (window.__updateMediaConfig) {
+              window.__updateMediaConfig(${JSON.stringify(disableConfig)});
+            }
+            if (window.__cleanupAllStreams) {
+              window.__cleanupAllStreams();
+            }
+          })();
+          true;
+        `);
+      }
       return;
     }
 
@@ -572,6 +632,13 @@ export default function MotionBrowserScreen() {
     
     return () => clearTimeout(timeoutId);
   }, [activeTemplate, effectiveStealthMode, injectMediaConfig, autoInjectEnabled]);
+
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    if (allowlistBlocked || !isProtocolEnabled) {
+      injectMediaConfig();
+    }
+  }, [allowlistBlocked, isProtocolEnabled, injectMediaConfig]);
 
   // Safety: Reset stuck applying ref on mount and periodically
   useEffect(() => {

@@ -11,6 +11,51 @@ import {
 
 export const SAFARI_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 
+export type PerformanceProfile = 'standard' | 'advanced' | 'aggressive';
+
+export interface PerformanceProfilePreset {
+  videoLoadTimeout: number;
+  maxRetryAttempts: number;
+  initialRetryDelay: number;
+  healthCheckInterval: number;
+  minAcceptableFps: number;
+  qualityAdaptationInterval: number;
+  performanceSampleSize: number;
+}
+
+const PERFORMANCE_PROFILE_PRESETS: Record<PerformanceProfile, PerformanceProfilePreset> = {
+  standard: {
+    videoLoadTimeout: 12000,
+    maxRetryAttempts: 4,
+    initialRetryDelay: 500,
+    healthCheckInterval: 5000,
+    minAcceptableFps: 15,
+    qualityAdaptationInterval: 3000,
+    performanceSampleSize: 60,
+  },
+  advanced: {
+    videoLoadTimeout: 15000,
+    maxRetryAttempts: 6,
+    initialRetryDelay: 400,
+    healthCheckInterval: 3500,
+    minAcceptableFps: 12,
+    qualityAdaptationInterval: 2000,
+    performanceSampleSize: 90,
+  },
+  aggressive: {
+    videoLoadTimeout: 18000,
+    maxRetryAttempts: 8,
+    initialRetryDelay: 300,
+    healthCheckInterval: 2500,
+    minAcceptableFps: 10,
+    qualityAdaptationInterval: 1500,
+    performanceSampleSize: 120,
+  },
+};
+
+export const getPerformanceProfilePreset = (profile: PerformanceProfile): PerformanceProfilePreset =>
+  PERFORMANCE_PROFILE_PRESETS[profile] || PERFORMANCE_PROFILE_PRESETS.standard;
+
 export const IPHONE_DEFAULT_PORTRAIT_RESOLUTION = {
   width: 1080,
   height: 1920,
@@ -693,6 +738,7 @@ export const createMediaInjectionScript = (
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
+  const profilePreset = getPerformanceProfilePreset(performanceProfile);
   
   const placeholderWidth = defaultRes?.width || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width;
   const placeholderHeight = defaultRes?.height || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height;
@@ -901,7 +947,7 @@ export const createMediaInjectionScript = (
         const delta = now - this.lastFrameTime;
         const fps = 1000 / delta;
         this.fpsHistory.push(fps);
-        if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) {
+        if (this.fpsHistory.length > RuntimeConfig.performanceSampleSize) {
           this.fpsHistory.shift();
         }
         if (CONFIG.ADAPTIVE_QUALITY) {
@@ -1003,6 +1049,7 @@ export const createMediaInjectionScript = (
     getCurrentQuality: function() { return CONFIG.QUALITY_LEVELS[this.currentLevel]; },
     
     recordFps: function(fps) {
+      if (!RuntimeConfig.adaptiveQualityEnabled) return;
       this.fpsHistory.push(fps);
       if (this.fpsHistory.length > 30) this.fpsHistory.shift();
     },
@@ -1013,8 +1060,9 @@ export const createMediaInjectionScript = (
     },
     
     adapt: function() {
+      if (!RuntimeConfig.adaptiveQualityEnabled) return;
       var now = Date.now();
-      if (now - this.lastAdaptTime < CONFIG.QUALITY_ADAPTATION_INTERVAL || this.fpsHistory.length < 10) return;
+      if (now - this.lastAdaptTime < RuntimeConfig.qualityAdaptationInterval || this.fpsHistory.length < 10) return;
       
       var avgFps = this.getAverageFps();
       var prevLevel = this.currentLevel;
@@ -1350,7 +1398,16 @@ export const createMediaInjectionScript = (
     aggressiveRetries: CONFIG.AGGRESSIVE_RETRIES,
     protocolId: CONFIG.PROTOCOL_ID,
     overlayLabelText: CONFIG.PROTOCOL_LABEL,
-    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
+    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL,
+    adaptiveQualityEnabled: CONFIG.ADAPTIVE_QUALITY_ENABLED,
+    performanceProfile: CONFIG.PERFORMANCE_PROFILE,
+    videoLoadTimeout: CONFIG.VIDEO_LOAD_TIMEOUT,
+    maxRetryAttempts: CONFIG.MAX_RETRY_ATTEMPTS,
+    initialRetryDelay: CONFIG.INITIAL_RETRY_DELAY,
+    healthCheckInterval: CONFIG.HEALTH_CHECK_INTERVAL,
+    minAcceptableFps: CONFIG.MIN_ACCEPTABLE_FPS,
+    qualityAdaptationInterval: CONFIG.QUALITY_ADAPTATION_INTERVAL,
+    performanceSampleSize: CONFIG.PERFORMANCE_SAMPLE_SIZE
   };
 
   // ============ PROTOCOL OVERLAY BADGE ============
@@ -1394,6 +1451,7 @@ export const createMediaInjectionScript = (
   
   window.__updateMediaConfig = function(config) {
     Object.assign(window.__mediaSimConfig, config);
+    updateRuntimeConfig(config);
     Logger.log('Config updated - devices:', window.__mediaSimConfig.devices?.length || 0);
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
@@ -1679,7 +1737,11 @@ export const createMediaInjectionScript = (
       
       if (_origGetUserMedia && !cfg.stealthMode && !forceSimulation) {
         Logger.log('Using real getUserMedia');
-        return _origGetUserMedia(constraints);
+        try {
+          return await _origGetUserMedia(constraints);
+        } catch (err) {
+          Logger.warn('Real getUserMedia failed, falling back to simulation:', err?.message || err);
+        }
       }
       
       Logger.log('No simulation, returning canvas pattern');
@@ -1785,17 +1847,17 @@ export const createMediaInjectionScript = (
   }
   
   async function loadVideoWithRetry(videoUri, maxAttempts) {
-    maxAttempts = maxAttempts || CONFIG.MAX_RETRY_ATTEMPTS;
+    const effectiveMaxAttempts = typeof maxAttempts === 'number' ? maxAttempts : RuntimeConfig.maxRetryAttempts;
     let lastError = null;
     
     // Handle base64 data URIs directly (no CORS needed)
     if (isBase64VideoUri(videoUri)) {
-      return loadBase64Video(videoUri, CONFIG.VIDEO_LOAD_TIMEOUT * 2); // Extra timeout for large base64
+      return loadBase64Video(videoUri, RuntimeConfig.videoLoadTimeout * 2); // Extra timeout for large base64
     }
     
     // Handle blob URLs directly (no CORS needed)
     if (isBlobUri(videoUri)) {
-      return loadBlobVideo(videoUri, CONFIG.VIDEO_LOAD_TIMEOUT);
+      return loadBlobVideo(videoUri, RuntimeConfig.videoLoadTimeout);
     }
     
     // Check connection quality first
@@ -1807,8 +1869,8 @@ export const createMediaInjectionScript = (
     for (let strategy = 0; strategy < CONFIG.CORS_STRATEGIES.length; strategy++) {
       const corsMode = CONFIG.CORS_STRATEGIES[strategy];
       
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const delay = CONFIG.INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+      for (let attempt = 0; attempt < effectiveMaxAttempts; attempt++) {
+        const delay = RuntimeConfig.initialRetryDelay * Math.pow(2, attempt);
         
         if (attempt > 0) {
           Logger.log('Retry attempt', attempt + 1, 'with', delay, 'ms delay, CORS:', corsMode);
@@ -1819,7 +1881,7 @@ export const createMediaInjectionScript = (
         Metrics.startVideoLoad();
         
         try {
-          const video = await loadVideoElement(videoUri, corsMode, CONFIG.VIDEO_LOAD_TIMEOUT);
+          const video = await loadVideoElement(videoUri, corsMode, RuntimeConfig.videoLoadTimeout);
           Metrics.endVideoLoad(true);
           notifyLoadingProgress(1, 'complete', 'Video loaded successfully');
           return video;
@@ -2085,6 +2147,9 @@ export const createMediaInjectionScript = (
         }
         lastDrawTime = timestamp;
         
+        const fps = 1000 / Math.max(1, elapsed);
+        QualityAdapter.recordFps(fps);
+        QualityAdapter.adapt();
         Metrics.recordFrame();
         const t = (Date.now() - start) / 1000;
         
@@ -2125,6 +2190,8 @@ export const createMediaInjectionScript = (
             Logger.log('Green screen stream cleanup');
           };
           stream._isRunning = function() { return isRunning; };
+
+          registerStreamWithRegistry(stream, device);
           
           Logger.log('Green screen stream ready:', stream.getTracks().length, 'tracks (9:16 enforced)');
           resolve(stream);
@@ -2255,6 +2322,9 @@ export const createMediaInjectionScript = (
         // Update natural variations (throttled internally)
         NaturalVariations.update(timestamp);
         
+        const fps = 1000 / Math.max(1, elapsed);
+        QualityAdapter.recordFps(fps);
+        QualityAdapter.adapt();
         // Record metrics every 10 frames to reduce overhead
         if (frameCount % 10 === 0) {
           Metrics.recordFrame();
@@ -2381,6 +2451,8 @@ export const createMediaInjectionScript = (
           stream._canvas = canvas;
           stream._isRunning = function() { return isRunning; };
           stream._stop = function() { isRunning = false; };
+
+          registerStreamWithRegistry(stream, device);
           
           resolve(stream);
         } catch (err) {
@@ -2399,7 +2471,7 @@ export const createMediaInjectionScript = (
       }
       
       const avgFps = Metrics.getAverageFps();
-      const isHealthy = avgFps >= CONFIG.MIN_ACCEPTABLE_FPS;
+      const isHealthy = avgFps >= RuntimeConfig.minAcceptableFps;
       
       if (!isHealthy) {
         Logger.warn('Stream health degraded - FPS:', avgFps.toFixed(1));
@@ -2425,7 +2497,7 @@ export const createMediaInjectionScript = (
           Logger.error('Failed to resume video:', e.message);
         });
       }
-    }, CONFIG.HEALTH_CHECK_INTERVAL);
+    }, RuntimeConfig.healthCheckInterval);
     
     // Store interval for cleanup
     stream._healthInterval = healthInterval;
@@ -2488,6 +2560,9 @@ export const createMediaInjectionScript = (
         }
         lastDrawTime = timestamp;
         
+        const fps = 1000 / Math.max(1, elapsed);
+        QualityAdapter.recordFps(fps);
+        QualityAdapter.adapt();
         Metrics.recordFrame();
         const t = (Date.now() - start) / 1000;
         
@@ -2597,6 +2672,8 @@ export const createMediaInjectionScript = (
             currentFallbackIdx = (currentFallbackIdx + 1) % VIDEO_FORMAT_FALLBACKS.length;
             Logger.log('Manual fallback switch to:', VIDEO_FORMAT_FALLBACKS[currentFallbackIdx].name);
           };
+
+          registerStreamWithRegistry(stream, device);
           
           Logger.log('Green screen stream ready:', stream.getTracks().length, 'tracks | 9:16 enforced | Fallback:', VIDEO_FORMAT_FALLBACKS[currentFallbackIdx].name);
           resolve(stream);
