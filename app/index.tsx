@@ -896,7 +896,7 @@ export default function MotionBrowserScreen() {
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
-  const getBeforeLoadScript = useCallback(() => {
+  const beforeLoadData = useMemo(() => {
     // Ensure all devices have a video URI - use built-in fallback if none assigned
     const devices = (activeTemplate?.captureDevices || []).map(d => {
       const assignedUri = d.assignedVideoUri
@@ -915,7 +915,7 @@ export default function MotionBrowserScreen() {
         simulationEnabled: d.simulationEnabled || (effectiveStealthMode && d.type === 'camera'),
       };
     });
-    
+
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
     const shouldInjectMedia = isProtocolEnabled && !allowlistBlocked;
     const injectionOptions = {
@@ -935,15 +935,18 @@ export default function MotionBrowserScreen() {
       spoofScript +
       (shouldInjectMedia ? createMediaInjectionScript(devices, injectionOptions) : '') +
       VIDEO_SIMULATION_TEST_SCRIPT;
-    console.log('[App] Preparing before-load script with', {
-      devices: devices.length,
-      stealth: effectiveStealthMode,
-      allowlisted: shouldInjectMedia,
-      protocol: activeProtocol,
-      fallback: fallbackVideo?.name || 'none',
-    });
-    console.log('[App] Devices with videos:', devices.filter(d => d.assignedVideoUri).length);
-    return script;
+
+    return {
+      script,
+      meta: {
+        devices: devices.length,
+        stealth: effectiveStealthMode,
+        allowlisted: shouldInjectMedia,
+        protocol: activeProtocol,
+        fallback: fallbackVideo?.name || 'none',
+      },
+      devicesWithVideos: devices.filter(d => d.assignedVideoUri).length,
+    };
   }, [
     activeTemplate,
     safariModeEnabled,
@@ -961,7 +964,12 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
   ]);
 
-  const getAfterLoadScript = useCallback(() => {
+  useEffect(() => {
+    console.log('[App] Preparing before-load script with', beforeLoadData.meta);
+    console.log('[App] Devices with videos:', beforeLoadData.devicesWithVideos);
+  }, [beforeLoadData]);
+
+  const afterLoadScript = useMemo(() => {
     return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
   }, [standardSettings.injectMotionData]);
 
@@ -1120,8 +1128,8 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                injectedJavaScriptBeforeContentLoaded={getBeforeLoadScript()}
-                injectedJavaScript={getAfterLoadScript()}
+                injectedJavaScriptBeforeContentLoaded={beforeLoadData.script}
+                injectedJavaScript={afterLoadScript}
                 onLoadStart={() => setIsLoading(true)}
                 onLoadEnd={() => {
                   setIsLoading(false);
