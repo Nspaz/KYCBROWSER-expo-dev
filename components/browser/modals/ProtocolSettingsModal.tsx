@@ -21,7 +21,7 @@ interface ProtocolSettingsModalProps {
   onClose: () => void;
 }
 
-const PROTOCOL_ORDER: ProtocolType[] = ['standard', 'allowlist', 'protected', 'harness', 'gpt52'];
+const PROTOCOL_ORDER: ProtocolType[] = ['standard', 'allowlist', 'protected', 'harness', 'gpt52', 'gpt-5-2-codex-high'];
 
 export default function ProtocolSettingsModal({ visible, currentHostname, onClose }: ProtocolSettingsModalProps) {
   const [domainInput, setDomainInput] = useState('');
@@ -41,11 +41,13 @@ export default function ProtocolSettingsModal({ visible, currentHostname, onClos
     protectedSettings,
     harnessSettings,
     gpt52Settings,
+    codexSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
     updateGpt52Settings,
+    updateCodexSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -414,6 +416,55 @@ export default function ProtocolSettingsModal({ visible, currentHostname, onClos
                     <Text style={styles.settingLabel}>Aggressive Retry</Text>
                   </View>
                   <Switch value={gpt52Settings.aggressiveRetry} onValueChange={(v) => updateGpt52Settings({ aggressiveRetry: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={gpt52Settings.aggressiveRetry ? '#ffffff' : '#888888'} />
+                </View>
+              </View>
+            )}
+
+            {/* GPT-5.2 Codex High */}
+            <TouchableOpacity style={styles.expandHeader} onPress={() => toggleExpanded('gpt-5-2-codex-high')}>
+              <Text style={styles.expandTitle}>GPT-5.2 Codex High</Text>
+              <ChevronRight size={18} color="rgba(255,255,255,0.5)" style={{ transform: [{ rotate: expanded === 'gpt-5-2-codex-high' ? '90deg' : '0deg' }] }} />
+            </TouchableOpacity>
+            {expanded === 'gpt-5-2-codex-high' && (
+              <View style={styles.card}>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Auto Inject</Text>
+                  <Switch value={codexSettings.autoInject} onValueChange={(v) => updateCodexSettings({ autoInject: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.autoInject ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Stealth Mode</Text>
+                  <Switch value={codexSettings.stealthMode} onValueChange={(v) => updateCodexSettings({ stealthMode: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.stealthMode ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Force Simulation</Text>
+                  <Switch value={codexSettings.forceSimulation} onValueChange={(v) => updateCodexSettings({ forceSimulation: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.forceSimulation ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Loop Video</Text>
+                  <Switch value={codexSettings.loopVideo} onValueChange={(v) => updateCodexSettings({ loopVideo: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.loopVideo ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Mirror Video</Text>
+                  <Switch value={codexSettings.mirrorVideo} onValueChange={(v) => updateCodexSettings({ mirrorVideo: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.mirrorVideo ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Overlay Label</Text>
+                  <Switch value={codexSettings.showOverlayLabel} onValueChange={(v) => updateCodexSettings({ showOverlayLabel: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.showOverlayLabel ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Wand2 size={14} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.settingLabel}>Aggressive Retries</Text>
+                  </View>
+                  <Switch value={codexSettings.aggressiveRetries} onValueChange={(v) => updateCodexSettings({ aggressiveRetries: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.aggressiveRetries ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Auto Recovery</Text>
+                  <Switch value={codexSettings.autoRecover} onValueChange={(v) => updateCodexSettings({ autoRecover: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.autoRecover ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Enable Telemetry</Text>
+                  <Switch value={codexSettings.enableTelemetry} onValueChange={(v) => updateCodexSettings({ enableTelemetry: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.enableTelemetry ? '#ffffff' : '#888888'} />
                 </View>
               </View>
             )}
