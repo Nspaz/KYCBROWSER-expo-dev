@@ -152,7 +152,6 @@ export default function TestHarnessScreen() {
   }, [savedVideos, isVideoReady]);
 
   const webViewOriginWhitelist = useMemo(() => ['about:blank'], []);
-  const allowLocalFileAccess = Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   useEffect(() => {
     if (!selectedVideoId && compatibleVideos.length > 0) {
@@ -161,6 +160,8 @@ export default function TestHarnessScreen() {
   }, [selectedVideoId, compatibleVideos]);
 
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
+  const allowLocalFileAccess =
+    Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   const applyOverlaySettings = useCallback(() => {
     if (!webViewRef.current) return;
@@ -227,16 +228,15 @@ export default function TestHarnessScreen() {
             </View>
           )}
         </View>
-        {presentationMode && (
+        
+        {isDeveloperModeEnabled && (
           <View style={styles.protocolBadge}>
             <FlaskConical size={14} color="#ffcc00" />
-            <Text style={styles.protocolBadgeText}>Protocol 4: Local Test Harness</Text>
-            {mlSafetyEnabled && (
-              <View style={styles.mlBadge}>
-                <Shield size={10} color="#00aaff" />
-                <Text style={styles.mlBadgeText}>ML SAFE</Text>
-              </View>
-            )}
+            <Text style={styles.protocolBadgeText}>Developer Mode Active</Text>
+            <View style={styles.mlBadge}>
+              <Shield size={10} color="#00aaff" />
+              <Text style={styles.mlBadgeText}>ML SAFE</Text>
+            </View>
           </View>
         )}
 
@@ -259,28 +259,16 @@ export default function TestHarnessScreen() {
               onValueChange={setOverlayEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={overlayEnabled ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
             />
           </View>
 
           <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Show Debug Info</Text>
+            <Text style={styles.toggleLabel}>Show Debug Overlay</Text>
             <Switch
               value={harnessSettings.showDebugInfo}
               onValueChange={(v) => updateHarnessSettings({ showDebugInfo: v })}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
               thumbColor={harnessSettings.showDebugInfo ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Mirror Video</Text>
-            <Switch
-              value={harnessSettings.mirrorVideo}
-              onValueChange={(v) => updateHarnessSettings({ mirrorVideo: v })}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-              thumbColor={harnessSettings.mirrorVideo ? '#ffffff' : '#888888'}
               disabled={!developerModeEnabled}
             />
           </View>
@@ -397,8 +385,22 @@ export default function TestHarnessScreen() {
               value={isHighFrameRate}
               onValueChange={(val) => developerModeEnabled && setHighFrameRate(val)}
               disabled={!developerModeEnabled}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={isHighFrameRate ? '#ffffff' : '#888888'}
+            />
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Mirror Video</Text>
+              <Text style={styles.settingHint}>Flip overlay horizontally</Text>
+            </View>
+            <Switch
+              value={harnessSettings.mirrorVideo}
+              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ mirrorVideo: val })}
+              disabled={!developerModeEnabled}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+              thumbColor={harnessSettings.mirrorVideo ? '#ffffff' : '#888888'}
             />
           </View>
         </View>
@@ -448,14 +450,14 @@ const styles = StyleSheet.create({
   },
   protocolBannerTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
   },
   protocolBannerStatus: {
     fontSize: 10,
     color: '#00ff88',
     marginTop: 2,
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   benchmarkIndicator: {
     flexDirection: 'row',
@@ -469,7 +471,7 @@ const styles = StyleSheet.create({
   benchmarkText: {
     fontSize: 10,
     color: '#00ff88',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   infoCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -487,7 +489,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#ffffff',
   },
   infoText: {
@@ -512,13 +514,13 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 13,
     color: '#ffffff',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   lockedHint: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.4)',
     marginTop: 8,
-    textAlign: 'center' as const,
+    textAlign: 'center',
   },
   protocolBadge: {
     flexDirection: 'row',
@@ -534,7 +536,7 @@ const styles = StyleSheet.create({
   protocolBadgeText: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffcc00',
   },
   mlBadge: {
@@ -548,12 +550,12 @@ const styles = StyleSheet.create({
   },
   mlBadgeText: {
     fontSize: 9,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#00aaff',
   },
   selectorTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     marginBottom: 8,
   },
@@ -618,7 +620,7 @@ const styles = StyleSheet.create({
   },
   settingsTitle: {
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     flex: 1,
   },
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
   settingsLockedText: {
     fontSize: 10,
     color: '#ff6b35',
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   settingRow: {
     flexDirection: 'row',
@@ -650,7 +652,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 13,
-    fontWeight: '500' as const,
+    fontWeight: '500',
     color: '#ffffff',
   },
   settingHint: {
