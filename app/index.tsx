@@ -152,6 +152,8 @@ export default function MotionBrowserScreen() {
     [protocols, activeProtocol]
   );
 
+  const codexModeActive = activeProtocol === 'gpt52' && isProtocolEnabled;
+
   // Use protocol context for allowlist (only when allowlist protocol is active/enabled)
   const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
   const allowlistEnabled = allowlistModeActive && allowlistSettings.enabled;
@@ -240,6 +242,18 @@ export default function MotionBrowserScreen() {
     return activeProtocol === 'gpt52' ? gpt52Settings.respectSiteSettings : standardSettings.respectSiteSettings;
   }, [activeProtocol, gpt52Settings.respectSiteSettings, standardSettings.respectSiteSettings]);
 
+  useEffect(() => {
+    if (!allowlistEnabled || !allowlistSettings.autoAddCurrentSite) return;
+    if (!currentHostname || isAllowlisted) return;
+    addAllowlistDomain(currentHostname);
+  }, [
+    allowlistEnabled,
+    allowlistSettings.autoAddCurrentSite,
+    currentHostname,
+    isAllowlisted,
+    addAllowlistDomain,
+  ]);
+
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness' || activeProtocol === 'gpt52') {
       return true;
@@ -279,6 +293,10 @@ export default function MotionBrowserScreen() {
     (activeProtocol === 'gpt-5-2-codex-high' && codexSettings.mirrorVideo)
   );
 
+  const adaptiveQualityEnabled = codexModeActive && codexSettings.adaptiveQuality;
+  const maxRetryAttempts = codexModeActive && codexSettings.aggressiveRetries ? 8 : 4;
+  const videoLoadTimeoutMs = codexModeActive && codexSettings.aggressiveRetries ? 16000 : 12000;
+
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
       return '';
@@ -288,6 +306,9 @@ export default function MotionBrowserScreen() {
     }
     if (activeProtocol === 'harness') {
       return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
+    }
+    if (activeProtocol === 'gpt52') {
+      return codexSettings.showOverlayLabel ? 'GPT-5.2 Codex High Active' : '';
     }
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
@@ -330,7 +351,7 @@ export default function MotionBrowserScreen() {
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
-    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+    (activeProtocol === 'standard' || activeProtocol === 'allowlist' || activeProtocol === 'gpt52')
       ? standardSettings.autoInject
       : activeProtocol === 'gpt52'
         ? gpt52Settings.autoInject

@@ -25,6 +25,7 @@ export default function ProtectedPreviewScreen() {
     protectedSettings,
     updateProtectedSettings,
     developerModeEnabled,
+    showTestingWatermark,
     presentationMode,
     showTestingWatermark,
     mlSafetyEnabled,

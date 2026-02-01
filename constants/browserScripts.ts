@@ -904,6 +904,10 @@ export const createMediaInjectionScript = (
         if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) {
           this.fpsHistory.shift();
         }
+        if (CONFIG.ADAPTIVE_QUALITY) {
+          QualityAdapter.recordFps(fps);
+          QualityAdapter.adapt();
+        }
       }
       this.lastFrameTime = now;
       this.frameCount++;
@@ -1026,6 +1030,11 @@ export const createMediaInjectionScript = (
       if (prevLevel !== this.currentLevel) {
         this.lastAdaptTime = now;
         var quality = this.getCurrentQuality();
+        RenderCache.frameSkipThreshold = quality.name === 'low'
+          ? 0.03
+          : quality.name === 'medium'
+            ? 0.01
+            : 0.001;
         Logger.log('Quality adapted:', quality.name, '| FPS:', avgFps.toFixed(1));
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -1040,8 +1049,21 @@ export const createMediaInjectionScript = (
       return { width: Math.round(w * q.scale), height: Math.round(h * q.scale), fps: q.fps };
     },
     
-    reset: function() { this.currentLevel = 0; this.fpsHistory = []; this.lastAdaptTime = 0; }
+    reset: function() {
+      this.currentLevel = 0;
+      this.fpsHistory = [];
+      this.lastAdaptTime = 0;
+      RenderCache.frameSkipThreshold = 0.001;
+    }
   };
+
+  function getTargetFps() {
+    return CONFIG.ADAPTIVE_QUALITY ? QualityAdapter.getCurrentQuality().fps : CONFIG.TARGET_FPS;
+  }
+
+  function getTargetFrameTime() {
+    return 1000 / getTargetFps();
+  }
   
   // ============ PAGE LIFECYCLE CLEANUP ============
   window.addEventListener('beforeunload', function() {
@@ -2048,7 +2070,7 @@ export const createMediaInjectionScript = (
       let fallbackAttempt = 0;
       const start = Date.now();
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
+      const minFrameRatio = 0.9;
       
       // Get the current fallback renderer
       let currentRenderer = VIDEO_FORMAT_FALLBACKS[0].render;
@@ -2057,7 +2079,7 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < targetFrameTime * 0.9) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(render);
           return;
         }
@@ -2090,7 +2112,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
@@ -2204,8 +2226,7 @@ export const createMediaInjectionScript = (
       
       let isRunning = true;
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
-      const minFrameTime = targetFrameTime * 0.9;
+      const minFrameRatio = 0.9;
       let frameCount = 0;
       
       // Pre-cache canvas dimensions
@@ -2217,7 +2238,7 @@ export const createMediaInjectionScript = (
         
         // Optimized frame rate limiting
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < minFrameTime) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(draw);
           return;
         }
@@ -2275,7 +2296,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('captureStream failed'));
             return;
@@ -2452,7 +2473,7 @@ export const createMediaInjectionScript = (
       const start = Date.now();
       let isRunning = true;
       let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
+      const minFrameRatio = 0.9;
       let currentFallbackIdx = 0;
       let errorCount = 0;
       const MAX_ERRORS_BEFORE_FALLBACK = 3;
@@ -2461,7 +2482,7 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        if (elapsed < targetFrameTime * 0.9) {
+        if (elapsed < getTargetFrameTime() * minFrameRatio) {
           requestAnimationFrame(render);
           return;
         }
@@ -2502,7 +2523,7 @@ export const createMediaInjectionScript = (
       
       setTimeout(function() {
         try {
-          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, getTargetFps());
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
