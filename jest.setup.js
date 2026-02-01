@@ -1,3 +1,37 @@
+// Mock TurboModuleRegistry to prevent DevMenu errors
+jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
+  get: jest.fn(() => null),
+  getEnforcing: jest.fn(() => ({})),
+}));
+
+// Mock NativePlatformConstantsIOS
+jest.mock('react-native/Libraries/Utilities/NativePlatformConstantsIOS', () => ({
+  __esModule: true,
+  default: {
+    getConstants: jest.fn(() => ({
+      forceTouchAvailable: false,
+      osVersion: '17.0',
+      systemName: 'iOS',
+      interfaceIdiom: 'phone',
+      isTesting: true,
+    })),
+  },
+}));
+
+// Mock NativeDeviceInfo
+jest.mock('react-native/src/private/specs_DEPRECATED/modules/NativeDeviceInfo', () => ({
+  __esModule: true,
+  default: {
+    getConstants: jest.fn(() => ({
+      Dimensions: {
+        window: { width: 375, height: 667, scale: 2, fontScale: 1 },
+        screen: { width: 375, height: 667, scale: 2, fontScale: 1 },
+      },
+      isIPhoneX_deprecated: false,
+    })),
+  },
+}));
+
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage');
 
@@ -86,6 +120,12 @@ jest.mock('expo-crypto', () => ({
   getRandomBytesAsync: jest.fn((length) =>
     Promise.resolve(new Uint8Array(length).fill(0))
   ),
+  digestStringAsync: jest.fn((algorithm, data) =>
+    Promise.resolve(`digest_${algorithm}_${data}`)
+  ),
+  CryptoDigestAlgorithm: {
+    SHA256: 'SHA256',
+  },
 }));
 
 // Mock expo-av
