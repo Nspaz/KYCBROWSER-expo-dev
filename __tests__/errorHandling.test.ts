@@ -24,6 +24,7 @@ import {
   validateVideoUrl,
   withErrorLogging,
 } from '@/utils/errorHandling';
+import { Alert, Platform } from 'react-native';
 
 jest.mock('react-native', () => {
   return {
@@ -127,12 +128,12 @@ describe('errorHandling utilities', () => {
 
   test('showErrorAlert uses default button and handlers', () => {
     showErrorAlert('Title', 'Message');
-    expect(Alert.alert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
+    expect(mockAlert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
 
     const onRetry = jest.fn();
     const onCancel = jest.fn();
     showErrorAlert('Oops', 'Try again', onRetry, onCancel);
-    expect(Alert.alert).toHaveBeenCalledWith('Oops', 'Try again', [
+    expect(mockAlert).toHaveBeenCalledWith('Oops', 'Try again', [
       { text: 'Cancel', style: 'cancel', onPress: onCancel },
       { text: 'Retry', onPress: onRetry },
     ]);
