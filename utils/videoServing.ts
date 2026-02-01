@@ -143,6 +143,7 @@ export const prepareVideoForSimulation = (video: SavedVideo): VideoServingConfig
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBase64: true,
       mimeType,
       requiresDownload: false,
@@ -155,6 +156,7 @@ export const prepareVideoForSimulation = (video: SavedVideo): VideoServingConfig
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBlob: true,
       mimeType,
       requiresDownload: false,
@@ -196,6 +198,8 @@ export const prepareVideoForSimulation = (video: SavedVideo): VideoServingConfig
 };
 
 export const prepareUriForSimulation = (uri: string): VideoServingConfig => {
+  const mimeType = getVideoMimeType(uri);
+  
   // Handle built-in videos
   if (isBuiltInVideoUri(uri)) {
     return {
@@ -217,13 +221,13 @@ export const prepareUriForSimulation = (uri: string): VideoServingConfig => {
       requiresDownload: false,
     };
   }
-  const mimeType = getVideoMimeType(uri);
   
   // Handle base64 data URIs
   if (isBase64VideoUri(uri)) {
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBase64: true,
       mimeType,
       requiresDownload: false,
@@ -235,6 +239,7 @@ export const prepareUriForSimulation = (uri: string): VideoServingConfig => {
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBlob: true,
       mimeType,
       requiresDownload: false,

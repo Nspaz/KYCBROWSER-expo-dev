@@ -8,7 +8,6 @@ import {
   STEALTH_DETECTION_CHECKS,
   PROPERTIES_TO_DELETE,
 } from './stealthProfiles';
-import { BUILT_IN_VIDEO_INJECTION_SCRIPT } from './builtInTestVideo';
 
 export const SAFARI_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 
@@ -664,11 +663,6 @@ export interface MediaInjectionOptions {
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
   permissionPromptEnabled?: boolean;
-  videoLoadTimeoutMs?: number;
-  maxRetryAttempts?: number;
-  initialRetryDelayMs?: number;
-  targetFps?: number;
-  maxActiveStreams?: number;
 }
 
 export const createMediaInjectionScript = (
@@ -686,11 +680,6 @@ export const createMediaInjectionScript = (
     mirrorVideo = false,
     debugEnabled,
     permissionPromptEnabled = true,
-    videoLoadTimeoutMs,
-    maxRetryAttempts,
-    initialRetryDelayMs,
-    targetFps,
-    maxActiveStreams,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
@@ -698,13 +687,7 @@ export const createMediaInjectionScript = (
   const placeholderWidth = defaultRes?.width || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width;
   const placeholderHeight = defaultRes?.height || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height;
 
-  // Include the built-in video injection script for fallback
-  const builtInVideoScript = BUILT_IN_VIDEO_INJECTION_SCRIPT;
-
   return `
-// ===== BUILT-IN VIDEO SYSTEM =====
-${builtInVideoScript}
-
 (function() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__mediaInjectorInitialized) {
@@ -721,12 +704,7 @@ ${builtInVideoScript}
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
         debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)},
-        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'},
-        videoLoadTimeoutMs: ${videoLoadTimeoutMs === undefined ? 'undefined' : JSON.stringify(videoLoadTimeoutMs)},
-        maxRetryAttempts: ${maxRetryAttempts === undefined ? 'undefined' : JSON.stringify(maxRetryAttempts)},
-        initialRetryDelayMs: ${initialRetryDelayMs === undefined ? 'undefined' : JSON.stringify(initialRetryDelayMs)},
-        targetFps: ${targetFps === undefined ? 'undefined' : JSON.stringify(targetFps)},
-        maxActiveStreams: ${maxActiveStreams === undefined ? 'undefined' : JSON.stringify(maxActiveStreams)}
+        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'}
       });
     }
     return;
@@ -746,10 +724,10 @@ ${builtInVideoScript}
     PERMISSION_PROMPT_ENABLED: ${permissionPromptEnabled ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
-    TARGET_FPS: ${targetFps ?? IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
-    VIDEO_LOAD_TIMEOUT: ${videoLoadTimeoutMs ?? 12000},
-    MAX_RETRY_ATTEMPTS: ${maxRetryAttempts ?? 4},
-    INITIAL_RETRY_DELAY: ${initialRetryDelayMs ?? 500},
+    TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
+    VIDEO_LOAD_TIMEOUT: 12000,
+    MAX_RETRY_ATTEMPTS: 4,
+    INITIAL_RETRY_DELAY: 500,
     HEALTH_CHECK_INTERVAL: 5000,
     MIN_ACCEPTABLE_FPS: 15,
     CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
@@ -763,7 +741,7 @@ ${builtInVideoScript}
       { name: 'medium', scale: 0.75, fps: 24 },
       { name: 'low', scale: 0.5, fps: 15 },
     ],
-    MAX_ACTIVE_STREAMS: ${maxActiveStreams ?? 3},
+    MAX_ACTIVE_STREAMS: 3,
     CLEANUP_DELAY: 100,
   };
   
@@ -1309,22 +1287,6 @@ ${builtInVideoScript}
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
     }
-    // Allow runtime tuning of a few performance knobs (used by advanced protocols).
-    if (typeof config.videoLoadTimeoutMs === 'number' && config.videoLoadTimeoutMs > 0) {
-      CONFIG.VIDEO_LOAD_TIMEOUT = config.videoLoadTimeoutMs;
-    }
-    if (typeof config.maxRetryAttempts === 'number' && config.maxRetryAttempts >= 0) {
-      CONFIG.MAX_RETRY_ATTEMPTS = config.maxRetryAttempts;
-    }
-    if (typeof config.initialRetryDelayMs === 'number' && config.initialRetryDelayMs >= 0) {
-      CONFIG.INITIAL_RETRY_DELAY = config.initialRetryDelayMs;
-    }
-    if (typeof config.targetFps === 'number' && config.targetFps > 0) {
-      CONFIG.TARGET_FPS = config.targetFps;
-    }
-    if (typeof config.maxActiveStreams === 'number' && config.maxActiveStreams > 0) {
-      CONFIG.MAX_ACTIVE_STREAMS = config.maxActiveStreams;
-    }
     if (
       config.loopVideo !== undefined ||
       config.protocolId !== undefined ||
@@ -1660,36 +1622,111 @@ ${builtInVideoScript}
       return [];
     };
 
+    // ============ PERMISSION PROMPT SYSTEM ============
+    // Generates unique request IDs for permission prompts
+    let permissionRequestId = 0;
+    const pendingPermissionRequests = new Map();
+    
+    // Listen for permission responses from React Native
+    function handlePermissionResponse(response) {
+      const requestId = response.requestId;
+      const resolver = pendingPermissionRequests.get(requestId);
+      if (resolver) {
+        pendingPermissionRequests.delete(requestId);
+        resolver(response);
+        Logger.log('Permission response received:', response.choice, 'for request', requestId);
+      } else {
+        Logger.warn('No pending request found for ID:', requestId);
+      }
+    }
+    
+    // Expose handler globally for React Native to call
+    window.__handleCameraPermissionResponse = handlePermissionResponse;
+    
+    // Request permission from user via React Native
+    function requestUserPermissionChoice(constraints, requestingUrl) {
+      return new Promise(function(resolve) {
+        const requestId = ++permissionRequestId;
+        const cfg = window.__mediaSimConfig || {};
+        
+        // Store the resolver
+        pendingPermissionRequests.set(requestId, resolve);
+        
+        // Send permission request to React Native
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'cameraPermissionRequest',
+            payload: {
+              requestId: requestId,
+              requestingUrl: requestingUrl || window.location.href,
+              constraints: {
+                video: !!constraints?.video,
+                audio: !!constraints?.audio,
+              },
+              currentProtocol: cfg.protocolId || 'standard',
+              hasVideos: !!(cfg.fallbackVideoUri || (cfg.devices && cfg.devices.some(function(d) { return d.assignedVideoUri; }))),
+              timestamp: Date.now()
+            }
+          }));
+          Logger.log('Permission request sent to RN, awaiting response...', requestId);
+        } else {
+          // Fallback: if no RN bridge, use default behavior (simulate if configured)
+          Logger.warn('No ReactNativeWebView bridge, using default behavior');
+          resolve({
+            requestId: requestId,
+            choice: cfg.forceSimulation || cfg.stealthMode ? 'simulate' : 'allow',
+            protocolId: cfg.protocolId,
+            videoUri: cfg.fallbackVideoUri,
+          });
+        }
+        
+        // Timeout after 60 seconds - default to deny if no response
+        setTimeout(function() {
+          if (pendingPermissionRequests.has(requestId)) {
+            pendingPermissionRequests.delete(requestId);
+            Logger.warn('Permission request timed out after 60s, denying');
+            resolve({ requestId: requestId, choice: 'deny' });
+          }
+        }, 60000);
+      });
+    }
+    
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = async function(constraints) {
+    mediaDevices.getUserMedia = function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       Logger.log('Website is requesting camera access - INTERCEPTING');
       const cfg = window.__mediaSimConfig || {};
       const wantsVideo = !!constraints?.video;
       const wantsAudio = !!constraints?.audio;
-
+      
+      // Only prompt for video requests (not audio-only)
+      if (!wantsVideo) {
+        Logger.log('Audio-only request, passing through to real getUserMedia');
+        if (_origGetUserMedia) {
+          return _origGetUserMedia(constraints);
+        }
+        throw new DOMException('getUserMedia not available', 'NotSupportedError');
+      }
+      
       let reqDeviceId = null;
       let reqFacing = null;
-
+      
       if (wantsVideo && typeof constraints.video === 'object') {
         reqDeviceId = getConstraintValue(constraints.video.deviceId);
         reqFacing = normalizeFacingMode(getConstraintValue(constraints.video.facingMode));
       }
-
+      
       const selectedDevice = selectDevice(cfg.devices, reqDeviceId, reqFacing);
       const device = normalizeDevice(selectedDevice);
-      const resolvedUri = resolveVideoUri(device);
-      const hasVideoUri = resolvedUri && !resolvedUri.startsWith('canvas:');
-      const forceSimulation = !!cfg.forceSimulation;
-
+      
       Logger.log(
         'Device:', device?.name || 'none',
         '| ReqId:', reqDeviceId || 'none',
-        '| Facing:', reqFacing || 'any',
-        '| SimEnabled:', device?.simulationEnabled,
-        '| ForceSim:', forceSimulation,
-        '| URI:', resolvedUri ? resolvedUri.substring(0, 40) : 'none'
+        '| Facing:', reqFacing || 'any'
       );
+
+      const videoUri = resolveVideoUri(device);
+      const hasVideoUri = videoUri && !videoUri.startsWith('canvas:');
 
       let permissionDecision = null;
       if (wantsVideo) {
@@ -1709,11 +1746,6 @@ ${builtInVideoScript}
         ? permissionDecision.action
         : null;
 
-      const decisionVideoUri = permissionDecision && permissionDecision.videoUri
-        ? permissionDecision.videoUri
-        : resolvedUri;
-      const hasDecisionVideoUri = decisionVideoUri && !decisionVideoUri.startsWith('canvas:');
-
       if (decisionAction === 'deny') {
         throw createPermissionError('NotAllowedError', 'Camera permission denied by user');
       }
@@ -1730,37 +1762,43 @@ ${builtInVideoScript}
         ? true
         : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
 
-      if (shouldSimulate && wantsVideo) {
-        if (hasDecisionVideoUri) {
-          Logger.log('Creating simulated stream from video');
-          try {
-            const deviceForSim = {
-              ...device,
-              assignedVideoUri: decisionVideoUri,
-              simulationEnabled: true
-            };
-            const stream = await createVideoStream(deviceForSim, !!wantsAudio);
-            Logger.log('SUCCESS - tracks:', stream.getTracks().length);
-            return stream;
-          } catch (err) {
-            Logger.error('Video stream failed:', err.message);
-            Logger.log('Falling back to canvas pattern');
-          }
+      if (!shouldSimulate) {
+        if (_origGetUserMedia) {
+          Logger.log('Allowing real camera access');
+          return _origGetUserMedia(constraints);
         }
-
-        const deviceForCanvas = {
-          ...device,
-          assignedVideoUri: decisionVideoUri,
-          simulationEnabled: true
-        };
-        return await createCanvasStream(deviceForCanvas, !!wantsAudio, 'default');
+        throw createPermissionError('NotSupportedError', 'getUserMedia not available');
       }
 
-      if (_origGetUserMedia) {
-        return _origGetUserMedia(constraints);
+      if (permissionDecision && permissionDecision.protocolId) {
+        cfg.protocolId = permissionDecision.protocolId;
       }
 
-      throw createPermissionError('NotSupportedError', 'Real camera access is not available');
+      Logger.log(
+        'Simulating with:',
+        '| Protocol:', cfg.protocolId,
+        '| VideoURI:', videoUri ? videoUri.substring(0, 40) : 'none'
+      );
+
+      if (hasVideoUri) {
+        Logger.log('Creating simulated stream from video');
+        try {
+          const deviceForSim = {
+            ...device,
+            assignedVideoUri: videoUri,
+            simulationEnabled: true
+          };
+          const stream = await createVideoStream(deviceForSim, !!wantsAudio);
+          Logger.log('SUCCESS - tracks:', stream.getTracks().length);
+          return stream;
+        } catch (err) {
+          Logger.error('Video stream failed:', err.message);
+          Logger.log('Falling back to canvas pattern');
+        }
+      }
+
+      Logger.log('Returning canvas test pattern');
+      return await createCanvasStream(device, !!wantsAudio, 'default');
     };
 
     const overrideEnumerateDevices = navigator.mediaDevices.enumerateDevices;
@@ -2072,37 +2110,15 @@ ${builtInVideoScript}
   // ============ VIDEO STREAM CREATION ============
   async function createVideoStream(device, wantsAudio) {
     const fallbackUri = getFallbackVideoUri();
-    const videoUri = device.assignedVideoUri || fallbackUri;
+    const videoUri = device.assignedVideoUri || fallbackUri || 'canvas:default';
     Logger.log('Loading video:', videoUri ? videoUri.substring(0, 60) : 'none');
     
-    // Handle built-in test videos - highest priority for testing
-    if (videoUri && videoUri.startsWith('builtin:')) {
-      const patternType = videoUri.replace('builtin:', '') || 'bouncing_ball';
-      Logger.log('Using built-in test video pattern:', patternType);
-      if (window.__createBuiltInVideoStream) {
-        try {
-          const stream = await window.__createBuiltInVideoStream({ patternType: patternType });
-          if (wantsAudio) addSilentAudio(stream);
-          return stream;
-        } catch (err) {
-          Logger.warn('Built-in video failed, falling back:', err.message);
-        }
-      }
-      return createBuiltInFallbackStream(device, wantsAudio, patternType);
+    // Handle canvas patterns - always use green screen
+    if (videoUri.startsWith('canvas:')) {
+      return createGreenScreenStream(device, wantsAudio);
     }
     
-    // Handle canvas patterns
-    if (videoUri && videoUri.startsWith('canvas:')) {
-      return createBuiltInFallbackStream(device, wantsAudio, 'bouncing_ball');
-    }
-    
-    // No video assigned - use built-in test video
-    if (!videoUri) {
-      Logger.log('No video assigned, using built-in test video');
-      return createBuiltInFallbackStream(device, wantsAudio, 'bouncing_ball');
-    }
-    
-    // Try to load user video with fallback chain
+    // Try to load video with fallback chain
     try {
       // Check cache first
       let video = VideoCache.get(videoUri);
@@ -2126,166 +2142,25 @@ ${builtInVideoScript}
       
       return stream;
     } catch (err) {
-      Logger.warn('Video load failed, using built-in fallback:', err.message);
-      // Always fallback to built-in test video for reliability
-      return createBuiltInFallbackStream(device, wantsAudio, 'bouncing_ball');
-    }
-  }
-  
-  // ============ BUILT-IN FALLBACK STREAM ============
-  async function createBuiltInFallbackStream(device, wantsAudio, patternType) {
-    patternType = patternType || 'bouncing_ball';
-    Logger.log('Creating built-in fallback stream:', patternType);
-    
-    // Try the built-in video system first
-    if (window.__createBuiltInVideoStream) {
-      try {
-        const stream = await window.__createBuiltInVideoStream({ patternType: patternType });
-        if (wantsAudio) addSilentAudio(stream);
-        Logger.log('Built-in video stream created successfully');
-        return stream;
-      } catch (err) {
-        Logger.warn('Built-in system failed, using inline fallback:', err.message);
-      }
-    }
-    
-    // Inline fallback - bouncing ball pattern
-    return createInlineBouncingBallStream(device, wantsAudio);
-  }
-  
-  // ============ INLINE BOUNCING BALL STREAM ============
-  function createInlineBouncingBallStream(device, wantsAudio) {
-    const res = getPortraitRes(device);
-    const w = res.width;
-    const h = res.height;
-    
-    return new Promise(function(resolve, reject) {
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d', { alpha: false });
-      
-      if (!ctx) {
-        reject(new Error('Canvas context failed'));
-        return;
-      }
-      
-      let isRunning = true;
-      let frame = 0;
-      const start = Date.now();
-      let lastDrawTime = 0;
-      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
-      
-      function renderBouncingBall(t, f) {
-        // Dark background
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, w, h);
-        
-        // Bouncing balls
-        var balls = [
-          { radius: 60, color: '#ff6b6b', phase: 0, speed: 2 },
-          { radius: 45, color: '#4ecdc4', phase: Math.PI / 3, speed: 2.5 },
-          { radius: 35, color: '#ffe66d', phase: Math.PI * 2 / 3, speed: 3 },
-        ];
-        
-        balls.forEach(function(ball) {
-          var bounceY = Math.abs(Math.sin((t * ball.speed + ball.phase) * Math.PI)) * (h * 0.6);
-          var x = w / 2 + Math.sin(t * 0.5 + ball.phase) * (w * 0.3);
-          var y = h * 0.2 + bounceY;
-          
-          // Shadow
-          ctx.beginPath();
-          ctx.ellipse(x, h * 0.85, ball.radius * 0.8, ball.radius * 0.2, 0, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-          ctx.fill();
-          
-          // Ball
-          ctx.beginPath();
-          ctx.arc(x, y, ball.radius, 0, Math.PI * 2);
-          ctx.fillStyle = ball.color;
-          ctx.fill();
-        });
-        
-        // Info text
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.font = 'bold 28px -apple-system, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('BUILT-IN TEST VIDEO', w / 2, 60);
-        
-        ctx.font = '18px -apple-system, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.fillText('Frame: ' + f + ' | Camera Injection Active', w / 2, h - 50);
-        
-        // Animated border
-        var hue = (t * 60) % 360;
-        ctx.strokeStyle = 'hsl(' + hue + ', 80%, 60%)';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(3, 3, w - 6, h - 6);
-      }
-      
-      function render(timestamp) {
-        if (!isRunning) return;
-        
-        var elapsed = timestamp - lastDrawTime;
-        if (elapsed < targetFrameTime * 0.9) {
-          requestAnimationFrame(render);
-          return;
-        }
-        lastDrawTime = timestamp;
-        
-        var t = (Date.now() - start) / 1000;
-        renderBouncingBall(t, frame);
-        frame++;
-        
-        requestAnimationFrame(render);
-      }
-      
-      requestAnimationFrame(render);
-      
-      setTimeout(function() {
+      Logger.warn('Video load failed:', err.message);
+      if (fallbackUri && fallbackUri !== videoUri) {
+        Logger.log('Retrying with fallback video');
         try {
-          var stream = canvas.captureStream(CONFIG.TARGET_FPS);
-          if (!stream || stream.getVideoTracks().length === 0) {
-            reject(new Error('captureStream failed'));
-            return;
-          }
-          
-          if (wantsAudio) addSilentAudio(stream);
-          
-          // Spoof track
-          var videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            var deviceName = device && device.name ? device.name : 'Front Camera';
-            var deviceId = device && device.id ? device.id : 'builtin_camera';
-            
-            videoTrack.getSettings = function() {
-              return {
-                width: w,
-                height: h,
-                frameRate: CONFIG.TARGET_FPS,
-                aspectRatio: w / h,
-                facingMode: 'user',
-                deviceId: deviceId,
-                groupId: 'builtin',
-              };
-            };
-            
-            Object.defineProperty(videoTrack, 'label', {
-              get: function() { return deviceName + ' (Test)'; },
-              configurable: true
-            });
-          }
-          
-          stream._cleanup = function() { isRunning = false; };
-          stream._isBuiltIn = true;
-          
-          Logger.log('Inline bouncing ball stream created');
-          resolve(stream);
-        } catch (err) {
-          reject(err);
+          const fallbackDevice = { ...device, assignedVideoUri: fallbackUri, simulationEnabled: true };
+          const fallbackVideo = await loadVideoWithRetry(fallbackUri);
+          await fallbackVideo.play();
+          await new Promise(function(r) { setTimeout(r, 100); });
+          const res = getPortraitRes(device);
+          const fallbackStream = await createCanvasStreamFromVideo(fallbackVideo, res, wantsAudio, fallbackDevice);
+          setupStreamHealthCheck(fallbackStream, fallbackVideo, fallbackDevice);
+          return fallbackStream;
+        } catch (fallbackErr) {
+          Logger.warn('Fallback video failed:', fallbackErr.message);
         }
-      }, 100);
-    });
+      }
+      Logger.warn('Using green screen fallback');
+      return createGreenScreenStream(device, wantsAudio);
+    }
   }
   
   // ============ GREEN SCREEN STREAM (PRIMARY FALLBACK) ============

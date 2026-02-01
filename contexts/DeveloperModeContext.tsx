@@ -9,7 +9,6 @@ import {
 } from '@/types/protocols';
 
 const DEVELOPER_MODE_KEY = '@developer_mode_settings';
-const PROTOCOL_SETTINGS_KEY = '@protocol_settings';
 const PIN_HASH_PREFIX = 'sha256:';
 
 const normalizePin = (pin: string): string => pin.trim();
@@ -50,11 +49,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [devModeData, protocolData] = await Promise.all([
-          AsyncStorage.getItem(DEVELOPER_MODE_KEY),
-          AsyncStorage.getItem(PROTOCOL_SETTINGS_KEY),
-        ]);
-
+        const devModeData = await AsyncStorage.getItem(DEVELOPER_MODE_KEY);
         let loadedDeveloperMode = DEFAULT_DEVELOPER_MODE;
         if (devModeData) {
           const parsed = JSON.parse(devModeData);
@@ -70,17 +65,6 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
 
         setDeveloperMode(loadedDeveloperMode);
         console.log('[DeveloperMode] Loaded developer mode settings');
-
-        if (protocolData) {
-          const parsed = JSON.parse(protocolData);
-          setProtocolSettings({
-            standard: { ...DEFAULT_PROTOCOL_SETTINGS.standard, ...parsed.standard },
-            allowlist: { ...DEFAULT_PROTOCOL_SETTINGS.allowlist, ...parsed.allowlist },
-            protected: { ...DEFAULT_PROTOCOL_SETTINGS.protected, ...parsed.protected },
-            harness: { ...DEFAULT_PROTOCOL_SETTINGS.harness, ...parsed.harness },
-          });
-          console.log('[DeveloperMode] Loaded protocol settings');
-        }
       } catch (error) {
         console.error('[DeveloperMode] Failed to load settings:', error);
       } finally {
