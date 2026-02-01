@@ -3,7 +3,7 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -132,6 +132,27 @@ export interface TestHarnessSettings {
   testPatternOnNoVideo: boolean;
 }
 
+// Protocol 5: Claude Sonnet - Advanced AI-Powered Protocol
+export interface ClaudeSonnetSettings {
+  enabled: boolean;
+  adaptiveQuality: boolean;
+  behavioralAnalysis: boolean;
+  advancedStealth: boolean;
+  mlBodyDetection: boolean;
+  realTimeOptimization: boolean;
+  timingRandomization: boolean;
+  protocolChaining: boolean;
+  fallbackProtocols: ProtocolId[];
+  performanceMonitoring: boolean;
+  contextAwareness: boolean;
+  antiDetectionLevel: 'standard' | 'advanced' | 'maximum';
+  videoQualityPreset: 'performance' | 'balanced' | 'quality';
+  adaptiveBitrate: boolean;
+  smartCaching: boolean;
+  predictivePreloading: boolean;
+  neuralEnhancement: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
@@ -139,6 +160,7 @@ export interface ProtocolSettings {
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
   holographic: HolographicSettings;
+  'claude-sonnet': ClaudeSonnetSettings;
 }
 
 // Developer Mode Settings
@@ -255,12 +277,33 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   testPatternOnNoVideo: true,
 };
 
+export const DEFAULT_CLAUDE_SONNET_SETTINGS: ClaudeSonnetSettings = {
+  enabled: true,
+  adaptiveQuality: true,
+  behavioralAnalysis: true,
+  advancedStealth: true,
+  mlBodyDetection: true,
+  realTimeOptimization: true,
+  timingRandomization: true,
+  protocolChaining: true,
+  fallbackProtocols: ['protected', 'standard'],
+  performanceMonitoring: true,
+  contextAwareness: true,
+  antiDetectionLevel: 'maximum',
+  videoQualityPreset: 'balanced',
+  adaptiveBitrate: true,
+  smartCaching: true,
+  predictivePreloading: true,
+  neuralEnhancement: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
   holographic: DEFAULT_HOLOGRAPHIC_SETTINGS,
+  'claude-sonnet': DEFAULT_CLAUDE_SONNET_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -318,5 +361,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
+  },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 5: Claude Sonnet - AI Advanced',
+    description: 'State-of-the-art AI-powered injection protocol with adaptive quality, behavioral analysis, advanced stealth, ML body detection, real-time optimization, and intelligent protocol chaining. The most sophisticated protocol for maximum performance and undetectability.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: false,
   },
 };

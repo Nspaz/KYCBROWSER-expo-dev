@@ -4,7 +4,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -113,6 +113,25 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
+export interface ClaudeSonnetProtocolSettings {
+  adaptiveQuality: boolean;
+  behavioralAnalysis: boolean;
+  advancedStealth: boolean;
+  mlBodyDetection: boolean;
+  realTimeOptimization: boolean;
+  timingRandomization: boolean;
+  protocolChaining: boolean;
+  fallbackProtocols: ProtocolType[];
+  performanceMonitoring: boolean;
+  contextAwareness: boolean;
+  antiDetectionLevel: 'standard' | 'advanced' | 'maximum';
+  videoQualityPreset: 'performance' | 'balanced' | 'quality';
+  adaptiveBitrate: boolean;
+  smartCaching: boolean;
+  predictivePreloading: boolean;
+  neuralEnhancement: boolean;
+}
+
 export interface ProtocolContextValue {
   // Developer Mode
   developerModeEnabled: boolean;
@@ -144,13 +163,14 @@ export interface ProtocolContextValue {
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
   holographicSettings: HolographicProtocolSettings;
-
+  claudeSonnetSettings: ClaudeSonnetProtocolSettings;
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
   updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
+  updateClaudeSonnetSettings: (settings: Partial<ClaudeSonnetProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -181,6 +201,7 @@ const STORAGE_KEYS = {
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
   HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
+  CLAUDE_SONNET_SETTINGS: '@protocol_claude_sonnet_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -299,6 +320,25 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+const DEFAULT_CLAUDE_SONNET_SETTINGS: ClaudeSonnetProtocolSettings = {
+  adaptiveQuality: true,
+  behavioralAnalysis: true,
+  advancedStealth: true,
+  mlBodyDetection: true,
+  realTimeOptimization: true,
+  timingRandomization: true,
+  protocolChaining: true,
+  fallbackProtocols: ['protected', 'standard'],
+  performanceMonitoring: true,
+  contextAwareness: true,
+  antiDetectionLevel: 'maximum',
+  videoQualityPreset: 'balanced',
+  adaptiveBitrate: true,
+  smartCaching: true,
+  predictivePreloading: true,
+  neuralEnhancement: true,
+};
+
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   standard: {
     id: 'standard',
@@ -335,10 +375,22 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 5: Claude Sonnet - AI Advanced',
+    description: 'State-of-the-art AI-powered protocol with adaptive quality, behavioral analysis, advanced stealth, ML detection, real-time optimization, and intelligent chaining.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness';
+  return value === 'standard'
+    || value === 'allowlist'
+    || value === 'protected'
+    || value === 'harness'
+    || value === 'holographic'
+    || value === 'claude-sonnet';
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -358,6 +410,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
   const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
+  const [claudeSonnetSettings, setClaudeSonnetSettings] = useState<ClaudeSonnetProtocolSettings>(DEFAULT_CLAUDE_SONNET_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -375,6 +428,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           protected_,
           harness,
           holographic,
+          claudeSonnet,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -389,6 +443,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.CLAUDE_SONNET_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -457,6 +512,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse holographic settings:', e);
+          }
+        }
+        if (claudeSonnet) {
+          try {
+            setClaudeSonnetSettings({ ...DEFAULT_CLAUDE_SONNET_SETTINGS, ...JSON.parse(claudeSonnet) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse claude-sonnet settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -582,6 +644,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, [holographicSettings]);
 
   // Allowlist helpers
+  const updateClaudeSonnetSettings = useCallback(async (settings: Partial<ClaudeSonnetProtocolSettings>) => {
+    const newSettings = { ...claudeSonnetSettings, ...settings };
+    setClaudeSonnetSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.CLAUDE_SONNET_SETTINGS, JSON.stringify(newSettings));
+  }, [claudeSonnetSettings]);
+
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
     if (!normalized || allowlistSettings.domains.includes(normalized)) return;
@@ -632,12 +700,14 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     protectedSettings,
     harnessSettings,
     holographicSettings,
+    claudeSonnetSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
     updateHolographicSettings,
     // allowlist helpers
+    updateClaudeSonnetSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
