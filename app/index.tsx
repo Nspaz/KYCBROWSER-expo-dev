@@ -53,12 +53,7 @@ import TemplateModal from '@/components/browser/TemplateModal';
 import TestingWatermark from '@/components/TestingWatermark';
 
 import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlToolbar';
-import {
-  ProtocolSettingsModal,
-  PermissionRequestModal,
-  CameraPermissionPromptModal,
-} from '@/components/browser/modals';
-import type { CameraPermissionPromptResult } from '@/components/browser/modals';
+import { ProtocolSettingsModal, PermissionRequestModal } from '@/components/browser/modals';
 import SetupRequired from '@/components/SetupRequired';
 
 type CameraPermissionRequest = {
@@ -72,6 +67,7 @@ type CameraPermissionRequest = {
 };
 
 type PermissionAction = 'simulate' | 'real' | 'deny';
+
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
 
@@ -169,26 +165,33 @@ export default function MotionBrowserScreen() {
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
   const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
+  const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
+  const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
+
+  const protocolOptions = useMemo(() => {
+    return Object.values(protocols).map(protocol => ({
+      id: protocol.id,
+      name: protocol.name,
+      enabled: protocol.enabled,
+    }));
+  }, [protocols]);
+
+  const enabledProtocolOptions = useMemo(
+    () => protocolOptions.filter(option => option.enabled),
+    [protocolOptions]
+  );
+
+  const selectedProtocolOption = useMemo(
+    () => protocolOptions.find(option => option.id === selectedProtocol),
+    [protocolOptions, selectedProtocol]
+  );
+
   const [permissionRequest, setPermissionRequest] = useState<{
     requestId: string;
     hostname: string;
     origin: string;
   } | null>(null);
   const [permissionSelectedVideo, setPermissionSelectedVideo] = useState<SavedVideo | null>(null);
-
-  const protocolListForPrompt = useMemo(() => {
-    return [
-      { id: 'standard' as const, name: protocols.standard?.name || 'Standard Injection', enabled: protocols.standard?.enabled ?? true },
-      { id: 'allowlist' as const, name: protocols.allowlist?.name || 'Allowlist Mode', enabled: protocols.allowlist?.enabled ?? true },
-      { id: 'protected' as const, name: protocols.protected?.name || 'Protected Preview', enabled: protocols.protected?.enabled ?? true },
-      { id: 'harness' as const, name: protocols.harness?.name || 'Test Harness', enabled: protocols.harness?.enabled ?? true },
-    ];
-  }, [protocols]);
-
-  const enabledProtocolOptions = useMemo(
-    () => protocolListForPrompt.filter(option => option.enabled),
-    [protocolListForPrompt]
-  );
 
   const isProtocolEnabled = useMemo(
     () => protocols[activeProtocol]?.enabled ?? true,
@@ -230,6 +233,7 @@ export default function MotionBrowserScreen() {
 
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
+
   const currentWebsiteSettings = useMemo(() => 
     getWebsiteSettings(url),
     [getWebsiteSettings, url]
@@ -288,6 +292,18 @@ export default function MotionBrowserScreen() {
   ]);
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
+
+  const permissionSiteLabel = useMemo(() => {
+    if (!pendingPermissionRequest?.url && !pendingPermissionRequest?.origin) {
+      return '';
+    }
+    const raw = pendingPermissionRequest?.url || pendingPermissionRequest?.origin || '';
+    try {
+      return new URL(raw).hostname || raw;
+    } catch {
+      return raw;
+    }
+  }, [pendingPermissionRequest]);
 
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
@@ -366,9 +382,19 @@ export default function MotionBrowserScreen() {
       return;
     }
     const [nextRequest, ...remaining] = permissionQueue;
+    const fallbackProtocol = enabledProtocolOptions[0]?.id ?? activeProtocol;
+    const defaultProtocol = protocols[activeProtocol]?.enabled ? activeProtocol : fallbackProtocol;
     setPermissionQueue(remaining);
+    setSelectedProtocol(defaultProtocol);
+    setProtocolDropdownOpen(false);
     setPendingPermissionRequest(nextRequest);
-  }, [pendingPermissionRequest, permissionQueue]);
+  }, [
+    activeProtocol,
+    enabledProtocolOptions,
+    pendingPermissionRequest,
+    permissionQueue,
+    protocols,
+  ]);
 
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
     if (!standardSettings.injectMotionData) return;
@@ -520,12 +546,7 @@ export default function MotionBrowserScreen() {
 
   const sendPermissionDecision = useCallback((
     requestId: string,
-    decision: {
-      action: PermissionAction;
-      protocolId?: ProtocolType;
-      videoUri?: string;
-      videoName?: string;
-    }
+    decision: { action: PermissionAction; protocolId?: ProtocolType }
   ) => {
     if (!webViewRef.current) {
       console.warn('[App] Unable to send permission decision - no WebView');
@@ -541,36 +562,29 @@ export default function MotionBrowserScreen() {
     `);
   }, []);
 
-  const handleCameraPermissionPromptResponse = useCallback((result: CameraPermissionPromptResult) => {
+  const handlePermissionAction = useCallback((action: PermissionAction) => {
     if (!pendingPermissionRequest) {
       return;
     }
-
     const requestId = pendingPermissionRequest.requestId;
-    if (result.choice === 'simulate') {
-      let protocolToApply = result.protocolId || activeProtocol;
-      if (!protocols[protocolToApply]?.enabled) {
-        protocolToApply = enabledProtocolOptions[0]?.id ?? activeProtocol;
-      }
+    let protocolToApply = selectedProtocol;
+    if (!protocols[protocolToApply]?.enabled) {
+      protocolToApply = enabledProtocolOptions[0]?.id ?? activeProtocol;
+      setSelectedProtocol(protocolToApply);
+    }
 
+    if (action === 'simulate') {
       if (protocolToApply !== activeProtocol) {
         void setActiveProtocol(protocolToApply);
       } else {
         injectMediaConfig();
       }
-
-      sendPermissionDecision(requestId, {
-        action: 'simulate',
-        protocolId: protocolToApply,
-        videoUri: result.videoUri ? formatVideoUriForWebView(result.videoUri) : undefined,
-        videoName: result.videoName,
-      });
-    } else if (result.choice === 'allow') {
-      sendPermissionDecision(requestId, { action: 'real' });
+      sendPermissionDecision(requestId, { action, protocolId: protocolToApply });
     } else {
-      sendPermissionDecision(requestId, { action: 'deny' });
+      sendPermissionDecision(requestId, { action });
     }
 
+    setProtocolDropdownOpen(false);
     setPendingPermissionRequest(null);
   }, [
     activeProtocol,
@@ -578,6 +592,7 @@ export default function MotionBrowserScreen() {
     injectMediaConfig,
     pendingPermissionRequest,
     protocols,
+    selectedProtocol,
     sendPermissionDecision,
     setActiveProtocol,
   ]);
@@ -739,66 +754,74 @@ export default function MotionBrowserScreen() {
       }
 
       if (activeTemplate) {
-      console.log('[VideoSim] ========== PENDING VIDEO EFFECT TRIGGERED ==========');
-      console.log('[VideoSim] Timestamp:', new Date().toISOString());
-      console.log('[VideoSim] Pending video from my-videos:', {
-        name: pendingVideoForApply.name,
-        id: pendingVideoForApply.id,
-        uri: pendingVideoForApply.uri,
-      });
-      console.log('[VideoSim] Active template:', activeTemplate.id);
-      console.log('[VideoSim] Current apply ref state:', isApplyingVideoRef.current);
-      
-      // Reset stuck ref if needed
-      if (isApplyingVideoRef.current) {
-        console.warn('[VideoSim] Resetting stuck isApplyingVideoRef before processing new video');
-        isApplyingVideoRef.current = false;
-      }
-      
-      // Capture video and clear pending immediately to prevent race conditions
-      const videoToProcess = pendingVideoForApply;
-      const templateId = activeTemplate.id;
-      setPendingVideoForApply(null);
-      
-      // Video from my-videos is ALREADY compatibility checked - apply it directly
-      // without opening another modal (which causes freeze due to modal conflicts)
-      console.log('[VideoSim] Video already checked in my-videos, applying directly...');
-      isApplyingVideoRef.current = true;
-      
-      // Use a longer delay to let the navigation animation complete first
-      const timeoutId = setTimeout(async () => {
-        try {
-          console.log('[VideoSim] Applying video directly (skipping redundant check):', videoToProcess.name);
-          console.log('[VideoSim] Timestamp:', new Date().toISOString());
-          
-          // Apply to all devices directly - no modal needed
-          await assignVideoToAllDevices(templateId, videoToProcess.uri, videoToProcess.name, undefined, true);
-          console.log('[VideoSim] Video applied successfully');
-          
+        console.log('[VideoSim] ========== PENDING VIDEO EFFECT TRIGGERED ==========');
+        console.log('[VideoSim] Timestamp:', new Date().toISOString());
+        console.log('[VideoSim] Pending video from my-videos:', {
+          name: pendingVideoForApply.name,
+          id: pendingVideoForApply.id,
+          uri: pendingVideoForApply.uri,
+        });
+        console.log('[VideoSim] Active template:', activeTemplate.id);
+        console.log('[VideoSim] Current apply ref state:', isApplyingVideoRef.current);
+
+        // Reset stuck ref if needed
+        if (isApplyingVideoRef.current) {
+          console.warn('[VideoSim] Resetting stuck isApplyingVideoRef before processing new video');
           isApplyingVideoRef.current = false;
-          
-          // Inject the updated config after a short delay
-          setTimeout(() => {
-            injectMediaConfig();
-            console.log('[VideoSim] Media config injected after apply');
-          }, 100);
-          
-          Alert.alert('Success', `Video "${videoToProcess.name}" applied to all cameras. Reload the page to see changes.`);
-          console.log('[VideoSim] ========== PENDING VIDEO APPLY COMPLETE ==========');
-        } catch (error) {
-          console.error('[VideoSim] ERROR applying pending video:', error);
-          console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
-          isApplyingVideoRef.current = false;
-          Alert.alert('Error', `Failed to apply video: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-      }, 350); // Longer delay to let modal dismiss animation complete
-      
-      return () => {
-        clearTimeout(timeoutId);
-        isApplyingVideoRef.current = false;
-      };
+
+        // Capture video and clear pending immediately to prevent race conditions
+        const videoToProcess = pendingVideoForApply;
+        const templateId = activeTemplate.id;
+        setPendingVideoForApply(null);
+
+        // Video from my-videos is ALREADY compatibility checked - apply it directly
+        // without opening another modal (which causes freeze due to modal conflicts)
+        console.log('[VideoSim] Video already checked in my-videos, applying directly...');
+        isApplyingVideoRef.current = true;
+
+        // Use a longer delay to let the navigation animation complete first
+        const timeoutId = setTimeout(async () => {
+          try {
+            console.log('[VideoSim] Applying video directly (skipping redundant check):', videoToProcess.name);
+            console.log('[VideoSim] Timestamp:', new Date().toISOString());
+
+            // Apply to all devices directly - no modal needed
+            await assignVideoToAllDevices(templateId, videoToProcess.uri, videoToProcess.name, undefined, true);
+            console.log('[VideoSim] Video applied successfully');
+
+            isApplyingVideoRef.current = false;
+
+            // Inject the updated config after a short delay
+            setTimeout(() => {
+              injectMediaConfig();
+              console.log('[VideoSim] Media config injected after apply');
+            }, 100);
+
+            Alert.alert('Success', `Video "${videoToProcess.name}" applied to all cameras. Reload the page to see changes.`);
+            console.log('[VideoSim] ========== PENDING VIDEO APPLY COMPLETE ==========');
+          } catch (error) {
+            console.error('[VideoSim] ERROR applying pending video:', error);
+            console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
+            isApplyingVideoRef.current = false;
+            Alert.alert('Error', `Failed to apply video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }, 350); // Longer delay to let modal dismiss animation complete
+
+        return () => {
+          clearTimeout(timeoutId);
+          isApplyingVideoRef.current = false;
+        };
+      }
     }
-  }, [pendingVideoForApply, activeTemplate, setPendingVideoForApply, assignVideoToAllDevices, injectMediaConfig]);
+  }, [
+    pendingVideoForApply,
+    activeTemplate,
+    permissionRequest,
+    setPendingVideoForApply,
+    assignVideoToAllDevices,
+    injectMediaConfig,
+  ]);
 
   const applySavedVideoToDevice = useCallback(async (deviceId: string, video: SavedVideo) => {
     if (activeTemplate) {
@@ -863,6 +886,13 @@ export default function MotionBrowserScreen() {
     UIManager.getViewManagerConfig?.('RNCWebView') ||
     UIManager.getViewManagerConfig?.('RCTWebView')
   );
+  const allowLocalFileAccess = Platform.OS === 'android'
+    && requiresFileAccess
+    && isProtocolEnabled
+    && !allowlistBlocked;
+  const mixedContentMode = Platform.OS === 'android'
+    ? (httpsEnforced ? 'never' : 'always')
+    : undefined;
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -872,18 +902,17 @@ export default function MotionBrowserScreen() {
       const assignedUri = d.assignedVideoUri
         ? formatVideoUriForWebView(d.assignedVideoUri)
         : null;
-      const shouldSimulate = d.simulationEnabled || (effectiveStealthMode && d.type === 'camera');
       const resolvedUri =
         assignedUri ||
         fallbackVideoUri ||
-        (shouldSimulate ? getDefaultFallbackVideoUri() : undefined);
+        (d.simulationEnabled ? getDefaultFallbackVideoUri() : undefined);
 
       return {
         ...d,
         assignedVideoUri: resolvedUri,
         assignedVideoName: d.assignedVideoName || fallbackVideo?.name,
         // If no video assigned but simulation is enabled, use built-in
-        simulationEnabled: shouldSimulate,
+        simulationEnabled: d.simulationEnabled || (effectiveStealthMode && d.type === 'camera'),
       };
     });
     
@@ -913,6 +942,7 @@ export default function MotionBrowserScreen() {
       protocol: activeProtocol,
       fallback: fallbackVideo?.name || 'none',
     });
+    console.log('[App] Devices with videos:', devices.filter(d => d.assignedVideoUri).length);
     return script;
   }, [
     activeTemplate,
@@ -1209,10 +1239,10 @@ export default function MotionBrowserScreen() {
                 allowsBackForwardNavigationGestures
                 contentMode="mobile"
                 applicationNameForUserAgent="Safari/604.1"
-                allowFileAccess={Platform.OS === 'android' && requiresFileAccess}
-                allowFileAccessFromFileURLs={false}
-                allowUniversalAccessFromFileURLs={false}
-                mixedContentMode={Platform.OS === 'android' ? (httpsEnforced ? 'never' : 'always') : undefined}
+                allowFileAccess={allowLocalFileAccess}
+                allowFileAccessFromFileURLs={allowLocalFileAccess}
+                allowUniversalAccessFromFileURLs={allowLocalFileAccess}
+                mixedContentMode={mixedContentMode}
               />
             )}
           </View>
@@ -1302,6 +1332,84 @@ export default function MotionBrowserScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal
+        visible={Boolean(pendingPermissionRequest)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => handlePermissionAction('deny')}
+      >
+        <View style={styles.permissionOverlay}>
+          <View style={styles.permissionCard}>
+            <Text style={styles.permissionTitle}>Camera Permission Request</Text>
+            <Text style={styles.permissionSubtitle}>
+              {permissionSiteLabel
+                ? `${permissionSiteLabel} wants access to your camera.`
+                : 'A site wants access to your camera.'}
+            </Text>
+            <View style={styles.permissionSection}>
+              <Text style={styles.permissionSectionTitle}>Simulate video</Text>
+              <Text style={styles.permissionSectionHint}>
+                Use your configured simulated camera feed with a selected protocol.
+              </Text>
+              <TouchableOpacity
+                style={styles.permissionDropdown}
+                onPress={() => setProtocolDropdownOpen(prev => !prev)}
+              >
+                <Text style={styles.permissionDropdownText}>
+                  {selectedProtocolOption?.name || 'Select protocol'}
+                </Text>
+              </TouchableOpacity>
+              {protocolDropdownOpen && (
+                <View style={styles.permissionDropdownList}>
+                  {enabledProtocolOptions.map(option => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.permissionDropdownItem,
+                        option.id === selectedProtocol && styles.permissionDropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedProtocol(option.id);
+                        setProtocolDropdownOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.permissionDropdownItemText,
+                          option.id === selectedProtocol && styles.permissionDropdownItemTextActive,
+                        ]}
+                      >
+                        {option.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            <View style={styles.permissionActions}>
+              <TouchableOpacity
+                style={styles.permissionSimulateButton}
+                onPress={() => handlePermissionAction('simulate')}
+              >
+                <Text style={styles.permissionSimulateText}>Simulate Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.permissionRealButton}
+                onPress={() => handlePermissionAction('real')}
+              >
+                <Text style={styles.permissionRealText}>Don&apos;t Simulate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.permissionDenyButton}
+                onPress={() => handlePermissionAction('deny')}
+              >
+                <Text style={styles.permissionDenyText}>Deny Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <SiteSettingsModal
         visible={showSiteSettingsModal}
         currentUrl={url}
@@ -1330,17 +1438,6 @@ export default function MotionBrowserScreen() {
           onSelectVideo={() => router.push('/my-videos')}
         />
       )}
-
-      <CameraPermissionPromptModal
-        visible={Boolean(pendingPermissionRequest)}
-        requestingUrl={pendingPermissionRequest?.url || pendingPermissionRequest?.origin || url}
-        compatibleVideos={compatibleVideos}
-        protocols={protocolListForPrompt}
-        activeProtocol={activeProtocol}
-        defaultVideoId={fallbackVideo?.id}
-        onResponse={handleCameraPermissionPromptResponse}
-        onClose={() => handleCameraPermissionPromptResponse({ choice: 'deny' })}
-      />
 
       {/* Testing Watermark Overlay */}
       <TestingWatermark

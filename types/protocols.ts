@@ -225,6 +225,7 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
 
 // Legacy alias for backwards compatibility
 export const DEFAULT_ALLOWLIST_SETTINGS = DEFAULT_ADVANCED_RELAY_SETTINGS;
+
 export const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicSettings = {
   enabled: true,
   useWebSocketBridge: true,

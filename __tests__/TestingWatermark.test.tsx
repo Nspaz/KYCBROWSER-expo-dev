@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import renderer from 'react-test-renderer';
 import TestingWatermark from '@/components/TestingWatermark';
 
 describe('TestingWatermark', () => {

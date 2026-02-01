@@ -1,11 +1,5 @@
 import React, { memo, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  Easing,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Shield, AlertTriangle, FlaskConical, Lock } from 'lucide-react-native';
 
 type WatermarkPosition = 'top' | 'bottom' | 'top-right' | 'bottom-right' | 'fullscreen';
@@ -33,12 +27,12 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
   } = props;
 
   const hasVariantProp = props.variant !== undefined;
-  const showOverlay = !hasVariantProp && (
+  const showOverlay =
     position === 'fullscreen' ||
-    typeof mlSafetyEnabled === 'boolean' ||
-    typeof httpsEnforced === 'boolean' ||
-    typeof protocolName === 'string'
-  );
+    (!hasVariantProp &&
+      (typeof mlSafetyEnabled === 'boolean' ||
+        typeof httpsEnforced === 'boolean' ||
+        typeof protocolName === 'string'));
 
   const overlayMlSafetyEnabled = mlSafetyEnabled ?? true;
   const overlayHttpsEnforced = httpsEnforced ?? true;
@@ -96,9 +90,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
         style={[styles.overlayContainer, { opacity: fadeAnim }]}
       >
         <View style={styles.topBanner}>
-          <Animated.View
-            style={[styles.bannerContent, { opacity: showPulse ? pulseAnim : 1 }]}
-          >
+          <Animated.View style={[styles.bannerContent, { opacity: showPulse ? pulseAnim : 1 }]}>
             <FlaskConical size={14} color="#ffcc00" />
             <Text style={styles.bannerText}>TESTING PROTOTYPE</Text>
             <FlaskConical size={14} color="#ffcc00" />
@@ -151,7 +143,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     );
   }
 
-  const positionStyles: Record<WatermarkPosition, object> = {
+  const positionStyles: Record<Exclude<WatermarkPosition, 'fullscreen'>, object> = {
     top: styles.positionTop,
     bottom: styles.positionBottom,
     'top-right': styles.positionTopRight,
@@ -164,7 +156,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
       pointerEvents="none"
       style={[
         styles.badgeContainer,
-        positionStyles[position],
+        positionStyles[position as Exclude<WatermarkPosition, 'fullscreen'>],
         {
           opacity: showPulse ? pulseAnim : fadeAnim,
         },

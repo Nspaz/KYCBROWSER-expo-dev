@@ -8,18 +8,16 @@ import {
   Platform,
   ScrollView,
   UIManager,
-  Alert,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { WebView } from 'react-native-webview';
-import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity, Shield, Play } from 'lucide-react-native';
+import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity, Shield } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
+import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
-import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { formatVideoUriForWebView, isLocalFileUri } from '@/utils/videoServing';
-import { createMediaInjectionScript, CONSOLE_CAPTURE_SCRIPT } from '@/constants/browserScripts';
-import { getBuiltInVideoUri } from '@/constants/builtInTestVideo';
 import TestingWatermark from '@/components/TestingWatermark';
+import { BULLETPROOF_INJECTION_SCRIPT } from '@/constants/browserScripts';
 
 const TEST_HARNESS_HTML = `
 <!DOCTYPE html>
@@ -27,7 +25,7 @@ const TEST_HARNESS_HTML = `
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Camera Test Harness - Protocol 4</title>
+    <title>Protocol 4: Local Test Harness</title>
     <style>
       * { box-sizing: border-box; }
       body {
@@ -35,52 +33,63 @@ const TEST_HARNESS_HTML = `
         background: #0a0a0a;
         color: #ffffff;
         font-family: -apple-system, system-ui, sans-serif;
-        min-height: 100vh;
       }
       .container {
         padding: 12px;
       }
-      .header {
+      .status-bar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 12px;
-      }
-      .status {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.8);
-        padding: 8px 12px;
+        padding: 10px 14px;
         background: rgba(0, 255, 136, 0.1);
-        border-radius: 8px;
+        border-radius: 10px;
+        margin-bottom: 12px;
         border: 1px solid rgba(0, 255, 136, 0.3);
       }
-      .status.error {
-        background: rgba(255, 100, 100, 0.1);
-        border-color: rgba(255, 100, 100, 0.3);
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ff88;
+        animation: pulse 1.5s ease-in-out infinite;
       }
-      .status.success {
-        background: rgba(0, 255, 136, 0.2);
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .status-text {
+        font-size: 13px;
+        font-weight: 600;
         color: #00ff88;
+        margin-left: 10px;
+        flex: 1;
+      }
+      .status-info {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
       }
       .frame {
         position: relative;
         border-radius: 16px;
         overflow: hidden;
         background: #111111;
-        border: 2px solid rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(0, 255, 136, 0.3);
         aspect-ratio: 9/16;
-        max-height: 70vh;
-        margin: 0 auto;
+        max-height: 450px;
       }
-      video, canvas {
+      #camera {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        display: block;
+        background: #000;
       }
       #overlay {
         position: absolute;
         inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         display: none;
         z-index: 10;
       }
@@ -93,289 +102,257 @@ const TEST_HARNESS_HTML = `
         background: rgba(0, 0, 0, 0.75);
         padding: 10px 14px;
         border-radius: 10px;
-        font-size: 13px;
-        font-weight: 600;
-        color: #00ff88;
         z-index: 20;
-        backdrop-filter: blur(4px);
       }
-      .badge {
+      .label-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #00ff88;
+        margin-bottom: 4px;
+      }
+      .label-info {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .corner-marker {
+        position: absolute;
+        width: 30px;
+        height: 30px;
+        border: 3px solid #00ff88;
+        z-index: 15;
+      }
+      .corner-marker.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+      .corner-marker.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+      .corner-marker.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+      .corner-marker.br { bottom: 0; right: 0; border-left: none; border-top: none; }
+      .scan-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(0, 255, 136, 0.5);
+        z-index: 12;
+        animation: scan 2s linear infinite;
+      }
+      @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+      }
+      .fps-counter {
         position: absolute;
         top: 12px;
         right: 12px;
-        background: rgba(138, 43, 226, 0.9);
-        color: white;
-        padding: 6px 12px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 6px 10px;
         border-radius: 6px;
-        font-size: 11px;
-        font-weight: 700;
-        z-index: 20;
-      }
-      .controls {
-        margin-top: 16px;
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .btn {
-        flex: 1;
-        min-width: 120px;
-        padding: 12px 16px;
-        border: none;
-        border-radius: 10px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .btn-primary {
-        background: #00ff88;
-        color: #0a0a0a;
-      }
-      .btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-      .btn:active {
-        transform: scale(0.98);
-      }
-      .info {
-        margin-top: 16px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.6);
-        line-height: 1.5;
-      }
-      .info-title {
-        color: #ffffff;
-        font-weight: 600;
-        margin-bottom: 6px;
-      }
-      .metric {
-        display: flex;
-        justify-content: space-between;
-        padding: 4px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      }
-      .metric:last-child {
-        border-bottom: none;
-      }
-      .metric-value {
+        font-size: 12px;
+        font-family: monospace;
         color: #00ff88;
-        font-weight: 600;
+        z-index: 20;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="header">
-        <div class="status" id="status">Initializing Protocol 4...</div>
+      <div class="status-bar">
+        <div class="status-indicator"></div>
+        <div class="status-text" id="status">Initializing...</div>
+        <div class="status-info" id="info">Protocol 4</div>
       </div>
-      
       <div class="frame">
         <video id="camera" autoplay playsinline muted></video>
         <video id="overlay" autoplay playsinline muted loop></video>
-        <canvas id="fallbackCanvas" style="display:none;"></canvas>
-        <div class="badge">PROTOCOL 4</div>
-        <div class="label" id="label">Local Test Harness</div>
-      </div>
-      
-      <div class="controls">
-        <button class="btn btn-primary" id="startBtn">Start Camera Test</button>
-        <button class="btn btn-secondary" id="toggleBtn">Toggle Overlay</button>
-      </div>
-      
-      <div class="info">
-        <div class="info-title">Stream Metrics</div>
-        <div class="metric">
-          <span>Stream Type</span>
-          <span class="metric-value" id="streamType">--</span>
-        </div>
-        <div class="metric">
-          <span>Resolution</span>
-          <span class="metric-value" id="resolution">--</span>
-        </div>
-        <div class="metric">
-          <span>FPS</span>
-          <span class="metric-value" id="fps">--</span>
-        </div>
-        <div class="metric">
-          <span>Injection Status</span>
-          <span class="metric-value" id="injectionStatus">Pending</span>
+        <div class="corner-marker tl"></div>
+        <div class="corner-marker tr"></div>
+        <div class="corner-marker bl"></div>
+        <div class="corner-marker br"></div>
+        <div class="scan-line" id="scanLine"></div>
+        <div class="fps-counter" id="fps">-- fps</div>
+        <div class="label">
+          <div class="label-title" id="labelTitle">Local Test Harness</div>
+          <div class="label-info" id="labelInfo">Camera feed active</div>
         </div>
       </div>
     </div>
-    
     <script>
       const statusEl = document.getElementById('status');
+      const infoEl = document.getElementById('info');
       const cameraVideo = document.getElementById('camera');
       const overlayVideo = document.getElementById('overlay');
-      const fallbackCanvas = document.getElementById('fallbackCanvas');
-      const labelEl = document.getElementById('label');
-      const startBtn = document.getElementById('startBtn');
-      const toggleBtn = document.getElementById('toggleBtn');
-      
-      // Metrics elements
-      const streamTypeEl = document.getElementById('streamType');
-      const resolutionEl = document.getElementById('resolution');
+      const labelTitle = document.getElementById('labelTitle');
+      const labelInfo = document.getElementById('labelInfo');
       const fpsEl = document.getElementById('fps');
-      const injectionStatusEl = document.getElementById('injectionStatus');
+      const scanLine = document.getElementById('scanLine');
       
-      let currentStream = null;
       let overlayEnabled = false;
+      let lastFrameTime = performance.now();
       let frameCount = 0;
-      let lastFpsTime = Date.now();
-      
-      function updateStatus(text, type) {
-        statusEl.textContent = text;
-        statusEl.className = 'status' + (type ? ' ' + type : '');
-      }
-      
-      function updateMetrics(stream) {
-        if (!stream) return;
-        
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          const settings = videoTrack.getSettings();
-          streamTypeEl.textContent = stream._isBuiltIn ? 'Built-in Test' : 'Simulated';
-          resolutionEl.textContent = (settings.width || '?') + 'x' + (settings.height || '?');
-          injectionStatusEl.textContent = 'Active';
-          injectionStatusEl.style.color = '#00ff88';
-        }
-      }
-      
-      // FPS counter
-      setInterval(function() {
-        const now = Date.now();
-        const elapsed = (now - lastFpsTime) / 1000;
-        if (elapsed > 0) {
-          const currentFps = Math.round(frameCount / elapsed);
-          fpsEl.textContent = currentFps + ' fps';
-        }
-        frameCount = 0;
-        lastFpsTime = now;
-      }, 1000);
-      
-      // Frame counter for video
-      function countFrames() {
+      let currentFps = 0;
+
+      // FPS Counter
+      function updateFps() {
         frameCount++;
-        if (cameraVideo.readyState >= 2) {
-          requestAnimationFrame(countFrames);
+        const now = performance.now();
+        const elapsed = now - lastFrameTime;
+        if (elapsed >= 1000) {
+          currentFps = Math.round((frameCount * 1000) / elapsed);
+          fpsEl.textContent = currentFps + ' fps';
+          frameCount = 0;
+          lastFrameTime = now;
         }
+        requestAnimationFrame(updateFps);
       }
-      
+      updateFps();
+
+      // Camera initialization with bulletproof fallback
       async function startCamera() {
-        updateStatus('Requesting camera access...', '');
+        statusEl.textContent = 'Requesting camera...';
         
         try {
-          // This will be intercepted by the injection script
-          const stream = await navigator.mediaDevices.getUserMedia({
+          // This will be intercepted by the bulletproof injection
+          const stream = await navigator.mediaDevices.getUserMedia({ 
             video: {
-              facingMode: 'user',
               width: { ideal: 1080 },
               height: { ideal: 1920 },
-              aspectRatio: { ideal: 9/16 }
-            },
-            audio: false
+              facingMode: 'user'
+            }, 
+            audio: false 
           });
           
-          currentStream = stream;
           cameraVideo.srcObject = stream;
           
-          // Wait for video to start playing
-          await new Promise(function(resolve) {
-            cameraVideo.onloadedmetadata = function() {
-              cameraVideo.play().then(resolve).catch(resolve);
-            };
-          });
+          const track = stream.getVideoTracks()[0];
+          const settings = track.getSettings();
           
-          updateStatus('Camera injection active - video playing!', 'success');
-          labelEl.textContent = stream._isBuiltIn ? 'Built-in Test Video Active' : 'Simulated Camera Feed';
-          updateMetrics(stream);
+          statusEl.textContent = 'Camera stream active';
+          infoEl.textContent = settings.width + 'x' + settings.height;
+          labelInfo.textContent = track.label || 'Camera feed active';
           
-          // Start frame counting
-          requestAnimationFrame(countFrames);
+          console.log('[Harness] Camera active:', settings);
           
-          // Notify React Native
+          // Notify RN that we're ready
           if (window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'testHarnessStarted',
-              payload: { success: true, isBuiltIn: stream._isBuiltIn || false }
+              type: 'harnessReady',
+              stream: {
+                width: settings.width,
+                height: settings.height,
+                fps: settings.frameRate,
+                label: track.label
+              }
             }));
           }
           
         } catch (error) {
-          console.error('Camera error:', error);
-          updateStatus('Camera test failed: ' + error.message, 'error');
-          labelEl.textContent = 'Test Failed';
-          injectionStatusEl.textContent = 'Failed';
-          injectionStatusEl.style.color = '#ff6b6b';
+          console.error('[Harness] Camera error:', error);
+          statusEl.textContent = 'Camera unavailable';
+          infoEl.textContent = error.message || 'Check permissions';
+          labelInfo.textContent = 'Error: ' + (error.message || 'Unknown');
           
-          // Try built-in fallback directly
-          if (window.__createBuiltInVideoStream) {
-            try {
-              updateStatus('Trying built-in video fallback...', '');
-              const fallbackStream = await window.__createBuiltInVideoStream({ patternType: 'bouncing_ball' });
-              currentStream = fallbackStream;
-              cameraVideo.srcObject = fallbackStream;
-              await cameraVideo.play();
-              updateStatus('Built-in video fallback active!', 'success');
-              labelEl.textContent = 'Built-in Test Video';
-              updateMetrics(fallbackStream);
-              requestAnimationFrame(countFrames);
-            } catch (fallbackError) {
-              console.error('Fallback also failed:', fallbackError);
-              updateStatus('All methods failed', 'error');
-            }
-          }
+          // Try fallback pattern
+          createFallbackPattern();
         }
       }
-      
-      function toggleOverlay() {
-        overlayEnabled = !overlayEnabled;
-        overlayVideo.style.display = overlayEnabled ? 'block' : 'none';
-        toggleBtn.textContent = overlayEnabled ? 'Hide Overlay' : 'Show Overlay';
+
+      // Fallback animated pattern
+      function createFallbackPattern() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;
+        canvas.height = 1920;
+        const ctx = canvas.getContext('2d');
+        let frame = 0;
+        const start = Date.now();
         
-        if (overlayEnabled && !overlayVideo.src) {
-          labelEl.textContent = 'Overlay enabled (no video set)';
+        function render() {
+          const t = (Date.now() - start) / 1000;
+          const hue = (t * 50) % 360;
+          
+          // Gradient background
+          const grad = ctx.createLinearGradient(0, 0, 0, 1920);
+          grad.addColorStop(0, 'hsl(' + hue + ', 50%, 20%)');
+          grad.addColorStop(1, 'hsl(' + ((hue + 180) % 360) + ', 50%, 20%)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 1080, 1920);
+          
+          // Moving circles
+          for (let i = 0; i < 5; i++) {
+            const x = 540 + Math.sin(t + i) * 200;
+            const y = 400 + i * 250 + Math.cos(t * 0.8 + i) * 50;
+            ctx.beginPath();
+            ctx.arc(x, y, 40 + i * 10, 0, Math.PI * 2);
+            ctx.fillStyle = 'hsla(' + ((hue + i * 60) % 360) + ', 60%, 50%, 0.8)';
+            ctx.fill();
+          }
+          
+          // Info text
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(20, 1700, 400, 100);
+          ctx.fillStyle = '#00ff88';
+          ctx.font = 'bold 24px sans-serif';
+          ctx.fillText('FALLBACK PATTERN', 40, 1740);
+          ctx.fillStyle = '#fff';
+          ctx.font = '18px monospace';
+          ctx.fillText('Frame: ' + frame, 40, 1775);
+          
+          frame++;
+          requestAnimationFrame(render);
+        }
+        
+        render();
+        
+        try {
+          const stream = canvas.captureStream(30);
+          cameraVideo.srcObject = stream;
+          statusEl.textContent = 'Fallback pattern active';
+          labelInfo.textContent = 'Using generated pattern';
+        } catch (e) {
+          console.error('[Harness] Fallback failed:', e);
         }
       }
-      
-      window.__setOverlayVideo = function(url) {
-        if (!url) return;
+
+      // Overlay control functions
+      window.__setOverlayVideo = (url) => {
+        console.log('[Harness] Setting overlay video:', url);
+        if (!url) {
+          overlayVideo.src = '';
+          return;
+        }
+        
         overlayVideo.src = url;
-        overlayVideo.load();
-        overlayVideo.play().catch(function() {});
-        console.log('[TestHarness] Overlay video set:', url.substring(0, 50));
+        overlayVideo.play().catch(e => {
+          console.warn('[Harness] Overlay play failed:', e);
+        });
       };
-      
-      window.__toggleOverlay = function(enabled) {
+
+      window.__toggleOverlay = (enabled) => {
+        console.log('[Harness] Toggle overlay:', enabled);
         overlayEnabled = enabled;
         overlayVideo.style.display = enabled ? 'block' : 'none';
-        toggleBtn.textContent = enabled ? 'Hide Overlay' : 'Show Overlay';
-        updateStatus(enabled ? 'Overlay replacement active' : 'Camera injection active', 'success');
+        scanLine.style.display = enabled ? 'block' : 'none';
+        
+        if (enabled) {
+          statusEl.textContent = 'Overlay replacement active';
+          labelTitle.textContent = 'Video Overlay Active';
+          labelInfo.textContent = 'Replacement video playing';
+        } else {
+          statusEl.textContent = 'Camera stream active';
+          labelTitle.textContent = 'Local Test Harness';
+          labelInfo.textContent = 'Camera feed active';
+        }
       };
-      
-      window.__getTestHarnessStatus = function() {
+
+      window.__getHarnessStatus = () => {
         return {
-          hasStream: !!currentStream,
-          overlayEnabled: overlayEnabled,
-          isBuiltIn: currentStream && currentStream._isBuiltIn,
-          tracks: currentStream ? currentStream.getTracks().length : 0
+          overlayEnabled,
+          currentFps,
+          hasCamera: !!cameraVideo.srcObject,
+          hasOverlay: !!overlayVideo.src
         };
       };
-      
-      // Event listeners
-      startBtn.addEventListener('click', startCamera);
-      toggleBtn.addEventListener('click', toggleOverlay);
-      
-      // Auto-start camera test
-      setTimeout(startCamera, 500);
-      
-      console.log('[TestHarness] Protocol 4 initialized');
+
+      // Start
+      startCamera();
+      console.log('[Harness] Protocol 4: Test Harness initialized');
     </script>
   </body>
 </html>
@@ -384,18 +361,13 @@ const TEST_HARNESS_HTML = `
 export default function TestHarnessScreen() {
   const webViewRef = useRef<WebView>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
-  const [useBuiltInVideo, setUseBuiltInVideo] = useState(true);
-  const [testStatus, setTestStatus] = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
-  const { activeTemplate, stealthMode } = useDeviceTemplate();
+  const { developerMode } = useDeveloperMode();
   const {
     harnessSettings,
     updateHarnessSettings,
     developerModeEnabled,
-    presentationMode,
-    mlSafetyEnabled,
-    showTestingWatermark,
     protocols,
   } = useProtocol();
 
@@ -419,6 +391,8 @@ export default function TestHarnessScreen() {
     });
   }, [savedVideos, isVideoReady]);
 
+  const webViewOriginWhitelist = useMemo(() => ['about:blank'], []);
+
   useEffect(() => {
     if (!selectedVideoId && compatibleVideos.length > 0) {
       setSelectedVideoId(compatibleVideos[0].id);
@@ -426,36 +400,8 @@ export default function TestHarnessScreen() {
   }, [selectedVideoId, compatibleVideos]);
 
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
-
-  // Create devices with built-in video for testing
-  const testDevices = useMemo(() => {
-    if (!activeTemplate) {
-      // Create a default test device if no template
-      return [{
-        id: 'test_front_camera',
-        name: 'Test Front Camera',
-        type: 'camera' as const,
-        facing: 'front' as const,
-        simulationEnabled: true,
-        assignedVideoUri: useBuiltInVideo ? getBuiltInVideoUri('bouncing_ball') : (selectedVideo?.uri || getBuiltInVideoUri('bouncing_ball')),
-        capabilities: {
-          videoResolutions: [{ width: 1080, height: 1920, maxFps: 30 }],
-        },
-      }];
-    }
-    
-    // Use template devices but assign built-in video for testing
-    return activeTemplate.captureDevices.map(device => ({
-      ...device,
-      simulationEnabled: true,
-      assignedVideoUri: useBuiltInVideo ? getBuiltInVideoUri('bouncing_ball') : (selectedVideo?.uri || device.assignedVideoUri || getBuiltInVideoUri('bouncing_ball')),
-    }));
-  }, [activeTemplate, useBuiltInVideo, selectedVideo]);
-
-  // Generate the injection script with test devices
-  const injectionScript = useMemo(() => {
-    return CONSOLE_CAPTURE_SCRIPT + createMediaInjectionScript(testDevices, true);
-  }, [testDevices]);
+  const allowLocalFileAccess =
+    Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   const applyOverlaySettings = useCallback(() => {
     if (!webViewRef.current) return;
@@ -483,7 +429,7 @@ export default function TestHarnessScreen() {
   return (
     <View style={styles.container}>
       <TestingWatermark 
-        visible={showTestingWatermark}
+        visible={developerMode.showWatermark}
         position="top-right"
         variant="minimal"
       />
@@ -522,16 +468,15 @@ export default function TestHarnessScreen() {
             </View>
           )}
         </View>
-        {presentationMode && (
+        
+        {developerModeEnabled && (
           <View style={styles.protocolBadge}>
             <FlaskConical size={14} color="#ffcc00" />
-            <Text style={styles.protocolBadgeText}>Protocol 4: Local Test Harness</Text>
-            {mlSafetyEnabled && (
-              <View style={styles.mlBadge}>
-                <Shield size={10} color="#00aaff" />
-                <Text style={styles.mlBadgeText}>ML SAFE</Text>
-              </View>
-            )}
+            <Text style={styles.protocolBadgeText}>Developer Mode Active</Text>
+            <View style={styles.mlBadge}>
+              <Shield size={10} color="#00aaff" />
+              <Text style={styles.mlBadgeText}>ML SAFE</Text>
+            </View>
           </View>
         )}
 
@@ -554,7 +499,6 @@ export default function TestHarnessScreen() {
               onValueChange={setOverlayEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={overlayEnabled ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
             />
           </View>
 
@@ -562,20 +506,9 @@ export default function TestHarnessScreen() {
             <Text style={styles.toggleLabel}>Show Debug Info</Text>
             <Switch
               value={harnessSettings.showDebugInfo}
-              onValueChange={(v) => updateHarnessSettings({ showDebugInfo: v })}
+              onValueChange={(v) => developerModeEnabled && updateHarnessSettings({ showDebugInfo: v })}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
               thumbColor={harnessSettings.showDebugInfo ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Mirror Video</Text>
-            <Switch
-              value={harnessSettings.mirrorVideo}
-              onValueChange={(v) => updateHarnessSettings({ mirrorVideo: v })}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-              thumbColor={harnessSettings.mirrorVideo ? '#ffffff' : '#888888'}
               disabled={!developerModeEnabled}
             />
           </View>
@@ -627,82 +560,32 @@ export default function TestHarnessScreen() {
           ) : (
             <WebView
               ref={webViewRef}
-              originWhitelist={['*']}
+              originWhitelist={webViewOriginWhitelist}
               source={{ html: TEST_HARNESS_HTML }}
               style={styles.webView}
-              injectedJavaScriptBeforeContentLoaded={injectionScript}
-              onLoadStart={() => setTestStatus('running')}
-              onLoadEnd={() => {
-                applyOverlaySettings();
-                console.log('[TestHarness] WebView loaded, injection script applied');
-              }}
+              injectedJavaScriptBeforeContentLoaded={BULLETPROOF_INJECTION_SCRIPT}
+              onLoadEnd={applyOverlaySettings}
               onMessage={(event) => {
                 try {
                   const data = JSON.parse(event.nativeEvent.data);
-                  if (data.type === 'console') {
-                    console.log(`[TestHarness WebView ${data.level}]`, data.message);
-                  } else if (data.type === 'testHarnessStarted') {
-                    setTestStatus(data.payload?.success ? 'success' : 'failed');
-                    if (data.payload?.success) {
-                      console.log('[TestHarness] Camera injection successful!');
-                    }
-                  } else if (data.type === 'cameraIntercepted') {
-                    console.log('[TestHarness] Camera intercepted:', data.payload);
-                    setTestStatus('success');
+                  if (data.type === 'harnessReady') {
+                    console.log('[TestHarness] WebView ready:', data.stream);
+                  } else if (data.type === 'bulletproofReady') {
+                    console.log('[TestHarness] Bulletproof injection active');
                   }
                 } catch {
-                  console.log('[TestHarness Raw]', event.nativeEvent.data);
+                  console.log('[TestHarness] Message:', event.nativeEvent.data);
                 }
               }}
               javaScriptEnabled
               domStorageEnabled
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
-              allowFileAccess
-              allowFileAccessFromFileURLs
-              allowUniversalAccessFromFileURLs
+              allowFileAccess={allowLocalFileAccess}
+              allowFileAccessFromFileURLs={allowLocalFileAccess}
+              allowUniversalAccessFromFileURLs={allowLocalFileAccess}
             />
           )}
-        </View>
-        
-        {/* Test Status Indicator */}
-        <View style={styles.testStatusCard}>
-          <View style={styles.testStatusHeader}>
-            <Play size={16} color={testStatus === 'success' ? '#00ff88' : testStatus === 'failed' ? '#ff6b6b' : '#00aaff'} />
-            <Text style={styles.testStatusTitle}>Injection Test Status</Text>
-          </View>
-          <View style={styles.testStatusContent}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Built-in Test Video</Text>
-              <Switch
-                value={useBuiltInVideo}
-                onValueChange={setUseBuiltInVideo}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={useBuiltInVideo ? '#ffffff' : '#888888'}
-              />
-            </View>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Status</Text>
-              <Text style={[
-                styles.statusValue,
-                testStatus === 'success' && styles.statusValueSuccess,
-                testStatus === 'failed' && styles.statusValueError,
-              ]}>
-                {testStatus === 'idle' ? 'Ready' : 
-                 testStatus === 'running' ? 'Testing...' :
-                 testStatus === 'success' ? 'Injection Active!' : 'Failed'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.reloadButton}
-              onPress={() => {
-                setTestStatus('running');
-                webViewRef.current?.reload();
-              }}
-            >
-              <Text style={styles.reloadButtonText}>Reload Test</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Settings Card */}
@@ -725,7 +608,9 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.enableAudioPassthrough}
-              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })}
+              onValueChange={(val) =>
+                developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.enableAudioPassthrough ? '#ffffff' : '#888888'}
@@ -739,7 +624,9 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.testPatternOnNoVideo}
-              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })}
+              onValueChange={(val) =>
+                developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.testPatternOnNoVideo ? '#ffffff' : '#888888'}
@@ -806,14 +693,14 @@ const styles = StyleSheet.create({
   },
   protocolBannerTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
   },
   protocolBannerStatus: {
     fontSize: 10,
     color: '#00ff88',
     marginTop: 2,
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   benchmarkIndicator: {
     flexDirection: 'row',
@@ -827,7 +714,7 @@ const styles = StyleSheet.create({
   benchmarkText: {
     fontSize: 10,
     color: '#00ff88',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   infoCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -845,7 +732,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#ffffff',
   },
   infoText: {
@@ -870,13 +757,13 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 13,
     color: '#ffffff',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   lockedHint: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.4)',
     marginTop: 8,
-    textAlign: 'center' as const,
+    textAlign: 'center',
   },
   protocolBadge: {
     flexDirection: 'row',
@@ -892,7 +779,7 @@ const styles = StyleSheet.create({
   protocolBadgeText: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffcc00',
   },
   mlBadge: {
@@ -906,12 +793,12 @@ const styles = StyleSheet.create({
   },
   mlBadgeText: {
     fontSize: 9,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#00aaff',
   },
   selectorTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     marginBottom: 8,
   },
@@ -976,7 +863,7 @@ const styles = StyleSheet.create({
   },
   settingsTitle: {
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     flex: 1,
   },
@@ -992,7 +879,7 @@ const styles = StyleSheet.create({
   settingsLockedText: {
     fontSize: 10,
     color: '#ff6b35',
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   settingRow: {
     flexDirection: 'row',
@@ -1008,72 +895,12 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 13,
-    fontWeight: '500' as const,
+    fontWeight: '500',
     color: '#ffffff',
   },
   settingHint: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
-  },
-  testStatusCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginTop: 12,
-  },
-  testStatusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  testStatusTitle: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#ffffff',
-  },
-  testStatusContent: {
-    gap: 12,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusLabel: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  statusValue: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#00aaff',
-  },
-  statusValueSuccess: {
-    color: '#00ff88',
-  },
-  statusValueError: {
-    color: '#ff6b6b',
-  },
-  reloadButton: {
-    backgroundColor: 'rgba(0, 255, 136, 0.15)',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 136, 0.3)',
-  },
-  reloadButtonText: {
-    color: '#00ff88',
-    fontSize: 13,
-    fontWeight: '600' as const,
   },
 });
