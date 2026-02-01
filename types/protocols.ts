@@ -2,11 +2,11 @@
  * Protocol Settings Types
  * Defines configuration for all 5 testing protocols
  * 
- * Protocol 1: Standard Injection - Basic media injection for internal testing
- * Protocol 2: Allowlist Mode - Domain-restricted injection for safe testing
- * Protocol 3: Protected Preview - Body detection with safe video replacement
- * Protocol 4: Test Harness - Local sandbox for overlay testing
- * Protocol 5: Claude Protocol - Most advanced AI-driven injection system
+ * Protocol 1: Standard Injection - Basic media injection flow
+ * Protocol 2: Allowlist Mode - Domain-restricted injection
+ * Protocol 3: Protected Preview - Body detection with safe video swap
+ * Protocol 4: Test Harness - Local sandbox testing
+ * Protocol 5: Claude Protocol - Advanced AI-driven injection with neural optimization
  */
 
 export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude';
@@ -60,54 +60,42 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
-// Protocol 5: Claude Protocol Settings
-// The most advanced AI-driven injection protocol with cutting-edge features
+// Protocol 5: Claude Protocol Settings (Advanced AI-Driven Injection)
 export interface ClaudeProtocolSettings {
   enabled: boolean;
-  
-  // AI-Driven Adaptive Injection
-  adaptiveInjection: boolean;
-  contextAwareness: boolean; // Adapts to page context
-  predictivePreloading: boolean; // Preloads resources before needed
-  
-  // Advanced Stealth Features
-  deepStealthMode: boolean; // Enhanced fingerprint protection
-  behavioralMimicry: boolean; // Mimics natural user behavior patterns
-  timingRandomization: boolean; // Randomizes API response timing
-  
-  // Intelligent Quality Control
-  aiQualityOptimization: boolean; // ML-based quality adjustments
-  dynamicResolutionScaling: boolean;
-  frameRateStabilization: boolean;
-  
-  // Advanced Detection Evasion
-  fingerprintMorphing: boolean; // Changes fingerprint over time
-  canvasNoiseAdaptation: boolean; // Adapts noise based on detection attempts
-  webrtcLeakPrevention: boolean;
-  
+  // Neural Optimization Engine
+  neuralOptimizationEnabled: boolean;
+  adaptiveBitrateEnabled: boolean;
+  intelligentFrameInterpolation: boolean;
+  // Advanced Stealth
+  quantumFingerprintEvasion: boolean;
+  behavioralMimicryEnabled: boolean;
+  dynamicTimingJitter: boolean;
+  antiDetectionLevel: 'standard' | 'enhanced' | 'maximum' | 'paranoid';
+  // Context-Aware Processing
+  contextAwareInjection: boolean;
+  sceneAnalysisEnabled: boolean;
+  lightingAdaptation: boolean;
+  motionPrediction: boolean;
+  // Quality Enhancement
+  superResolutionEnabled: boolean;
+  noiseReductionLevel: 'off' | 'light' | 'moderate' | 'aggressive';
+  colorEnhancement: boolean;
+  hdrSimulation: boolean;
   // Performance Optimization
-  memoryOptimization: boolean;
   gpuAcceleration: boolean;
-  workerThreads: boolean; // Use web workers for heavy processing
-  
-  // Reliability Features
-  autoRecovery: boolean; // Automatic recovery from failures
-  redundantStreams: boolean; // Backup streams for reliability
-  healthMonitoring: boolean;
-  
-  // Metrics and Telemetry
-  advancedMetrics: boolean;
-  performanceLogging: boolean;
-  anomalyDetection: boolean; // Detect unusual behavior
-  
-  // Protocol Priority (1-100, higher = more priority)
-  priorityLevel: number;
-  
-  // Injection Mode
-  injectionMode: 'aggressive' | 'balanced' | 'conservative' | 'stealth';
-  
-  // Quality Preset
-  qualityPreset: 'maximum' | 'high' | 'balanced' | 'performance';
+  webglOptimization: boolean;
+  memoryOptimization: boolean;
+  powerEfficiencyMode: boolean;
+  // Telemetry & Learning
+  performanceMetricsEnabled: boolean;
+  adaptiveLearningEnabled: boolean;
+  errorRecoveryMode: 'graceful' | 'aggressive' | 'silent';
+  // Advanced Features
+  realtimeVideoEnhancement: boolean;
+  seamlessTransitions: boolean;
+  multiStreamSupport: boolean;
+  priorityLevel: 'background' | 'normal' | 'high' | 'realtime';
 }
 
 // Combined Protocol Settings
@@ -169,53 +157,41 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
-// Default settings for Claude Protocol - the most advanced configuration
 export const DEFAULT_CLAUDE_SETTINGS: ClaudeProtocolSettings = {
   enabled: true,
-  
-  // AI-Driven Adaptive Injection - all enabled by default for maximum capability
-  adaptiveInjection: true,
-  contextAwareness: true,
-  predictivePreloading: true,
-  
-  // Advanced Stealth Features - full stealth by default
-  deepStealthMode: true,
-  behavioralMimicry: true,
-  timingRandomization: true,
-  
-  // Intelligent Quality Control
-  aiQualityOptimization: true,
-  dynamicResolutionScaling: true,
-  frameRateStabilization: true,
-  
-  // Advanced Detection Evasion
-  fingerprintMorphing: true,
-  canvasNoiseAdaptation: true,
-  webrtcLeakPrevention: true,
-  
+  // Neural Optimization Engine
+  neuralOptimizationEnabled: true,
+  adaptiveBitrateEnabled: true,
+  intelligentFrameInterpolation: true,
+  // Advanced Stealth
+  quantumFingerprintEvasion: true,
+  behavioralMimicryEnabled: true,
+  dynamicTimingJitter: true,
+  antiDetectionLevel: 'enhanced',
+  // Context-Aware Processing
+  contextAwareInjection: true,
+  sceneAnalysisEnabled: true,
+  lightingAdaptation: true,
+  motionPrediction: true,
+  // Quality Enhancement
+  superResolutionEnabled: false,
+  noiseReductionLevel: 'moderate',
+  colorEnhancement: true,
+  hdrSimulation: false,
   // Performance Optimization
-  memoryOptimization: true,
   gpuAcceleration: true,
-  workerThreads: true,
-  
-  // Reliability Features
-  autoRecovery: true,
-  redundantStreams: true,
-  healthMonitoring: true,
-  
-  // Metrics and Telemetry
-  advancedMetrics: true,
-  performanceLogging: true,
-  anomalyDetection: true,
-  
-  // Protocol Priority - highest priority
-  priorityLevel: 100,
-  
-  // Injection Mode - balanced for optimal performance
-  injectionMode: 'balanced',
-  
-  // Quality Preset - maximum quality
-  qualityPreset: 'maximum',
+  webglOptimization: true,
+  memoryOptimization: true,
+  powerEfficiencyMode: false,
+  // Telemetry & Learning
+  performanceMetricsEnabled: true,
+  adaptiveLearningEnabled: true,
+  errorRecoveryMode: 'graceful',
+  // Advanced Features
+  realtimeVideoEnhancement: true,
+  seamlessTransitions: true,
+  multiStreamSupport: true,
+  priorityLevel: 'high',
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
@@ -276,8 +252,8 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   },
   claude: {
     id: 'claude',
-    name: 'Protocol 5: Claude Protocol',
-    description: 'The most advanced AI-driven injection system. Features adaptive injection, deep stealth mode, behavioral mimicry, predictive preloading, intelligent quality optimization, fingerprint morphing, and automatic recovery. Designed by Claude AI to push the boundaries of what\'s possible.',
+    name: 'Protocol 5: Claude Neural Injection',
+    description: 'Advanced AI-driven injection protocol with neural optimization, quantum fingerprint evasion, behavioral mimicry, intelligent scene analysis, and adaptive performance optimization. The most sophisticated injection system ever created.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,

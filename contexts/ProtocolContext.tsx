@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'gpt52';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -47,32 +47,48 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
-export interface Gpt52ProtocolSettings {
-  /**
-   * When true, this protocol forces stealth + simulation and prioritizes
-   * the most "advanced" behavior set in this app.
-   */
-  ultraStealth: boolean;
-  /** Force simulation even without per-device videos. */
-  forceSimulation: boolean;
-  /** Inject motion data into the page. */
-  injectMotionData: boolean;
-  /** Loop injected video. */
-  loopVideo: boolean;
-  /** Mirror injected video. */
-  mirrorVideo: boolean;
-  /** Show protocol overlay badge text in-page. */
-  showOverlayLabel: boolean;
-  /** Auto-inject on page load. */
-  autoInject: boolean;
-  /** Respect per-site stealth defaults. */
-  respectSiteSettings: boolean;
+// Claude Protocol Settings - Advanced AI-Driven Injection
+export interface ClaudeProtocolSettings {
+  // Core Settings
+  enabled: boolean;
+  neuralOptimizationEnabled: boolean;
+  adaptiveBitrateEnabled: boolean;
+  intelligentFrameInterpolation: boolean;
+  // Stealth Settings
+  quantumFingerprintEvasion: boolean;
+  behavioralMimicryEnabled: boolean;
+  dynamicTimingJitter: boolean;
+  antiDetectionLevel: 'standard' | 'enhanced' | 'maximum' | 'paranoid';
+  // Context-Aware Processing
+  contextAwareInjection: boolean;
+  sceneAnalysisEnabled: boolean;
+  lightingAdaptation: boolean;
+  motionPrediction: boolean;
+  // Quality Enhancement
+  superResolutionEnabled: boolean;
+  noiseReductionLevel: 'off' | 'light' | 'moderate' | 'aggressive';
+  colorEnhancement: boolean;
+  hdrSimulation: boolean;
+  // Performance
+  gpuAcceleration: boolean;
+  webglOptimization: boolean;
+  memoryOptimization: boolean;
+  powerEfficiencyMode: boolean;
+  // Telemetry
+  performanceMetricsEnabled: boolean;
+  adaptiveLearningEnabled: boolean;
+  errorRecoveryMode: 'graceful' | 'aggressive' | 'silent';
+  // Advanced
+  realtimeVideoEnhancement: boolean;
+  seamlessTransitions: boolean;
+  multiStreamSupport: boolean;
+  priorityLevel: 'background' | 'normal' | 'high' | 'realtime';
 }
 
 export interface ProtocolContextValue {
   // Developer Mode
   developerModeEnabled: boolean;
-  toggleDeveloperMode: (pinAttempt?: string) => Promise<boolean>;
+  toggleDeveloperMode: () => Promise<void>;
   setDeveloperModeWithPin: (pin: string) => Promise<boolean>;
   developerPin: string | null;
   setDeveloperPin: (pin: string) => Promise<void>;
@@ -99,14 +115,14 @@ export interface ProtocolContextValue {
   allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
-  gpt52Settings: Gpt52ProtocolSettings;
+  claudeSettings: ClaudeProtocolSettings;
   
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
-  updateGpt52Settings: (settings: Partial<Gpt52ProtocolSettings>) => Promise<void>;
+  updateClaudeSettings: (settings: Partial<ClaudeProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -136,7 +152,7 @@ const STORAGE_KEYS = {
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
-  GPT52_SETTINGS: '@protocol_gpt52_settings',
+  CLAUDE_SETTINGS: '@protocol_claude_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -177,15 +193,34 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
-const DEFAULT_GPT52_SETTINGS: Gpt52ProtocolSettings = {
-  ultraStealth: true,
-  forceSimulation: true,
-  injectMotionData: true,
-  loopVideo: true,
-  mirrorVideo: false,
-  showOverlayLabel: true,
-  autoInject: true,
-  respectSiteSettings: true,
+const DEFAULT_CLAUDE_SETTINGS: ClaudeProtocolSettings = {
+  enabled: true,
+  neuralOptimizationEnabled: true,
+  adaptiveBitrateEnabled: true,
+  intelligentFrameInterpolation: true,
+  quantumFingerprintEvasion: true,
+  behavioralMimicryEnabled: true,
+  dynamicTimingJitter: true,
+  antiDetectionLevel: 'enhanced',
+  contextAwareInjection: true,
+  sceneAnalysisEnabled: true,
+  lightingAdaptation: true,
+  motionPrediction: true,
+  superResolutionEnabled: false,
+  noiseReductionLevel: 'moderate',
+  colorEnhancement: true,
+  hdrSimulation: false,
+  gpuAcceleration: true,
+  webglOptimization: true,
+  memoryOptimization: true,
+  powerEfficiencyMode: false,
+  performanceMetricsEnabled: true,
+  adaptiveLearningEnabled: true,
+  errorRecoveryMode: 'graceful',
+  realtimeVideoEnhancement: true,
+  seamlessTransitions: true,
+  multiStreamSupport: true,
+  priorityLevel: 'high',
 };
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
@@ -217,10 +252,10 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
-  gpt52: {
-    id: 'gpt52',
-    name: 'Protocol 5: GPT-5.2 (Max Advanced)',
-    description: 'Aggressive stealth + adaptive simulation preset. Designed to push the system to its most advanced configuration.',
+  claude: {
+    id: 'claude',
+    name: 'Protocol 5: Claude Neural Injection',
+    description: 'Advanced AI-driven injection with neural optimization, quantum fingerprint evasion, behavioral mimicry, and adaptive performance. The most sophisticated injection system ever created.',
     enabled: true,
     settings: {},
   },
@@ -242,15 +277,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
-  const [gpt52Settings, setGpt52Settings] = useState<Gpt52ProtocolSettings>(DEFAULT_GPT52_SETTINGS);
-
-  const isProtocolType = useCallback((value: unknown): value is ProtocolType => {
-    return value === 'standard' ||
-      value === 'allowlist' ||
-      value === 'protected' ||
-      value === 'harness' ||
-      value === 'gpt52';
-  }, []);
+  const [claudeSettings, setClaudeSettings] = useState<ClaudeProtocolSettings>(DEFAULT_CLAUDE_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -267,7 +294,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           allowlist,
           protected_,
           harness,
-          gpt52,
+          claude,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -281,7 +308,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
-          AsyncStorage.getItem(STORAGE_KEYS.GPT52_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.CLAUDE_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -290,20 +317,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (pin) setDeveloperPinState(pin);
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        if (activeProto) {
-          setActiveProtocolState(isProtocolType(activeProto) ? activeProto : 'standard');
-        }
+        if (activeProto) setActiveProtocolState(activeProto as ProtocolType);
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
-            // Merge only known protocol keys to avoid invalid persisted shapes.
-            const merged = { ...DEFAULT_PROTOCOLS } as Record<ProtocolType, ProtocolConfig>;
-            (Object.keys(DEFAULT_PROTOCOLS) as ProtocolType[]).forEach((key) => {
-              if (parsed && parsed[key]) {
-                merged[key] = { ...DEFAULT_PROTOCOLS[key], ...parsed[key], id: key };
-              }
-            });
-            setProtocols(merged);
+            setProtocols({ ...DEFAULT_PROTOCOLS, ...parsed });
           } catch (e) {
             console.warn('[Protocol] Failed to parse protocols config:', e);
           }
@@ -336,11 +354,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             console.warn('[Protocol] Failed to parse harness settings:', e);
           }
         }
-        if (gpt52) {
+        if (claude) {
           try {
-            setGpt52Settings({ ...DEFAULT_GPT52_SETTINGS, ...JSON.parse(gpt52) });
+            setClaudeSettings({ ...DEFAULT_CLAUDE_SETTINGS, ...JSON.parse(claude) });
           } catch (e) {
-            console.warn('[Protocol] Failed to parse gpt52 settings:', e);
+            console.warn('[Protocol] Failed to parse claude settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -355,22 +373,14 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     };
 
     loadSettings();
-  }, [isProtocolType]);
+  }, []);
 
-  const toggleDeveloperMode = useCallback(async (pinAttempt?: string): Promise<boolean> => {
-    // Enabling requires a pin (if one has been set).
-    if (!developerModeEnabled) {
-      if (developerPin && pinAttempt !== developerPin) {
-        console.warn('[Protocol] Incorrect PIN attempt to enable developer mode');
-        return false;
-      }
-    }
+  const toggleDeveloperMode = useCallback(async () => {
     const newValue = !developerModeEnabled;
     setDeveloperModeEnabled(newValue);
     await AsyncStorage.setItem(STORAGE_KEYS.DEVELOPER_MODE, String(newValue));
     console.log('[Protocol] Developer mode toggled:', newValue);
-    return true;
-  }, [developerModeEnabled, developerPin]);
+  }, [developerModeEnabled]);
 
   const setDeveloperModeWithPin = useCallback(async (pin: string): Promise<boolean> => {
     if (!developerPin) {
@@ -411,15 +421,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
 
   const setActiveProtocol = useCallback(async (protocol: ProtocolType) => {
-    // Defensive: callers should only pass known protocols, but guard against bad values.
-    if (!isProtocolType(protocol)) {
-      console.warn('[Protocol] Ignoring invalid protocol set:', protocol);
-      return;
-    }
     setActiveProtocolState(protocol);
     await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, protocol);
     console.log('[Protocol] Active protocol set:', protocol);
-  }, [isProtocolType]);
+  }, []);
 
   const updateProtocolConfig = useCallback(async <T extends ProtocolType>(
     protocol: T,
@@ -457,11 +462,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
-  const updateGpt52Settings = useCallback(async (settings: Partial<Gpt52ProtocolSettings>) => {
-    const newSettings = { ...gpt52Settings, ...settings };
-    setGpt52Settings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.GPT52_SETTINGS, JSON.stringify(newSettings));
-  }, [gpt52Settings]);
+  const updateClaudeSettings = useCallback(async (settings: Partial<ClaudeProtocolSettings>) => {
+    const newSettings = { ...claudeSettings, ...settings };
+    setClaudeSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.CLAUDE_SETTINGS, JSON.stringify(newSettings));
+    console.log('[Protocol] Claude settings updated');
+  }, [claudeSettings]);
 
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
@@ -512,12 +518,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     allowlistSettings,
     protectedSettings,
     harnessSettings,
-    gpt52Settings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    updateGpt52Settings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,

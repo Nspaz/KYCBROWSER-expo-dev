@@ -13,18 +13,15 @@ export enum ErrorCode {
   TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND',
   DEVICE_NOT_FOUND = 'DEVICE_NOT_FOUND',
   WEBVIEW_ERROR = 'WEBVIEW_ERROR',
-  // Protocol-specific error codes
-  PROTOCOL_INIT_FAILED = 'PROTOCOL_INIT_FAILED',
-  PROTOCOL_CONFIG_INVALID = 'PROTOCOL_CONFIG_INVALID',
-  PROTOCOL_INJECTION_FAILED = 'PROTOCOL_INJECTION_FAILED',
-  PROTOCOL_STREAM_ERROR = 'PROTOCOL_STREAM_ERROR',
-  PROTOCOL_RECOVERY_FAILED = 'PROTOCOL_RECOVERY_FAILED',
-  PROTOCOL_STEALTH_COMPROMISED = 'PROTOCOL_STEALTH_COMPROMISED',
-  PROTOCOL_QUALITY_DEGRADED = 'PROTOCOL_QUALITY_DEGRADED',
-  PROTOCOL_TIMEOUT = 'PROTOCOL_TIMEOUT',
-  ALLOWLIST_BLOCKED = 'ALLOWLIST_BLOCKED',
-  BODY_DETECTION_FAILED = 'BODY_DETECTION_FAILED',
-  CLAUDE_PROTOCOL_ERROR = 'CLAUDE_PROTOCOL_ERROR',
+  // Claude Protocol specific error codes
+  PROTOCOL_ERROR = 'PROTOCOL_ERROR',
+  INJECTION_FAILED = 'INJECTION_FAILED',
+  STREAM_ERROR = 'STREAM_ERROR',
+  QUALITY_DEGRADATION = 'QUALITY_DEGRADATION',
+  FINGERPRINT_DETECTION = 'FINGERPRINT_DETECTION',
+  NEURAL_ENGINE_ERROR = 'NEURAL_ENGINE_ERROR',
+  ADAPTIVE_LEARNING_ERROR = 'ADAPTIVE_LEARNING_ERROR',
+  CONTEXT_ANALYSIS_ERROR = 'CONTEXT_ANALYSIS_ERROR',
 }
 
 export interface AppError {
@@ -461,325 +458,251 @@ export function getPlatformSpecificError(error: unknown): string {
   return baseMessage;
 }
 
-// ============ PROTOCOL-SPECIFIC ERROR HANDLING ============
+// ============ PROTOCOL VALIDATION UTILITIES ============
 
-/**
- * Protocol Error Details Interface
- */
-export interface ProtocolErrorDetails {
-  protocolId?: string;
-  phase?: 'init' | 'injection' | 'streaming' | 'recovery' | 'cleanup';
-  component?: string;
-  metrics?: Record<string, unknown>;
-  recoveryAttempts?: number;
-  timestamp: number;
+export interface ProtocolValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 /**
- * Extended Protocol Error
+ * Validate protocol settings object
  */
-export interface ProtocolError extends AppError {
-  protocolDetails?: ProtocolErrorDetails;
+export function validateProtocolSettings(settings: unknown): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!settings || typeof settings !== 'object') {
+    result.valid = false;
+    result.errors.push('Protocol settings must be an object');
+    return result;
+  }
+
+  const settingsObj = settings as Record<string, unknown>;
+
+  // Check for required protocol keys
+  const requiredProtocols = ['standard', 'allowlist', 'protected', 'harness', 'claude'];
+  for (const protocol of requiredProtocols) {
+    if (!(protocol in settingsObj)) {
+      result.warnings.push(`Missing protocol settings for: ${protocol}`);
+    }
+  }
+
+  return result;
 }
 
 /**
- * Create a protocol-specific error
+ * Validate Claude protocol specific settings
+ */
+export function validateClaudeSettings(settings: unknown): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!settings || typeof settings !== 'object') {
+    result.valid = false;
+    result.errors.push('Claude settings must be an object');
+    return result;
+  }
+
+  const claudeSettings = settings as Record<string, unknown>;
+
+  // Validate anti-detection level
+  const validAntiDetectionLevels = ['standard', 'enhanced', 'maximum', 'paranoid'];
+  if (claudeSettings.antiDetectionLevel && 
+      !validAntiDetectionLevels.includes(claudeSettings.antiDetectionLevel as string)) {
+    result.errors.push(`Invalid antiDetectionLevel: ${claudeSettings.antiDetectionLevel}. Must be one of: ${validAntiDetectionLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate noise reduction level
+  const validNoiseReductionLevels = ['off', 'light', 'moderate', 'aggressive'];
+  if (claudeSettings.noiseReductionLevel && 
+      !validNoiseReductionLevels.includes(claudeSettings.noiseReductionLevel as string)) {
+    result.errors.push(`Invalid noiseReductionLevel: ${claudeSettings.noiseReductionLevel}. Must be one of: ${validNoiseReductionLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate error recovery mode
+  const validErrorRecoveryModes = ['graceful', 'aggressive', 'silent'];
+  if (claudeSettings.errorRecoveryMode && 
+      !validErrorRecoveryModes.includes(claudeSettings.errorRecoveryMode as string)) {
+    result.errors.push(`Invalid errorRecoveryMode: ${claudeSettings.errorRecoveryMode}. Must be one of: ${validErrorRecoveryModes.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate priority level
+  const validPriorityLevels = ['background', 'normal', 'high', 'realtime'];
+  if (claudeSettings.priorityLevel && 
+      !validPriorityLevels.includes(claudeSettings.priorityLevel as string)) {
+    result.errors.push(`Invalid priorityLevel: ${claudeSettings.priorityLevel}. Must be one of: ${validPriorityLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Warnings for potentially conflicting settings
+  if (claudeSettings.powerEfficiencyMode && claudeSettings.priorityLevel === 'realtime') {
+    result.warnings.push('Power efficiency mode may conflict with realtime priority level');
+  }
+
+  if (claudeSettings.superResolutionEnabled && claudeSettings.memoryOptimization) {
+    result.warnings.push('Super resolution with memory optimization enabled may cause performance issues');
+  }
+
+  return result;
+}
+
+/**
+ * Validate video URI for injection
+ */
+export function validateInjectionVideoUri(uri: string | null | undefined): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!uri) {
+    result.warnings.push('No video URI provided, will use fallback');
+    return result;
+  }
+
+  if (typeof uri !== 'string') {
+    result.valid = false;
+    result.errors.push('Video URI must be a string');
+    return result;
+  }
+
+  const trimmedUri = uri.trim();
+
+  // Check for empty URI
+  if (trimmedUri.length === 0) {
+    result.warnings.push('Empty video URI, will use fallback');
+    return result;
+  }
+
+  // Validate base64 data URIs
+  if (trimmedUri.startsWith('data:video/')) {
+    if (!trimmedUri.includes(';base64,')) {
+      result.valid = false;
+      result.errors.push('Invalid base64 video data URI format');
+    }
+    return result;
+  }
+
+  // Validate blob URIs
+  if (trimmedUri.startsWith('blob:')) {
+    result.warnings.push('Blob URIs may expire and should be used immediately');
+    return result;
+  }
+
+  // Validate HTTP(S) URIs
+  if (trimmedUri.startsWith('http://') || trimmedUri.startsWith('https://')) {
+    if (trimmedUri.startsWith('http://')) {
+      result.warnings.push('HTTP URIs may be blocked by CORS or security policies');
+    }
+    
+    // Check for known problematic hosts
+    const problematicHosts = ['imgur.com', 'giphy.com', 'gfycat.com', 'streamable.com'];
+    for (const host of problematicHosts) {
+      if (trimmedUri.includes(host)) {
+        result.warnings.push(`Videos from ${host} often fail due to CORS restrictions. Consider downloading first.`);
+      }
+    }
+    
+    return result;
+  }
+
+  // Validate file URIs
+  if (trimmedUri.startsWith('file://') || trimmedUri.startsWith('/')) {
+    return result;
+  }
+
+  // Canvas fallback pattern
+  if (trimmedUri.startsWith('canvas:')) {
+    return result;
+  }
+
+  result.warnings.push('Unknown URI format, may not work as expected');
+  return result;
+}
+
+/**
+ * Create a protocol-specific error with context
  */
 export function createProtocolError(
   code: ErrorCode,
   message: string,
-  protocolDetails: Omit<ProtocolErrorDetails, 'timestamp'>,
+  protocolId: string,
   originalError?: Error | unknown
-): ProtocolError {
-  const baseError = createAppError(code, message, originalError);
-  
-  return {
-    ...baseError,
-    protocolDetails: {
-      ...protocolDetails,
-      timestamp: Date.now(),
-    },
-  };
+): AppError {
+  const enrichedMessage = `[Protocol ${protocolId}] ${message}`;
+  return createAppError(code, enrichedMessage, originalError, true);
 }
 
 /**
- * Check if error is a protocol error
+ * Handle protocol errors with automatic recovery suggestions
  */
-export function isProtocolError(error: unknown): error is ProtocolError {
-  return isAppError(error) && 'protocolDetails' in error;
-}
-
-/**
- * Protocol error recovery strategies
- */
-export type RecoveryStrategy = 
-  | 'retry'
-  | 'fallback'
-  | 'degraded_mode'
-  | 'switch_protocol'
-  | 'restart'
-  | 'abort';
-
-/**
- * Get recommended recovery strategy for protocol errors
- */
-export function getProtocolRecoveryStrategy(error: ProtocolError): {
-  strategy: RecoveryStrategy;
-  canAutoRecover: boolean;
-  message: string;
+export function getProtocolErrorRecovery(error: AppError): {
+  canRecover: boolean;
+  suggestion: string;
+  action?: () => void;
 } {
   switch (error.code) {
-    case ErrorCode.PROTOCOL_INIT_FAILED:
+    case ErrorCode.STREAM_ERROR:
       return {
-        strategy: 'retry',
-        canAutoRecover: true,
-        message: 'Protocol initialization failed. Retrying...',
+        canRecover: true,
+        suggestion: 'Try restarting the stream or switching to a lower quality setting',
       };
     
-    case ErrorCode.PROTOCOL_INJECTION_FAILED:
+    case ErrorCode.QUALITY_DEGRADATION:
       return {
-        strategy: 'fallback',
-        canAutoRecover: true,
-        message: 'Injection failed. Switching to fallback mode...',
+        canRecover: true,
+        suggestion: 'Quality has been automatically reduced. Check device performance.',
       };
     
-    case ErrorCode.PROTOCOL_STREAM_ERROR:
-      const attempts = error.protocolDetails?.recoveryAttempts || 0;
-      if (attempts < 3) {
-        return {
-          strategy: 'retry',
-          canAutoRecover: true,
-          message: `Stream error. Recovery attempt ${attempts + 1}...`,
-        };
-      }
+    case ErrorCode.INJECTION_FAILED:
       return {
-        strategy: 'degraded_mode',
-        canAutoRecover: true,
-        message: 'Multiple stream errors. Switching to degraded mode...',
+        canRecover: true,
+        suggestion: 'Injection failed. Try using a different video source or check permissions.',
       };
     
-    case ErrorCode.PROTOCOL_RECOVERY_FAILED:
+    case ErrorCode.NEURAL_ENGINE_ERROR:
       return {
-        strategy: 'switch_protocol',
-        canAutoRecover: false,
-        message: 'Recovery failed. Manual intervention may be required.',
+        canRecover: true,
+        suggestion: 'Neural engine encountered an error. Falling back to standard processing.',
       };
     
-    case ErrorCode.PROTOCOL_STEALTH_COMPROMISED:
+    case ErrorCode.FINGERPRINT_DETECTION:
       return {
-        strategy: 'abort',
-        canAutoRecover: false,
-        message: 'Stealth mode compromised. Stopping to prevent detection.',
-      };
-    
-    case ErrorCode.PROTOCOL_QUALITY_DEGRADED:
-      return {
-        strategy: 'degraded_mode',
-        canAutoRecover: true,
-        message: 'Quality degradation detected. Adjusting settings...',
-      };
-    
-    case ErrorCode.PROTOCOL_TIMEOUT:
-      return {
-        strategy: 'retry',
-        canAutoRecover: true,
-        message: 'Operation timed out. Retrying with extended timeout...',
-      };
-    
-    case ErrorCode.ALLOWLIST_BLOCKED:
-      return {
-        strategy: 'abort',
-        canAutoRecover: false,
-        message: 'Domain not in allowlist. Injection blocked.',
-      };
-    
-    case ErrorCode.BODY_DETECTION_FAILED:
-      return {
-        strategy: 'fallback',
-        canAutoRecover: true,
-        message: 'Body detection failed. Using fallback replacement...',
-      };
-    
-    case ErrorCode.CLAUDE_PROTOCOL_ERROR:
-      return {
-        strategy: 'switch_protocol',
-        canAutoRecover: true,
-        message: 'Claude protocol error. Switching to standard protocol...',
+        canRecover: false,
+        suggestion: 'Potential fingerprint detection. Consider increasing anti-detection level.',
       };
     
     default:
       return {
-        strategy: 'retry',
-        canAutoRecover: error.recoverable,
-        message: 'An error occurred. Attempting recovery...',
+        canRecover: error.recoverable,
+        suggestion: 'An error occurred. Please try again or contact support.',
       };
   }
 }
 
 /**
- * Format protocol error for display
+ * Log protocol metrics for debugging
  */
-export function formatProtocolError(error: ProtocolError): string {
-  const parts: string[] = [];
-  
-  // Add protocol info
-  if (error.protocolDetails?.protocolId) {
-    parts.push(`[${error.protocolDetails.protocolId.toUpperCase()}]`);
-  }
-  
-  // Add phase info
-  if (error.protocolDetails?.phase) {
-    parts.push(`(${error.protocolDetails.phase})`);
-  }
-  
-  // Add message
-  parts.push(error.message);
-  
-  return parts.join(' ');
-}
-
-/**
- * Log protocol error with full context
- */
-export function logProtocolError(error: ProtocolError, additionalContext?: Record<string, unknown>): void {
-  const logData = {
-    code: error.code,
-    message: error.message,
-    recoverable: error.recoverable,
-    protocolDetails: error.protocolDetails,
-    timestamp: error.timestamp,
-    ...additionalContext,
-  };
-  
-  console.error('[ProtocolError]', formatProtocolError(error), logData);
-  
-  // In production, this could send to analytics
-  if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-    try {
-      (window as any).ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'protocolError',
-        payload: logData,
-      }));
-    } catch {
-      // Silently fail if WebView posting fails
-    }
-  }
-}
-
-/**
- * Create error boundary handler for protocol components
- */
-export function createProtocolErrorBoundaryHandler(
+export function logProtocolMetrics(
   protocolId: string,
-  onError?: (error: ProtocolError) => void,
-  onRecovery?: (strategy: RecoveryStrategy) => void
-): (error: Error, errorInfo?: { componentStack?: string }) => void {
-  return (error: Error, errorInfo?: { componentStack?: string }) => {
-    const protocolError = createProtocolError(
-      ErrorCode.PROTOCOL_INJECTION_FAILED,
-      error.message,
-      {
-        protocolId,
-        phase: 'streaming',
-        component: errorInfo?.componentStack?.split('\n')[1]?.trim(),
-      },
-      error
-    );
-    
-    logProtocolError(protocolError, { componentStack: errorInfo?.componentStack });
-    
-    if (onError) {
-      onError(protocolError);
-    }
-    
-    const { strategy, canAutoRecover } = getProtocolRecoveryStrategy(protocolError);
-    
-    if (canAutoRecover && onRecovery) {
-      onRecovery(strategy);
-    }
-  };
+  metrics: Record<string, unknown>
+): void {
+  if (__DEV__) {
+    console.log(`[Protocol Metrics - ${protocolId}]`, JSON.stringify(metrics, null, 2));
+  }
 }
 
-/**
- * Wrap async protocol operation with error handling
- */
-export async function withProtocolErrorHandling<T>(
-  protocolId: string,
-  phase: ProtocolErrorDetails['phase'],
-  operation: () => Promise<T>,
-  options?: {
-    fallback?: T;
-    maxRetries?: number;
-    onError?: (error: ProtocolError) => void;
-  }
-): Promise<T> {
-  const { fallback, maxRetries = 3, onError } = options || {};
-  let lastError: ProtocolError | null = null;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = createProtocolError(
-        ErrorCode.PROTOCOL_INJECTION_FAILED,
-        getErrorMessage(error),
-        {
-          protocolId,
-          phase,
-          recoveryAttempts: attempt + 1,
-        },
-        error
-      );
-      
-      logProtocolError(lastError);
-      
-      if (onError) {
-        onError(lastError);
-      }
-      
-      // Exponential backoff
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
-      }
-    }
-  }
-  
-  if (fallback !== undefined) {
-    console.warn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
-    return fallback;
-  }
-  
-  throw lastError || createProtocolError(
-    ErrorCode.PROTOCOL_INJECTION_FAILED,
-    'Operation failed after all retries',
-    { protocolId, phase }
-  );
-}
-
-/**
- * Check if error should trigger protocol switch
- */
-export function shouldSwitchProtocol(error: ProtocolError): boolean {
-  const criticalCodes = new Set([
-    ErrorCode.PROTOCOL_RECOVERY_FAILED,
-    ErrorCode.PROTOCOL_STEALTH_COMPROMISED,
-    ErrorCode.CLAUDE_PROTOCOL_ERROR,
-  ]);
-  
-  return criticalCodes.has(error.code) || (error.protocolDetails?.recoveryAttempts || 0) >= 5;
-}
-
-/**
- * Get fallback protocol for a failed protocol
- */
-export function getFallbackProtocol(failedProtocolId: string): string {
-  const fallbackMap: Record<string, string> = {
-    claude: 'standard',
-    protected: 'standard',
-    harness: 'standard',
-    allowlist: 'standard',
-    standard: 'harness', // Ultimate fallback
-  };
-  
-  return fallbackMap[failedProtocolId] || 'standard';
-}
+// Check if we're in development mode
+const __DEV__ = process.env.NODE_ENV !== 'production';

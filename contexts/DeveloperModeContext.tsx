@@ -70,6 +70,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
             allowlist: { ...DEFAULT_PROTOCOL_SETTINGS.allowlist, ...parsed.allowlist },
             protected: { ...DEFAULT_PROTOCOL_SETTINGS.protected, ...parsed.protected },
             harness: { ...DEFAULT_PROTOCOL_SETTINGS.harness, ...parsed.harness },
+            claude: { ...DEFAULT_PROTOCOL_SETTINGS.claude, ...parsed.claude },
           });
           console.log('[DeveloperMode] Loaded protocol settings');
         }
@@ -189,7 +190,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     };
     setProtocolSettings(updated);
     await saveProtocolSettings(updated);
-    console.log('[DeveloperMode] Claude settings updated');
+    console.log('[DeveloperMode] Claude protocol settings updated');
   }, [protocolSettings, saveProtocolSettings]);
 
   // Toggle protocol enabled status
