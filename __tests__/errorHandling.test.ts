@@ -19,10 +19,11 @@ import {
   withErrorLogging,
 } from '@/utils/errorHandling';
 
+// Simplified mock for react-native to avoid TurboModuleRegistry errors
 jest.mock('react-native', () => {
   return {
     Alert: { alert: jest.fn() },
-    Platform: { OS: 'ios', select: (obj: Record<string, unknown>) => obj.ios },
+    Platform: { OS: 'ios', select: jest.fn(obj => obj.ios) },
   };
 });
 
