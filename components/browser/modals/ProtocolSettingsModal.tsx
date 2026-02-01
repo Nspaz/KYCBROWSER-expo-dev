@@ -21,7 +21,7 @@ interface ProtocolSettingsModalProps {
   onClose: () => void;
 }
 
-const PROTOCOL_ORDER: ProtocolType[] = ['standard', 'allowlist', 'protected', 'harness', 'gpt52'];
+const PROTOCOL_ORDER: ProtocolType[] = ['standard', 'allowlist', 'protected', 'harness', 'gpt52', 'gpt-5-2-codex-high'];
 
 export default function ProtocolSettingsModal({ visible, currentHostname, onClose }: ProtocolSettingsModalProps) {
   const [domainInput, setDomainInput] = useState('');
@@ -41,11 +41,13 @@ export default function ProtocolSettingsModal({ visible, currentHostname, onClos
     protectedSettings,
     harnessSettings,
     gpt52Settings,
+    codexSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
     updateGpt52Settings,
+    updateCodexSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -418,6 +420,55 @@ export default function ProtocolSettingsModal({ visible, currentHostname, onClos
               </View>
             )}
 
+            {/* GPT-5.2 Codex High */}
+            <TouchableOpacity style={styles.expandHeader} onPress={() => toggleExpanded('gpt-5-2-codex-high')}>
+              <Text style={styles.expandTitle}>GPT-5.2 Codex High</Text>
+              <ChevronRight size={18} color="rgba(255,255,255,0.5)" style={{ transform: [{ rotate: expanded === 'gpt-5-2-codex-high' ? '90deg' : '0deg' }] }} />
+            </TouchableOpacity>
+            {expanded === 'gpt-5-2-codex-high' && (
+              <View style={styles.card}>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Auto Inject</Text>
+                  <Switch value={codexSettings.autoInject} onValueChange={(v) => updateCodexSettings({ autoInject: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.autoInject ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Stealth Mode</Text>
+                  <Switch value={codexSettings.stealthMode} onValueChange={(v) => updateCodexSettings({ stealthMode: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.stealthMode ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Force Simulation</Text>
+                  <Switch value={codexSettings.forceSimulation} onValueChange={(v) => updateCodexSettings({ forceSimulation: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.forceSimulation ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Loop Video</Text>
+                  <Switch value={codexSettings.loopVideo} onValueChange={(v) => updateCodexSettings({ loopVideo: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.loopVideo ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Mirror Video</Text>
+                  <Switch value={codexSettings.mirrorVideo} onValueChange={(v) => updateCodexSettings({ mirrorVideo: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.mirrorVideo ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Overlay Label</Text>
+                  <Switch value={codexSettings.showOverlayLabel} onValueChange={(v) => updateCodexSettings({ showOverlayLabel: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.showOverlayLabel ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Wand2 size={14} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.settingLabel}>Aggressive Retries</Text>
+                  </View>
+                  <Switch value={codexSettings.aggressiveRetries} onValueChange={(v) => updateCodexSettings({ aggressiveRetries: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.aggressiveRetries ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Auto Recovery</Text>
+                  <Switch value={codexSettings.autoRecover} onValueChange={(v) => updateCodexSettings({ autoRecover: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.autoRecover ? '#ffffff' : '#888888'} />
+                </View>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Enable Telemetry</Text>
+                  <Switch value={codexSettings.enableTelemetry} onValueChange={(v) => updateCodexSettings({ enableTelemetry: v })} disabled={!isProtocolEditable} trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }} thumbColor={codexSettings.enableTelemetry ? '#ffffff' : '#888888'} />
+                </View>
+              </View>
+            )}
+
             <Text style={styles.footerText}>
               Protocol changes affect injection behavior immediately. Use only in controlled environments you own/operate.
             </Text>
@@ -658,6 +709,145 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     color: 'rgba(255,255,255,0.45)',
+  },
+  // Claude Protocol specific styles
+  claudeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(168, 85, 247, 0.2)',
+  },
+  claudeSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#a855f7',
+    letterSpacing: 0.3,
+  },
+  claudeLevelButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  claudeLevelBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  claudeLevelBtnActive: {
+    backgroundColor: '#f59e0b',
+  },
+  claudeLevelBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  claudeLevelBtnTextActive: {
+    color: '#ffffff',
+  },
+  claudeMemoryBtnActive: {
+    backgroundColor: '#22c55e',
+  },
+  claudeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  claudeBadgeContent: {
+    flex: 1,
+  },
+  claudeBadgeTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#a855f7',
+  },
+  claudeBadgeText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  claudeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 0, 255, 0.1)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  claudeHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ff00ff',
+  },
+  settingGroupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  modeBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(255, 0, 255, 0.2)',
+    borderColor: '#ff00ff',
+  },
+  modeBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  modeBtnTextActive: {
+    color: '#ff00ff',
+  },
+  qualityBtnActive: {
+    backgroundColor: 'rgba(0, 170, 255, 0.2)',
+    borderColor: '#00aaff',
+  },
+  qualityBtnTextActive: {
+    color: '#00aaff',
+  },
+  claudeInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(255, 0, 255, 0.08)',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 255, 0.2)',
+  },
+  claudeInfoText: {
+    flex: 1,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 16,
   },
 });
 

@@ -29,7 +29,8 @@ jest.mock('react-native', () => {
 const mockAlert = Alert.alert as jest.Mock;
 
 const setPlatformOS = (os: string) => {
-  (Platform as { OS: string }).OS = os;
+  // Platform.OS may be read-only in some environments, so redefine it.
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 };
 
 describe('errorHandling utilities', () => {
@@ -121,12 +122,12 @@ describe('errorHandling utilities', () => {
 
   test('showErrorAlert uses default button and handlers', () => {
     showErrorAlert('Title', 'Message');
-    expect(mockAlert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
+    expect(Alert.alert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
 
     const onRetry = jest.fn();
     const onCancel = jest.fn();
     showErrorAlert('Oops', 'Try again', onRetry, onCancel);
-    expect(mockAlert).toHaveBeenCalledWith('Oops', 'Try again', [
+    expect(Alert.alert).toHaveBeenCalledWith('Oops', 'Try again', [
       { text: 'Cancel', style: 'cancel', onPress: onCancel },
       { text: 'Retry', onPress: onRetry },
     ]);
