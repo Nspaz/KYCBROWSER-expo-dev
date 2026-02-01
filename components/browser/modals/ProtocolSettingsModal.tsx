@@ -61,12 +61,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
-    gpt52Settings,
+    sonnetSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    updateGpt52Settings,
+    updateSonnetSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -109,7 +109,7 @@ export default function ProtocolSettingsModal({
         'This will lock all protocol settings and the allowlist. Continue?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Disable', style: 'destructive', onPress: () => toggleDeveloperMode() },
+          { text: 'Disable', style: 'destructive', onPress: toggleDeveloperMode },
         ]
       );
     } else {
@@ -188,18 +188,6 @@ export default function ProtocolSettingsModal({
                 onValueChange={(v) => updateStandardSettings({ stealthByDefault: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
                 thumbColor={standardSettings.stealthByDefault ? '#ffffff' : '#888'}
-              />
-            </View>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Respect Site Settings</Text>
-                <Text style={styles.settingHint}>Use per-site stealth preferences</Text>
-              </View>
-              <Switch
-                value={standardSettings.respectSiteSettings}
-                onValueChange={(v) => updateStandardSettings({ respectSiteSettings: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
-                thumbColor={standardSettings.respectSiteSettings ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
@@ -461,103 +449,172 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
-      case 'gpt52':
+      case 'sonnet':
         return (
           <View style={styles.settingsGroup}>
+            <Text style={styles.sectionTitle}>🤖 Adaptive Intelligence</Text>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Ultra Stealth</Text>
-                <Text style={styles.settingHint}>Forces maximum stealth + anti-detection behavior</Text>
+                <Text style={styles.settingLabel}>AI Optimization Level</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['conservative', 'balanced', 'aggressive', 'experimental'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.optimizationBtn,
+                      sonnetSettings.aiOptimizationLevel === level && styles.optimizationBtnActive,
+                    ]}
+                    onPress={() => updateSonnetSettings({ aiOptimizationLevel: level })}
+                  >
+                    <Text style={[
+                      styles.optimizationBtnText,
+                      sonnetSettings.aiOptimizationLevel === level && styles.optimizationBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1).substring(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Dynamic Quality Adaptation</Text>
+                <Text style={styles.settingHint}>Automatically adjust quality based on performance</Text>
               </View>
               <Switch
-                value={gpt52Settings.ultraStealth}
-                onValueChange={(v) => updateGpt52Settings({ ultraStealth: v })}
+                value={sonnetSettings.dynamicQualityAdaptation}
+                onValueChange={(v) => updateSonnetSettings({ dynamicQualityAdaptation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.dynamicQualityAdaptation ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Predictive Preloading</Text>
+                <Text style={styles.settingHint}>AI-powered resource prediction</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.predictivePreloading}
+                onValueChange={(v) => updateSonnetSettings({ predictivePreloading: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.predictivePreloading ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎭 Advanced Stealth</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Hyper-Stealth Mode</Text>
+                <Text style={styles.settingHint}>Maximum detection evasion</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.hyperStealthMode}
+                onValueChange={(v) => updateSonnetSettings({ hyperStealthMode: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-                thumbColor={gpt52Settings.ultraStealth ? '#ffffff' : '#888'}
+                thumbColor={sonnetSettings.hyperStealthMode ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Force Simulation</Text>
-                <Text style={styles.settingHint}>Always simulate media (even without per-device videos)</Text>
+                <Text style={styles.settingLabel}>Fingerprint Rotation</Text>
+                <Text style={styles.settingHint}>Rotate device fingerprints</Text>
               </View>
               <Switch
-                value={gpt52Settings.forceSimulation}
-                onValueChange={(v) => updateGpt52Settings({ forceSimulation: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={gpt52Settings.forceSimulation ? '#ffffff' : '#888'}
+                value={sonnetSettings.fingerprintRotation}
+                onValueChange={(v) => updateSonnetSettings({ fingerprintRotation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.fingerprintRotation ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Auto Inject</Text>
-                <Text style={styles.settingHint}>Inject automatically on page load</Text>
+                <Text style={styles.settingLabel}>Behavioral Mimicry</Text>
+                <Text style={styles.settingHint}>Simulate natural user patterns</Text>
               </View>
               <Switch
-                value={gpt52Settings.autoInject}
-                onValueChange={(v) => updateGpt52Settings({ autoInject: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={gpt52Settings.autoInject ? '#ffffff' : '#888'}
+                value={sonnetSettings.behavioralMimicry}
+                onValueChange={(v) => updateSonnetSettings({ behavioralMimicry: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.behavioralMimicry ? '#ffffff' : '#888'}
               />
             </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>⚡ Performance</Text>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Respect Site Settings</Text>
-                <Text style={styles.settingHint}>Use per-site stealth defaults when available</Text>
+                <Text style={styles.settingLabel}>GPU Acceleration</Text>
+                <Text style={styles.settingHint}>Hardware-accelerated processing</Text>
               </View>
               <Switch
-                value={gpt52Settings.respectSiteSettings}
-                onValueChange={(v) => updateGpt52Settings({ respectSiteSettings: v })}
+                value={sonnetSettings.gpuAcceleration}
+                onValueChange={(v) => updateSonnetSettings({ gpuAcceleration: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
-                thumbColor={gpt52Settings.respectSiteSettings ? '#ffffff' : '#888'}
+                thumbColor={sonnetSettings.gpuAcceleration ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Inject Motion Data</Text>
-                <Text style={styles.settingHint}>Enable accelerometer/gyroscope injection</Text>
+                <Text style={styles.settingLabel}>Memory Optimization</Text>
+                <Text style={styles.settingHint}>Intelligent memory management</Text>
               </View>
               <Switch
-                value={gpt52Settings.injectMotionData}
-                onValueChange={(v) => updateGpt52Settings({ injectMotionData: v })}
+                value={sonnetSettings.memoryOptimization}
+                onValueChange={(v) => updateSonnetSettings({ memoryOptimization: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
-                thumbColor={gpt52Settings.injectMotionData ? '#ffffff' : '#888'}
+                thumbColor={sonnetSettings.memoryOptimization ? '#ffffff' : '#888'}
               />
             </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🛡️ Security & Safety</Text>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Loop Video</Text>
-                <Text style={styles.settingHint}>Loop injected video when it ends</Text>
+                <Text style={styles.settingLabel}>Anomaly Detection</Text>
+                <Text style={styles.settingHint}>AI-powered threat detection</Text>
               </View>
               <Switch
-                value={gpt52Settings.loopVideo}
-                onValueChange={(v) => updateGpt52Settings({ loopVideo: v })}
+                value={sonnetSettings.anomalyDetection}
+                onValueChange={(v) => updateSonnetSettings({ anomalyDetection: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={gpt52Settings.loopVideo ? '#ffffff' : '#888'}
+                thumbColor={sonnetSettings.anomalyDetection ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Mirror Video</Text>
-                <Text style={styles.settingHint}>Flip injected video horizontally</Text>
+                <Text style={styles.settingLabel}>Self-Healing</Text>
+                <Text style={styles.settingHint}>Automatic error recovery</Text>
               </View>
               <Switch
-                value={gpt52Settings.mirrorVideo}
-                onValueChange={(v) => updateGpt52Settings({ mirrorVideo: v })}
+                value={sonnetSettings.selfHealing}
+                onValueChange={(v) => updateSonnetSettings({ selfHealing: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.selfHealing ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>📊 Analytics</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Performance Metrics</Text>
+                <Text style={styles.settingHint}>Real-time performance tracking</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.performanceMetrics}
+                onValueChange={(v) => updateSonnetSettings({ performanceMetrics: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
-                thumbColor={gpt52Settings.mirrorVideo ? '#ffffff' : '#888'}
+                thumbColor={sonnetSettings.performanceMetrics ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Show Overlay Label</Text>
-                <Text style={styles.settingHint}>Display in-page badge text for this protocol</Text>
+                <Text style={styles.settingLabel}>Error Prediction</Text>
+                <Text style={styles.settingHint}>Predictive error prevention</Text>
               </View>
               <Switch
-                value={gpt52Settings.showOverlayLabel}
-                onValueChange={(v) => updateGpt52Settings({ showOverlayLabel: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
-                thumbColor={gpt52Settings.showOverlayLabel ? '#ffffff' : '#888'}
+                value={sonnetSettings.errorPrediction}
+                onValueChange={(v) => updateSonnetSettings({ errorPrediction: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={sonnetSettings.errorPrediction ? '#ffffff' : '#888'}
               />
             </View>
           </View>
@@ -573,7 +630,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
-    gpt52: <Cpu size={18} color="#ffcc00" />,
+    sonnet: <Cpu size={18} color="#ffcc00" />,
   };
 
   return (
@@ -1192,5 +1249,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#00aaff',
+  },
+  optimizationBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  optimizationBtnActive: {
+    backgroundColor: '#ffcc00',
+  },
+  optimizationBtnText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  optimizationBtnTextActive: {
+    color: '#0a0a0a',
   },
 });

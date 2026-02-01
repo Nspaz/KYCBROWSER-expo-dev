@@ -1,15 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 5 testing protocols
- * 
- * Protocol 1: Standard Injection - Basic media injection flow
- * Protocol 2: Allowlist Mode - Domain-restricted injection
- * Protocol 3: Protected Preview - Body detection with safe video swap
- * Protocol 4: Test Harness - Local sandbox testing
- * Protocol 5: Claude Protocol - Advanced AI-driven injection with neural optimization
+ * Defines configuration for all testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -60,42 +54,44 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
-// Protocol 5: Claude Protocol Settings (Advanced AI-Driven Injection)
-export interface ClaudeProtocolSettings {
+// Protocol 5: Sonnet Protocol Settings (Advanced AI-Optimized)
+export interface SonnetProtocolSettings {
   enabled: boolean;
-  // Neural Optimization Engine
-  neuralOptimizationEnabled: boolean;
-  adaptiveBitrateEnabled: boolean;
-  intelligentFrameInterpolation: boolean;
+  // Adaptive Intelligence
+  aiOptimizationLevel: 'conservative' | 'balanced' | 'aggressive' | 'experimental';
+  dynamicQualityAdaptation: boolean;
+  predictivePreloading: boolean;
+  intelligentCaching: boolean;
+  
   // Advanced Stealth
-  quantumFingerprintEvasion: boolean;
-  behavioralMimicryEnabled: boolean;
-  dynamicTimingJitter: boolean;
-  antiDetectionLevel: 'standard' | 'enhanced' | 'maximum' | 'paranoid';
-  // Context-Aware Processing
-  contextAwareInjection: boolean;
-  sceneAnalysisEnabled: boolean;
-  lightingAdaptation: boolean;
-  motionPrediction: boolean;
-  // Quality Enhancement
-  superResolutionEnabled: boolean;
-  noiseReductionLevel: 'off' | 'light' | 'moderate' | 'aggressive';
-  colorEnhancement: boolean;
-  hdrSimulation: boolean;
+  hyperStealthMode: boolean;
+  fingerprintRotation: boolean;
+  behavioralMimicry: boolean;
+  timingRandomization: boolean;
+  
   // Performance Optimization
   gpuAcceleration: boolean;
-  webglOptimization: boolean;
+  multiThreadedProcessing: boolean;
   memoryOptimization: boolean;
-  powerEfficiencyMode: boolean;
-  // Telemetry & Learning
-  performanceMetricsEnabled: boolean;
-  adaptiveLearningEnabled: boolean;
-  errorRecoveryMode: 'graceful' | 'aggressive' | 'silent';
+  bandwidthThrottling: boolean;
+  
+  // Security & Safety
+  anomalyDetection: boolean;
+  realTimeValidation: boolean;
+  automaticFallback: boolean;
+  encryptedStreaming: boolean;
+  
   // Advanced Features
-  realtimeVideoEnhancement: boolean;
-  seamlessTransitions: boolean;
-  multiStreamSupport: boolean;
-  priorityLevel: 'background' | 'normal' | 'high' | 'realtime';
+  contextAwareness: boolean;
+  adaptiveFrameRate: boolean;
+  smartBuffering: boolean;
+  edgeCaseHandling: boolean;
+  
+  // Monitoring & Analytics
+  telemetryEnabled: boolean;
+  performanceMetrics: boolean;
+  errorPrediction: boolean;
+  selfHealing: boolean;
 }
 
 // Combined Protocol Settings
@@ -104,7 +100,7 @@ export interface ProtocolSettings {
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
-  claude: ClaudeProtocolSettings;
+  sonnet: SonnetProtocolSettings;
 }
 
 // Developer Mode Settings
@@ -157,41 +153,43 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
-export const DEFAULT_CLAUDE_SETTINGS: ClaudeProtocolSettings = {
+export const DEFAULT_SONNET_SETTINGS: SonnetProtocolSettings = {
   enabled: true,
-  // Neural Optimization Engine
-  neuralOptimizationEnabled: true,
-  adaptiveBitrateEnabled: true,
-  intelligentFrameInterpolation: true,
-  // Advanced Stealth
-  quantumFingerprintEvasion: true,
-  behavioralMimicryEnabled: true,
-  dynamicTimingJitter: true,
-  antiDetectionLevel: 'enhanced',
-  // Context-Aware Processing
-  contextAwareInjection: true,
-  sceneAnalysisEnabled: true,
-  lightingAdaptation: true,
-  motionPrediction: true,
-  // Quality Enhancement
-  superResolutionEnabled: false,
-  noiseReductionLevel: 'moderate',
-  colorEnhancement: true,
-  hdrSimulation: false,
-  // Performance Optimization
+  // Adaptive Intelligence - Balanced by default for optimal performance
+  aiOptimizationLevel: 'balanced',
+  dynamicQualityAdaptation: true,
+  predictivePreloading: true,
+  intelligentCaching: true,
+  
+  // Advanced Stealth - Maximum stealth capabilities
+  hyperStealthMode: true,
+  fingerprintRotation: true,
+  behavioralMimicry: true,
+  timingRandomization: true,
+  
+  // Performance Optimization - All enabled for best experience
   gpuAcceleration: true,
-  webglOptimization: true,
+  multiThreadedProcessing: true,
   memoryOptimization: true,
-  powerEfficiencyMode: false,
-  // Telemetry & Learning
-  performanceMetricsEnabled: true,
-  adaptiveLearningEnabled: true,
-  errorRecoveryMode: 'graceful',
-  // Advanced Features
-  realtimeVideoEnhancement: true,
-  seamlessTransitions: true,
-  multiStreamSupport: true,
-  priorityLevel: 'high',
+  bandwidthThrottling: false,
+  
+  // Security & Safety - Full protection enabled
+  anomalyDetection: true,
+  realTimeValidation: true,
+  automaticFallback: true,
+  encryptedStreaming: false, // Disabled by default (requires setup)
+  
+  // Advanced Features - Intelligent adaptation
+  contextAwareness: true,
+  adaptiveFrameRate: true,
+  smartBuffering: true,
+  edgeCaseHandling: true,
+  
+  // Monitoring & Analytics - Full telemetry
+  telemetryEnabled: true,
+  performanceMetrics: true,
+  errorPrediction: true,
+  selfHealing: true,
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
@@ -199,7 +197,7 @@ export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
-  claude: DEFAULT_CLAUDE_SETTINGS,
+  sonnet: DEFAULT_SONNET_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -250,10 +248,10 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     isLive: true,
     requiresDeveloperMode: false,
   },
-  claude: {
-    id: 'claude',
-    name: 'Protocol 5: Claude Neural Injection',
-    description: 'Advanced AI-driven injection protocol with neural optimization, quantum fingerprint evasion, behavioral mimicry, intelligent scene analysis, and adaptive performance optimization. The most sophisticated injection system ever created.',
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 5: Sonnet Adaptive Intelligence',
+    description: 'Advanced AI-optimized protocol with hyper-stealth capabilities, predictive adaptation, and self-healing mechanisms. The most sophisticated injection system combining all advanced features.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
