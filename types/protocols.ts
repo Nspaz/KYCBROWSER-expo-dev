@@ -1,6 +1,12 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
+ * 
+ * Protocol 1: Standard Injection - Uses current media injection flow
+ * Protocol 2: Allowlist Test Mode - Domain-restricted injection
+ * Protocol 3: Protected Preview - Body detection with safe replacement
+ * Protocol 4: Local Test Harness - Sandbox testing environment
+ * Protocol 5: Claude Protocol - Advanced AI-driven injection system
  */
 
 export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude-sonnet';

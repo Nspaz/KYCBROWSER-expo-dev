@@ -710,5 +710,71 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: 'rgba(255,255,255,0.45)',
   },
+  // Claude Protocol specific styles
+  claudeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(168, 85, 247, 0.2)',
+  },
+  claudeSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#a855f7',
+    letterSpacing: 0.3,
+  },
+  claudeLevelButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  claudeLevelBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  claudeLevelBtnActive: {
+    backgroundColor: '#f59e0b',
+  },
+  claudeLevelBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  claudeLevelBtnTextActive: {
+    color: '#ffffff',
+  },
+  claudeMemoryBtnActive: {
+    backgroundColor: '#22c55e',
+  },
+  claudeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  claudeBadgeContent: {
+    flex: 1,
+  },
+  claudeBadgeTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#a855f7',
+  },
+  claudeBadgeText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
 });
 
