@@ -54,6 +54,7 @@ export class ProtocolValidator {
       'harness',
       'holographic',
       'claude-sonnet',
+      'claude',
       'sonnet',
     ];
     protocols.forEach(id => {
@@ -91,7 +92,7 @@ export class ProtocolValidator {
     };
 
     // Validate protocol ID
-    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'claude-sonnet', 'sonnet'].includes(protocolId)) {
+    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'claude-sonnet', 'claude', 'sonnet'].includes(protocolId)) {
       result.valid = false;
       result.errors.push(`Invalid protocol ID: ${protocolId}`);
       return result;
@@ -153,6 +154,15 @@ export class ProtocolValidator {
         if (config.fallbackProtocols && !Array.isArray(config.fallbackProtocols)) {
           result.errors.push('Fallback protocols must be an array');
           result.valid = false;
+        }
+        break;
+
+      case 'claude':
+        if (config.antiDetectionLevel && !['standard', 'enhanced', 'maximum', 'paranoid'].includes(config.antiDetectionLevel)) {
+          result.warnings.push('Unknown anti-detection level - using standard');
+        }
+        if (config.noiseReductionLevel && !['off', 'light', 'moderate', 'aggressive'].includes(config.noiseReductionLevel)) {
+          result.warnings.push('Unknown noise reduction level - using moderate');
         }
         break;
 

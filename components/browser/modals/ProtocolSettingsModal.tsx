@@ -63,6 +63,7 @@ export default function ProtocolSettingsModal({
     holographicSettings,
     claudeSonnetSettings,
     sonnetSettings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
@@ -70,6 +71,7 @@ export default function ProtocolSettingsModal({
     updateHolographicSettings,
     updateClaudeSonnetSettings,
     updateSonnetSettings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -988,6 +990,206 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'claude':
+        return (
+          <View style={styles.settingsGroup}>
+            <Text style={styles.advancedProtocolNote}>
+              🧠 Claude Neural Injection - Quantum-grade stealth and AI optimization
+            </Text>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Neural Optimization</Text>
+                <Text style={styles.settingHint}>AI-driven quality tuning</Text>
+              </View>
+              <Switch
+                value={claudeSettings.neuralOptimizationEnabled}
+                onValueChange={(v) => updateClaudeSettings({ neuralOptimizationEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={claudeSettings.neuralOptimizationEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Quantum Fingerprint Evasion</Text>
+                <Text style={styles.settingHint}>Advanced fingerprint obfuscation</Text>
+              </View>
+              <Switch
+                value={claudeSettings.quantumFingerprintEvasion}
+                onValueChange={(v) => updateClaudeSettings({ quantumFingerprintEvasion: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={claudeSettings.quantumFingerprintEvasion ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Behavioral Mimicry</Text>
+                <Text style={styles.settingHint}>Simulate natural interaction patterns</Text>
+              </View>
+              <Switch
+                value={claudeSettings.behavioralMimicryEnabled}
+                onValueChange={(v) => updateClaudeSettings({ behavioralMimicryEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={claudeSettings.behavioralMimicryEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Dynamic Timing Jitter</Text>
+                <Text style={styles.settingHint}>Randomize timing to avoid detection</Text>
+              </View>
+              <Switch
+                value={claudeSettings.dynamicTimingJitter}
+                onValueChange={(v) => updateClaudeSettings({ dynamicTimingJitter: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={claudeSettings.dynamicTimingJitter ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Context-Aware Injection</Text>
+                <Text style={styles.settingHint}>Adapt to scene changes</Text>
+              </View>
+              <Switch
+                value={claudeSettings.contextAwareInjection}
+                onValueChange={(v) => updateClaudeSettings({ contextAwareInjection: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={claudeSettings.contextAwareInjection ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Performance Metrics</Text>
+                <Text style={styles.settingHint}>Capture Claude telemetry</Text>
+              </View>
+              <Switch
+                value={claudeSettings.performanceMetricsEnabled}
+                onValueChange={(v) => updateClaudeSettings({ performanceMetricsEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={claudeSettings.performanceMetricsEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Learning</Text>
+                <Text style={styles.settingHint}>Learn from runtime feedback</Text>
+              </View>
+              <Switch
+                value={claudeSettings.adaptiveLearningEnabled}
+                onValueChange={(v) => updateClaudeSettings({ adaptiveLearningEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
+                thumbColor={claudeSettings.adaptiveLearningEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Anti-Detection Level</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['standard', 'enhanced', 'maximum', 'paranoid'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      claudeSettings.antiDetectionLevel === level && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ antiDetectionLevel: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      claudeSettings.antiDetectionLevel === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Noise Reduction</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['off', 'light', 'moderate', 'aggressive'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      claudeSettings.noiseReductionLevel === level && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ noiseReductionLevel: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      claudeSettings.noiseReductionLevel === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Recovery Mode</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['graceful', 'aggressive', 'silent'] as const).map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[
+                      styles.sensitivityBtn,
+                      claudeSettings.errorRecoveryMode === mode && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ errorRecoveryMode: mode })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      claudeSettings.errorRecoveryMode === mode && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Priority Level</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['background', 'normal', 'high', 'realtime'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      claudeSettings.priorityLevel === level && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ priorityLevel: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      claudeSettings.priorityLevel === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -1001,6 +1203,7 @@ export default function ProtocolSettingsModal({
     holographic: <ZapOff size={18} color="#00ff88" />,
     'claude-sonnet': <Cpu size={18} color="#ffcc00" />,
     sonnet: <Activity size={18} color="#ffd93d" />,
+    claude: <Cpu size={18} color="#ff6b35" />,
   };
 
   return (

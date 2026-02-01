@@ -160,6 +160,23 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
       deprecated: false,
     },
   ],
+  claude: [
+    {
+      version: '1.0.0',
+      releaseDate: '2026-01-31',
+      protocolId: 'claude',
+      changes: [
+        'Initial release',
+        'Neural optimization engine',
+        'Quantum fingerprint evasion',
+        'Behavioral mimicry profiles',
+        'Adaptive performance optimization',
+        'Context-aware injection',
+      ],
+      breakingChanges: false,
+      deprecated: false,
+    },
+  ],
   sonnet: [
     {
       version: '1.0.0',
@@ -267,6 +284,9 @@ export class ProtocolVersionManager {
         break;
       case 'claude-sonnet':
         result.warnings.push('Claude Sonnet protocol is new - using default settings');
+        break;
+      case 'claude':
+        result.warnings.push('Claude protocol is new - using default settings');
         break;
       case 'sonnet':
         // Sonnet is new - no migration needed yet
