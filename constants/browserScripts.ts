@@ -663,6 +663,11 @@ export interface MediaInjectionOptions {
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
   permissionPromptEnabled?: boolean;
+  videoLoadTimeoutMs?: number;
+  maxRetryAttempts?: number;
+  initialRetryDelayMs?: number;
+  targetFps?: number;
+  maxActiveStreams?: number;
 }
 
 export const createMediaInjectionScript = (
@@ -680,6 +685,11 @@ export const createMediaInjectionScript = (
     mirrorVideo = false,
     debugEnabled,
     permissionPromptEnabled = true,
+    videoLoadTimeoutMs,
+    maxRetryAttempts,
+    initialRetryDelayMs,
+    targetFps,
+    maxActiveStreams,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
@@ -704,7 +714,12 @@ export const createMediaInjectionScript = (
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
         debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)},
-        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'}
+        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'},
+        videoLoadTimeoutMs: ${videoLoadTimeoutMs === undefined ? 'undefined' : JSON.stringify(videoLoadTimeoutMs)},
+        maxRetryAttempts: ${maxRetryAttempts === undefined ? 'undefined' : JSON.stringify(maxRetryAttempts)},
+        initialRetryDelayMs: ${initialRetryDelayMs === undefined ? 'undefined' : JSON.stringify(initialRetryDelayMs)},
+        targetFps: ${targetFps === undefined ? 'undefined' : JSON.stringify(targetFps)},
+        maxActiveStreams: ${maxActiveStreams === undefined ? 'undefined' : JSON.stringify(maxActiveStreams)}
       });
     }
     return;
@@ -724,10 +739,10 @@ export const createMediaInjectionScript = (
     PERMISSION_PROMPT_ENABLED: ${permissionPromptEnabled ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
-    TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
-    VIDEO_LOAD_TIMEOUT: 12000,
-    MAX_RETRY_ATTEMPTS: 4,
-    INITIAL_RETRY_DELAY: 500,
+    TARGET_FPS: ${targetFps ?? IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
+    VIDEO_LOAD_TIMEOUT: ${videoLoadTimeoutMs ?? 12000},
+    MAX_RETRY_ATTEMPTS: ${maxRetryAttempts ?? 4},
+    INITIAL_RETRY_DELAY: ${initialRetryDelayMs ?? 500},
     HEALTH_CHECK_INTERVAL: 5000,
     MIN_ACCEPTABLE_FPS: 15,
     CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
@@ -741,7 +756,7 @@ export const createMediaInjectionScript = (
       { name: 'medium', scale: 0.75, fps: 24 },
       { name: 'low', scale: 0.5, fps: 15 },
     ],
-    MAX_ACTIVE_STREAMS: 3,
+    MAX_ACTIVE_STREAMS: ${maxActiveStreams ?? 3},
     CLEANUP_DELAY: 100,
   };
   
@@ -1286,6 +1301,22 @@ export const createMediaInjectionScript = (
     Logger.log('Config updated - devices:', window.__mediaSimConfig.devices?.length || 0);
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
+    }
+    // Allow runtime tuning of a few performance knobs (used by advanced protocols).
+    if (typeof config.videoLoadTimeoutMs === 'number' && config.videoLoadTimeoutMs > 0) {
+      CONFIG.VIDEO_LOAD_TIMEOUT = config.videoLoadTimeoutMs;
+    }
+    if (typeof config.maxRetryAttempts === 'number' && config.maxRetryAttempts >= 0) {
+      CONFIG.MAX_RETRY_ATTEMPTS = config.maxRetryAttempts;
+    }
+    if (typeof config.initialRetryDelayMs === 'number' && config.initialRetryDelayMs >= 0) {
+      CONFIG.INITIAL_RETRY_DELAY = config.initialRetryDelayMs;
+    }
+    if (typeof config.targetFps === 'number' && config.targetFps > 0) {
+      CONFIG.TARGET_FPS = config.targetFps;
+    }
+    if (typeof config.maxActiveStreams === 'number' && config.maxActiveStreams > 0) {
+      CONFIG.MAX_ACTIVE_STREAMS = config.maxActiveStreams;
     }
     if (
       config.loopVideo !== undefined ||

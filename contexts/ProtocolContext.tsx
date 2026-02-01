@@ -4,7 +4,13 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
+export type ProtocolType =
+  | 'standard'
+  | 'allowlist'
+  | 'protected'
+  | 'harness'
+  | 'holographic'
+  | 'gpt52';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -113,6 +119,16 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
+export interface GPT52ProtocolSettings {
+  autoInject: boolean;
+  stealthByDefault: boolean;
+  injectMotionData: boolean;
+  forceSimulation: boolean;
+  loopVideo: boolean;
+  mirrorVideo: boolean;
+  aggressiveRetry: boolean;
+}
+
 export interface ProtocolContextValue {
   // Developer Mode
   developerModeEnabled: boolean;
@@ -144,13 +160,14 @@ export interface ProtocolContextValue {
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
   holographicSettings: HolographicProtocolSettings;
-
+  gpt52Settings: GPT52ProtocolSettings;
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
   updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
+  updateGpt52Settings: (settings: Partial<GPT52ProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -181,6 +198,7 @@ const STORAGE_KEYS = {
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
   HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
+  GPT52_SETTINGS: '@protocol_gpt52_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -299,6 +317,16 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+const DEFAULT_GPT52_SETTINGS: GPT52ProtocolSettings = {
+  autoInject: true,
+  stealthByDefault: true,
+  injectMotionData: true,
+  forceSimulation: true,
+  loopVideo: true,
+  mirrorVideo: false,
+  aggressiveRetry: true,
+};
+
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   standard: {
     id: 'standard',
@@ -335,10 +363,24 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  gpt52: {
+    id: 'gpt52',
+    name: 'Protocol 5: GPT-5.2 Advanced',
+    description: 'Aggressive, best-effort injection preset with enhanced self-healing and diagnostics.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness';
+  return (
+    value === 'standard' ||
+    value === 'allowlist' ||
+    value === 'protected' ||
+    value === 'harness' ||
+    value === 'holographic' ||
+    value === 'gpt52'
+  );
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -358,6 +400,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
   const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
+  const [gpt52Settings, setGpt52Settings] = useState<GPT52ProtocolSettings>(DEFAULT_GPT52_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -375,6 +418,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           protected_,
           harness,
           holographic,
+          gpt52,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -389,6 +433,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.GPT52_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -457,6 +502,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse holographic settings:', e);
+          }
+        }
+        if (gpt52) {
+          try {
+            setGpt52Settings({ ...DEFAULT_GPT52_SETTINGS, ...JSON.parse(gpt52) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse gpt52 settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -581,6 +633,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS, JSON.stringify(newSettings));
   }, [holographicSettings]);
 
+  const updateGpt52Settings = useCallback(async (settings: Partial<GPT52ProtocolSettings>) => {
+    const newSettings = { ...gpt52Settings, ...settings };
+    setGpt52Settings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.GPT52_SETTINGS, JSON.stringify(newSettings));
+  }, [gpt52Settings]);
+
   // Allowlist helpers
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
@@ -632,10 +690,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     protectedSettings,
     harnessSettings,
     holographicSettings,
+    gpt52Settings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateHolographicSettings,
+    updateGpt52Settings,
     updateHolographicSettings,
     // allowlist helpers
     addAllowlistDomain,

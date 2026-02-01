@@ -119,6 +119,7 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    gpt52Settings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -304,6 +305,9 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
     }
+    if (activeProtocol === 'gpt52') {
+      return true;
+    }
     if (!standardSettings.stealthByDefault) {
       return false;
     }
@@ -321,10 +325,14 @@ export default function MotionBrowserScreen() {
 
   const protocolForceSimulation = isProtocolEnabled && (
     activeProtocol === 'protected'
+    || (activeProtocol === 'gpt52' && gpt52Settings.forceSimulation)
     || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
   );
 
-  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const protocolMirrorVideo = isProtocolEnabled && (
+    (activeProtocol === 'harness' && harnessSettings.mirrorVideo) ||
+    (activeProtocol === 'gpt52' && gpt52Settings.mirrorVideo)
+  );
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -362,10 +370,35 @@ export default function MotionBrowserScreen() {
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
-    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
-      ? standardSettings.autoInject
-      : true
+    activeProtocol === 'gpt52'
+      ? gpt52Settings.autoInject
+      : (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+        ? standardSettings.autoInject
+        : true
   );
+
+  const loopVideoEnabled = useMemo(() => {
+    if (activeProtocol === 'gpt52') return gpt52Settings.loopVideo;
+    return standardSettings.loopVideo;
+  }, [activeProtocol, gpt52Settings.loopVideo, standardSettings.loopVideo]);
+
+  const motionInjectionEnabled = useMemo(() => {
+    if (activeProtocol === 'gpt52') return gpt52Settings.injectMotionData;
+    return standardSettings.injectMotionData;
+  }, [activeProtocol, gpt52Settings.injectMotionData, standardSettings.injectMotionData]);
+
+  const mediaTuningOptions = useMemo(() => {
+    if (activeProtocol !== 'gpt52') return {};
+    const aggressive = gpt52Settings.aggressiveRetry;
+    return {
+      // Used by the WebView injector to tune resilience/perf.
+      maxRetryAttempts: aggressive ? 8 : 4,
+      initialRetryDelayMs: aggressive ? 250 : 500,
+      videoLoadTimeoutMs: aggressive ? 18000 : 12000,
+      targetFps: 30,
+      maxActiveStreams: 4,
+    };
+  }, [activeProtocol, gpt52Settings.aggressiveRetry]);
 
   const simulatingDevicesCount = useMemo(() =>
     activeTemplate?.captureDevices.filter(d => d.simulationEnabled).length || 0,
@@ -392,7 +425,7 @@ export default function MotionBrowserScreen() {
   ]);
 
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
-    if (!standardSettings.injectMotionData) return;
+    if (!motionInjectionEnabled) return;
     if (!webViewRef.current) return;
     
     const message = JSON.stringify({
@@ -411,7 +444,7 @@ export default function MotionBrowserScreen() {
       window.__updateMotionData && window.__updateMotionData(${message}.payload);
       true;
     `);
-  }, [standardSettings.injectMotionData]);
+  }, [motionInjectionEnabled]);
 
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
@@ -453,9 +486,10 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       overlayLabelText: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: loopVideoEnabled,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      ...mediaTuningOptions,
       permissionPromptEnabled: true,
     };
 
@@ -476,9 +510,10 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: loopVideoEnabled,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      ...mediaTuningOptions,
       permissionPromptEnabled: true,
     });
 
@@ -506,8 +541,9 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
-    standardSettings.loopVideo,
+    loopVideoEnabled,
     protocolMirrorVideo,
+    mediaTuningOptions,
     developerModeEnabled,
   ]);
 
@@ -653,7 +689,7 @@ export default function MotionBrowserScreen() {
   }, []);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!motionInjectionEnabled) return;
     if (!simulationActive) return;
 
     const preset = PATTERN_PRESETS[simConfig.pattern];
@@ -691,7 +727,7 @@ export default function MotionBrowserScreen() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationActive, simConfig, injectMotionData, standardSettings.injectMotionData]);
+  }, [simulationActive, simConfig, injectMotionData, motionInjectionEnabled]);
 
   useEffect(() => {
     if (!allowlistModeActive) {
@@ -709,11 +745,11 @@ export default function MotionBrowserScreen() {
   ]);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!motionInjectionEnabled) return;
     if (useRealSensors && !simulationActive) {
       injectMotionData(realAccelData, realGyroData, realOrientData, true);
     }
-  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, standardSettings.injectMotionData]);
+  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, motionInjectionEnabled]);
 
   const toggleToolbar = useCallback(() => {
     setToolbarExpanded(prev => !prev);
@@ -912,9 +948,10 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: loopVideoEnabled,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
+      ...mediaTuningOptions,
       permissionPromptEnabled: true,
     };
     const script =
@@ -941,15 +978,16 @@ export default function MotionBrowserScreen() {
     activeProtocol,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
-    standardSettings.loopVideo,
+    loopVideoEnabled,
     protocolMirrorVideo,
     developerModeEnabled,
+    mediaTuningOptions,
     isProtocolEnabled,
   ]);
 
   const getAfterLoadScript = useCallback(() => {
-    return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
-  }, [standardSettings.injectMotionData]);
+    return motionInjectionEnabled ? MOTION_INJECTION_SCRIPT : '';
+  }, [motionInjectionEnabled]);
 
   const isNavigationAllowed = useCallback((requestUrl: string): boolean => {
     if (!requestUrl) return false;
@@ -1127,9 +1165,9 @@ export default function MotionBrowserScreen() {
                   setCanGoForward(navState.canGoForward);
                   
                   if (navState.url) {
-                    const normalizedUrl = httpsEnforced ? forceHttps(navState.url) : navState.url;
+                    const normalizedUrl = forceHttps(navState.url);
                     setInputUrl(normalizedUrl);
-                    if (httpsEnforced && navState.url !== normalizedUrl) {
+                    if (navState.url !== normalizedUrl) {
                       setUrl(normalizedUrl);
                     }
                   }
