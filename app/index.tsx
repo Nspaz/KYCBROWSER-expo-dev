@@ -99,6 +99,7 @@ export default function MotionBrowserScreen() {
     developerModeEnabled,
     presentationMode,
     showTestingWatermark,
+    setShowTestingWatermark,
     activeProtocol,
     protocols,
     standardSettings,
@@ -794,6 +795,10 @@ export default function MotionBrowserScreen() {
     console.log('[App] Website settings deleted:', id);
   }, [deleteWebsiteSettings]);
 
+  const handleDismissTestingWatermark = useCallback(() => {
+    void setShowTestingWatermark(false);
+  }, [setShowTestingWatermark]);
+
   if (requiresSetup) {
     return (
       <SetupRequired
@@ -1067,6 +1072,7 @@ export default function MotionBrowserScreen() {
         mlSafetyEnabled={mlSafetyEnabled}
         httpsEnforced={httpsEnforced}
         protocolName={protocols[activeProtocol]?.name?.replace('Protocol ', 'P')}
+        onDismiss={handleDismissTestingWatermark}
       />
     </View>
   );
