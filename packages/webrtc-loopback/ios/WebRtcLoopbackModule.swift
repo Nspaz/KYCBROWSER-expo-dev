@@ -1,6 +1,8 @@
 import Foundation
 import WebRTC
 import React
+import AVFoundation
+import Photos
 
 @objc(WebRtcLoopback)
 class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
@@ -17,6 +19,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   private var adaptiveBitrateKbps: Int = 0
   private var adaptiveScale: Double = 1.0
   private var lastAdaptationTs: TimeInterval = 0
+  private let cacheManager = VideoCacheManager()
 
   override init() {
     if !WebRtcLoopback.sslInitialized {
@@ -38,7 +41,8 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
       "WebRtcLoopbackIceCandidate",
       "WebRtcLoopbackStats",
       "WebRtcLoopbackError",
-      "WebRtcLoopbackState"
+      "WebRtcLoopbackState",
+      "WebRtcLoopbackCacheReady"
     ]
   }
 
@@ -56,6 +60,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     lastOfferId = (configDict?["offerId"] as? String) ?? nil
     adaptiveBitrateKbps = max(config.minBitrateKbps, max(config.targetBitrateKbps, config.maxBitrateKbps))
     adaptiveScale = 1.0
+    cacheManager.updateConfig(ttlHours: config.cacheTTLHours, maxSizeMB: config.cacheMaxSizeMB)
 
     let rtcConfig = RTCConfiguration()
     rtcConfig.sdpSemantics = .unifiedPlan
@@ -71,6 +76,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
 
     setupLocalTracks()
     applySenderTuning()
+    cacheRemoteSources()
 
     let offerDescription = RTCSessionDescription(type: type == "offer" ? .offer : .answer, sdp: sdp)
     pc.setRemoteDescription(offerDescription) { [weak self] error in
@@ -129,6 +135,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   func updateConfig(_ payload: NSDictionary, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
     config = LoopbackConfig(configDict: payload)
     adaptiveBitrateKbps = max(config.minBitrateKbps, max(config.targetBitrateKbps, config.maxBitrateKbps))
+    cacheManager.updateConfig(ttlHours: config.cacheTTLHours, maxSizeMB: config.cacheMaxSizeMB)
     let shouldReloadSources =
       payload["videoSources"] != nil ||
       payload["targetWidth"] != nil ||
@@ -143,6 +150,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     if let pc = peerConnection, config.enableIceRestart {
       pc.restartIce()
     }
+    cacheRemoteSources()
     resolver(nil)
   }
 
@@ -174,6 +182,63 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     resolver(nil)
   }
 
+  @objc(exportRingBufferToPhotos:rejecter:)
+  func exportRingBufferToPhotos(_ resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    let segments = ringRecorder?.getSegments() ?? []
+    guard !segments.isEmpty else {
+      rejecter("no_segments", "Ring buffer is empty", nil)
+      return
+    }
+
+    let exportURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("loopback_export_\(Int(Date().timeIntervalSince1970)).mp4")
+    try? FileManager.default.removeItem(at: exportURL)
+
+    let composition = AVMutableComposition()
+    let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
+    let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+
+    var currentTime = CMTime.zero
+    for path in segments {
+      let url = URL(fileURLWithPath: path)
+      let asset = AVURLAsset(url: url)
+      if let videoTrack = asset.tracks(withMediaType: .video).first {
+        try? compVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoTrack, at: currentTime)
+      }
+      if let audioTrack = asset.tracks(withMediaType: .audio).first {
+        try? compAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioTrack, at: currentTime)
+      }
+      currentTime = CMTimeAdd(currentTime, asset.duration)
+    }
+
+    guard let exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+      rejecter("export_failed", "Unable to create export session", nil)
+      return
+    }
+    exporter.outputURL = exportURL
+    exporter.outputFileType = .mp4
+    exporter.exportAsynchronously {
+      if exporter.status != .completed {
+        rejecter("export_failed", exporter.error?.localizedDescription ?? "Export failed", exporter.error)
+        return
+      }
+      PHPhotoLibrary.requestAuthorization { status in
+        guard status == .authorized || status == .limited else {
+          rejecter("photos_denied", "Photo library permission denied", nil)
+          return
+        }
+        PHPhotoLibrary.shared().performChanges({
+          PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: exportURL)
+        }) { success, error in
+          if success {
+            resolver(nil)
+          } else {
+            rejecter("photos_failed", error?.localizedDescription ?? "Failed to save to Photos", error)
+          }
+        }
+      }
+    }
+  }
+
   private func setupLocalTracks() {
     clearVideoTracks()
     configureRingRecorder()
@@ -193,6 +258,9 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
         if index == 0 {
           fileCapturer.onFrame = { [weak self] buffer, ts in
             self?.ringRecorder?.append(pixelBuffer: buffer, timeNs: ts)
+          }
+          fileCapturer.onAudioSample = { [weak self] sample, ts in
+            self?.ringRecorder?.appendAudioSample(sample, timeNs: ts)
           }
         }
         fileCapturer.start(url: url, fps: config.targetFps, loop: source.loop)
@@ -260,9 +328,37 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
       return URL(fileURLWithPath: uri)
     }
     if uri.hasPrefix("http://") || uri.hasPrefix("https://") {
-      return URL(string: uri)
+      guard let remoteURL = URL(string: uri) else { return nil }
+      if config.cacheRemoteVideos, let cached = cacheManager.cachedFileURL(for: remoteURL) {
+        return cached
+      }
+      return remoteURL
     }
     return nil
+  }
+
+  private func cacheRemoteSources() {
+    guard config.cacheRemoteVideos else { return }
+    for source in config.videoSources {
+      guard let uri = source.uri,
+            uri.hasPrefix("http://") || uri.hasPrefix("https://"),
+            let remoteURL = URL(string: uri) else { continue }
+      cacheManager.fetch(remoteURL: remoteURL) { [weak self] cachedURL in
+        guard let self = self, let cachedURL = cachedURL else { return }
+        self.updateSource(id: source.id, newUri: cachedURL.absoluteString)
+        DispatchQueue.main.async {
+          self.setupLocalTracks()
+        }
+        self.sendEvent(withName: "WebRtcLoopbackCacheReady", body: ["id": source.id, "uri": cachedURL.absoluteString])
+      }
+    }
+  }
+
+  private func updateSource(id: String, newUri: String) {
+    if let idx = config.videoSources.firstIndex(where: { $0.id == id }) {
+      let existing = config.videoSources[idx]
+      config.videoSources[idx] = VideoSourceConfig(id: existing.id, uri: newUri, label: existing.label, loop: existing.loop)
+    }
   }
 
   private func applySenderTuning() {
@@ -472,6 +568,9 @@ private struct LoopbackConfig {
   var recordingEnabled: Bool = true
   var ringBufferSeconds: Int = 15
   var ringSegmentSeconds: Int = 3
+  var cacheRemoteVideos: Bool = true
+  var cacheTTLHours: Int = 24
+  var cacheMaxSizeMB: Int = 1024
   var iceServers: [RTCIceServer] = []
   var videoSources: [VideoSourceConfig] = []
 
@@ -498,6 +597,9 @@ private struct LoopbackConfig {
     recordingEnabled = configDict?["recordingEnabled"] as? Bool ?? recordingEnabled
     ringBufferSeconds = configDict?["ringBufferSeconds"] as? Int ?? ringBufferSeconds
     ringSegmentSeconds = configDict?["ringSegmentSeconds"] as? Int ?? ringSegmentSeconds
+    cacheRemoteVideos = configDict?["cacheRemoteVideos"] as? Bool ?? cacheRemoteVideos
+    cacheTTLHours = configDict?["cacheTTLHours"] as? Int ?? cacheTTLHours
+    cacheMaxSizeMB = configDict?["cacheMaxSizeMB"] as? Int ?? cacheMaxSizeMB
 
     if let sources = configDict?["videoSources"] as? [NSDictionary] {
       videoSources = sources.map { source in

@@ -504,6 +504,9 @@ export default function MotionBrowserScreen() {
       recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
       ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
       ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+      cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+      cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+      cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
     };
 
     console.log('[App] Injecting media config:', {
@@ -554,6 +557,9 @@ export default function MotionBrowserScreen() {
         recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
         ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
         ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+        cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+        cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+        cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
       });
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
@@ -619,6 +625,9 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.recordingEnabled,
     webrtcLoopbackSettings.ringBufferSeconds,
     webrtcLoopbackSettings.ringSegmentSeconds,
+    webrtcLoopbackSettings.cacheRemoteVideos,
+    webrtcLoopbackSettings.cacheTTLHours,
+    webrtcLoopbackSettings.cacheMaxSizeMB,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1069,6 +1078,9 @@ export default function MotionBrowserScreen() {
           recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
           ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
           ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+          cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+          cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+          cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
         });
         console.log('[App] Using WEBRTC loopback injection');
       } else {
@@ -1142,6 +1154,9 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.recordingEnabled,
     webrtcLoopbackSettings.ringBufferSeconds,
     webrtcLoopbackSettings.ringSegmentSeconds,
+    webrtcLoopbackSettings.cacheRemoteVideos,
+    webrtcLoopbackSettings.cacheTTLHours,
+    webrtcLoopbackSettings.cacheMaxSizeMB,
     isProtocolEnabled,
   ]);
 

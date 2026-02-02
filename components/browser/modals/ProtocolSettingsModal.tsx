@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
+import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -737,6 +738,80 @@ export default function ProtocolSettingsModal({
                   const parsed = Number(value.replace(/[^0-9]/g, ''));
                   if (!Number.isNaN(parsed)) {
                     updateWebRtcLoopbackSettings({ ringSegmentSeconds: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={async () => {
+                try {
+                  await exportRingBufferToPhotos();
+                  Alert.alert('Ring Buffer Exported', 'Saved to Photos.');
+                } catch (err) {
+                  Alert.alert('Export Failed', err instanceof Error ? err.message : 'Unable to export ring buffer.');
+                }
+              }}
+            >
+              <Video size={16} color="#00ff88" />
+              <Text style={styles.actionButtonText}>Export Ring Buffer to Photos</Text>
+              <ChevronRight size={16} color="rgba(255,255,255,0.4)" />
+            </TouchableOpacity>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Wifi size={12} color="#00aaff" />
+                  <Text style={styles.settingLabel}>Cache Remote Videos</Text>
+                </View>
+                <Text style={styles.settingHint}>Download & cache remote URLs for stable decode</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.cacheRemoteVideos}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ cacheRemoteVideos: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={webrtcLoopbackSettings.cacheRemoteVideos ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00ff88" />
+                  <Text style={styles.settingLabel}>Cache TTL (hours)</Text>
+                </View>
+                <Text style={styles.settingHint}>How long to keep remote cache</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.cacheTTLHours)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ cacheTTLHours: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#ffcc00" />
+                  <Text style={styles.settingLabel}>Cache Max (MB)</Text>
+                </View>
+                <Text style={styles.settingHint}>Limit cache size</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.cacheMaxSizeMB)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ cacheMaxSizeMB: parsed });
                   }
                 }}
               />

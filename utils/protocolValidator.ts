@@ -405,6 +405,22 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
     });
   }
 
+  if (settings.cacheTTLHours !== undefined && settings.cacheTTLHours < 1) {
+    warnings.push({
+      code: 'LOW_CACHE_TTL',
+      field: 'cacheTTLHours',
+      message: 'Cache TTL < 1 hour may cause frequent re-downloads',
+    });
+  }
+
+  if (settings.cacheMaxSizeMB !== undefined && settings.cacheMaxSizeMB < 50) {
+    warnings.push({
+      code: 'LOW_CACHE_SIZE',
+      field: 'cacheMaxSizeMB',
+      message: 'Cache max size < 50MB may be too small for videos',
+    });
+  }
+
   if (settings.signalingTimeoutMs !== undefined) {
     if (settings.signalingTimeoutMs < 1000) {
       warnings.push({

@@ -28,6 +28,7 @@ type NativeLoopbackModule = {
   getStats?: () => Promise<any>;
   getRingBufferSegments?: () => Promise<string[]>;
   clearRingBuffer?: () => Promise<void>;
+  exportRingBufferToPhotos?: () => Promise<void>;
 };
 
 const EVENT_NAMES = {
@@ -195,5 +196,12 @@ export class WebRtcLoopbackBridge {
   async clearRingBuffer(): Promise<void> {
     if (!this.nativeModule?.clearRingBuffer) return;
     await this.nativeModule.clearRingBuffer().catch(() => {});
+  }
+
+  async exportRingBufferToPhotos(): Promise<void> {
+    if (!this.nativeModule?.exportRingBufferToPhotos) {
+      throw new Error('Native WebRtcLoopback module does not support export.');
+    }
+    await this.nativeModule.exportRingBufferToPhotos();
   }
 }

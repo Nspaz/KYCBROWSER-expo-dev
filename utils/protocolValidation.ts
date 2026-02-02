@@ -170,6 +170,12 @@ export class ProtocolValidator {
         if (config.ringBufferSeconds && config.ringBufferSeconds < 1) {
           result.warnings.push('Ring buffer < 1s may be too small for playback');
         }
+        if (config.cacheTTLHours && config.cacheTTLHours < 1) {
+          result.warnings.push('Cache TTL < 1 hour may cause frequent re-downloads');
+        }
+        if (config.cacheMaxSizeMB && config.cacheMaxSizeMB < 50) {
+          result.warnings.push('Cache max size < 50MB may be too small for large videos');
+        }
         break;
 
       case 'claude-sonnet':

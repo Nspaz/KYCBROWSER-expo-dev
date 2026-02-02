@@ -24,6 +24,9 @@ export interface WebRtcLoopbackOptions {
   recordingEnabled?: boolean;
   ringBufferSeconds?: number;
   ringSegmentSeconds?: number;
+  cacheRemoteVideos?: boolean;
+  cacheTTLHours?: number;
+  cacheMaxSizeMB?: number;
 }
 
 /**
@@ -55,6 +58,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     recordingEnabled = true,
     ringBufferSeconds = 15,
     ringSegmentSeconds = 3,
+    cacheRemoteVideos = true,
+    cacheTTLHours = 24,
+    cacheMaxSizeMB = 1024,
   } = options;
 
   return `
@@ -102,6 +108,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     RECORDING_ENABLED: ${recordingEnabled},
     RING_BUFFER_SECONDS: ${ringBufferSeconds},
     RING_SEGMENT_SECONDS: ${ringSegmentSeconds},
+    CACHE_REMOTE_VIDEOS: ${cacheRemoteVideos},
+    CACHE_TTL_HOURS: ${cacheTTLHours},
+    CACHE_MAX_SIZE_MB: ${cacheMaxSizeMB},
   };
 
   const log = CONFIG.DEBUG
@@ -465,6 +474,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
           recordingEnabled: CONFIG.RECORDING_ENABLED,
           ringBufferSeconds: CONFIG.RING_BUFFER_SECONDS,
           ringSegmentSeconds: CONFIG.RING_SEGMENT_SECONDS,
+          cacheRemoteVideos: CONFIG.CACHE_REMOTE_VIDEOS,
+          cacheTTLHours: CONFIG.CACHE_TTL_HOURS,
+          cacheMaxSizeMB: CONFIG.CACHE_MAX_SIZE_MB,
           iceServers: CONFIG.ICE_SERVERS,
         },
       });
@@ -625,6 +637,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     if (typeof newConfig.recordingEnabled === 'boolean') CONFIG.RECORDING_ENABLED = newConfig.recordingEnabled;
     if (typeof newConfig.ringBufferSeconds === 'number') CONFIG.RING_BUFFER_SECONDS = newConfig.ringBufferSeconds;
     if (typeof newConfig.ringSegmentSeconds === 'number') CONFIG.RING_SEGMENT_SECONDS = newConfig.ringSegmentSeconds;
+    if (typeof newConfig.cacheRemoteVideos === 'boolean') CONFIG.CACHE_REMOTE_VIDEOS = newConfig.cacheRemoteVideos;
+    if (typeof newConfig.cacheTTLHours === 'number') CONFIG.CACHE_TTL_HOURS = newConfig.cacheTTLHours;
+    if (typeof newConfig.cacheMaxSizeMB === 'number') CONFIG.CACHE_MAX_SIZE_MB = newConfig.cacheMaxSizeMB;
 
     if (State.pc && newConfig.iceServers) {
       try {

@@ -133,6 +133,9 @@ export interface WebRtcLoopbackProtocolSettings {
   recordingEnabled: boolean;
   ringBufferSeconds: number;
   ringSegmentSeconds: number;
+  cacheRemoteVideos: boolean;
+  cacheTTLHours: number;
+  cacheMaxSizeMB: number;
 }
 
 export interface ProtocolContextValue {
@@ -344,6 +347,9 @@ const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
   recordingEnabled: true,
   ringBufferSeconds: 15,
   ringSegmentSeconds: 3,
+  cacheRemoteVideos: true,
+  cacheTTLHours: 24,
+  cacheMaxSizeMB: 1024,
 };
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
