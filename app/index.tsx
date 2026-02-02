@@ -922,10 +922,8 @@ export default function MotionBrowserScreen() {
   const nativeBridgeEnabled = useMemo(() => {
     if (isWeb || !webViewAvailable) return false;
     if (!isProtocolEnabled || allowlistBlocked) return false;
-    if (developerModeEnabled) return true;
-    if (!currentHostname) return false;
-    return currentHostname === 'webcamtests.com' || currentHostname.endsWith('.webcamtests.com');
-  }, [isWeb, webViewAvailable, isProtocolEnabled, allowlistBlocked, developerModeEnabled, currentHostname]);
+    return standardSettings.nativeBridgeEnabled;
+  }, [isWeb, webViewAvailable, isProtocolEnabled, allowlistBlocked, standardSettings.nativeBridgeEnabled]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 

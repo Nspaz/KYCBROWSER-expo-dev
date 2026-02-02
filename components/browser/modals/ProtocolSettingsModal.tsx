@@ -217,6 +217,18 @@ export default function ProtocolSettingsModal({
                 thumbColor={standardSettings.loopVideo ? '#ffffff' : '#888'}
               />
             </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Native WebRTC Bridge</Text>
+                <Text style={styles.settingHint}>Use native MediaStream when available (dev client required)</Text>
+              </View>
+              <Switch
+                value={standardSettings.nativeBridgeEnabled}
+                onValueChange={(v) => updateStandardSettings({ nativeBridgeEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#7c4dff' }}
+                thumbColor={standardSettings.nativeBridgeEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
           </View>
         );
 

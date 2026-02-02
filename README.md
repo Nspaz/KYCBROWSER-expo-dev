@@ -107,6 +107,9 @@ bun run start -- --android
 The WebView native WebRTC bridge uses `react-native-webrtc`, which requires a
 custom development build (Expo Go will not load it).
 
+By default the bridge is **enabled for all sites**. You can toggle it in
+Protocol Settings → Standard → "Native WebRTC Bridge".
+
 ```bash
 # Generate native projects (once)
 expo prebuild

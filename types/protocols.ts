@@ -23,6 +23,7 @@ export interface StandardInjectionSettings {
   retryOnFail: boolean;
   maxRetries: number;
   loggingLevel: 'none' | 'minimal' | 'verbose';
+  nativeBridgeEnabled: boolean;
 }
 
 // Protocol 2: Advanced Relay Settings (Replaces old Allowlist Mode)
@@ -163,6 +164,7 @@ export const DEFAULT_STANDARD_SETTINGS: StandardInjectionSettings = {
   retryOnFail: true,
   maxRetries: 3,
   loggingLevel: 'minimal',
+  nativeBridgeEnabled: true,
 };
 
 export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
