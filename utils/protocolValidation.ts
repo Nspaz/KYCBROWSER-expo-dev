@@ -23,7 +23,7 @@ export interface ProtocolMetrics {
 }
 
 export interface ProtocolState {
-  id: ProtocolType | 'sonnet';
+  id: ProtocolType;
   status: 'idle' | 'initializing' | 'active' | 'suspended' | 'error' | 'degraded';
   health: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
   lastHealthCheck: string | null;
@@ -47,7 +47,16 @@ export class ProtocolValidator {
 
   private constructor() {
     // Initialize default states for all protocols
-    const protocols: Array<ProtocolType | 'sonnet'> = ['standard', 'allowlist', 'protected', 'harness', 'sonnet'];
+    const protocols: ProtocolType[] = [
+      'standard',
+      'allowlist',
+      'protected',
+      'harness',
+      'holographic',
+      'claude-sonnet',
+      'claude',
+      'sonnet',
+    ];
     protocols.forEach(id => {
       this.protocolStates.set(id, {
         id,
@@ -83,7 +92,7 @@ export class ProtocolValidator {
     };
 
     // Validate protocol ID
-    if (!['standard', 'allowlist', 'protected', 'harness', 'sonnet'].includes(protocolId)) {
+    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'claude-sonnet', 'claude', 'sonnet'].includes(protocolId)) {
       result.valid = false;
       result.errors.push(`Invalid protocol ID: ${protocolId}`);
       return result;
@@ -125,6 +134,35 @@ export class ProtocolValidator {
       case 'harness':
         if (config.captureFrameRate && config.captureFrameRate > 60) {
           result.warnings.push('Frame rate > 60fps may not be supported on all devices');
+        }
+        break;
+
+      case 'holographic':
+        if (config.bridgePort && (config.bridgePort < 1 || config.bridgePort > 65535)) {
+          result.warnings.push('Bridge port should be between 1 and 65535');
+        }
+        if (config.noiseInjectionLevel && (config.noiseInjectionLevel < 0 || config.noiseInjectionLevel > 1)) {
+          result.errors.push('Noise injection level must be between 0 and 1');
+          result.valid = false;
+        }
+        break;
+
+      case 'claude-sonnet':
+        if (config.antiDetectionLevel && !['standard', 'advanced', 'maximum'].includes(config.antiDetectionLevel)) {
+          result.warnings.push('Unknown anti-detection level - using standard');
+        }
+        if (config.fallbackProtocols && !Array.isArray(config.fallbackProtocols)) {
+          result.errors.push('Fallback protocols must be an array');
+          result.valid = false;
+        }
+        break;
+
+      case 'claude':
+        if (config.antiDetectionLevel && !['standard', 'enhanced', 'maximum', 'paranoid'].includes(config.antiDetectionLevel)) {
+          result.warnings.push('Unknown anti-detection level - using standard');
+        }
+        if (config.noiseReductionLevel && !['off', 'light', 'moderate', 'aggressive'].includes(config.noiseReductionLevel)) {
+          result.warnings.push('Unknown noise reduction level - using moderate');
         }
         break;
 

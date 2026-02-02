@@ -8,7 +8,7 @@ import type { ProtocolType } from '@/contexts/ProtocolContext';
 export interface ProtocolVersion {
   version: string;
   releaseDate: string;
-  protocolId: ProtocolType | 'sonnet';
+  protocolId: ProtocolType;
   changes: string[];
   breakingChanges: boolean;
   deprecated: boolean;
@@ -128,6 +128,55 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
       deprecated: false,
     },
   ],
+  holographic: [
+    {
+      version: '1.0.0',
+      releaseDate: '2026-01-31',
+      protocolId: 'holographic',
+      changes: [
+        'Initial release',
+        'WebSocket bridge support',
+        'SDP mutation',
+        'Canvas-based stream synthesis',
+        'Noise injection controls',
+      ],
+      breakingChanges: false,
+      deprecated: false,
+    },
+  ],
+  'claude-sonnet': [
+    {
+      version: '1.0.0',
+      releaseDate: '2026-01-31',
+      protocolId: 'claude-sonnet',
+      changes: [
+        'Initial release',
+        'AI-powered adaptive quality',
+        'Advanced stealth techniques',
+        'Protocol chaining',
+        'Neural enhancement',
+      ],
+      breakingChanges: false,
+      deprecated: false,
+    },
+  ],
+  claude: [
+    {
+      version: '1.0.0',
+      releaseDate: '2026-01-31',
+      protocolId: 'claude',
+      changes: [
+        'Initial release',
+        'Neural optimization engine',
+        'Quantum fingerprint evasion',
+        'Behavioral mimicry profiles',
+        'Adaptive performance optimization',
+        'Context-aware injection',
+      ],
+      breakingChanges: false,
+      deprecated: false,
+    },
+  ],
   sonnet: [
     {
       version: '1.0.0',
@@ -229,6 +278,15 @@ export class ProtocolVersionManager {
         break;
       case 'harness':
         result.migratedSettings = this.migrateHarnessSettings(settings, fromVersion, toVersion, result);
+        break;
+      case 'holographic':
+        result.warnings.push('Holographic protocol is new - using default settings');
+        break;
+      case 'claude-sonnet':
+        result.warnings.push('Claude Sonnet protocol is new - using default settings');
+        break;
+      case 'claude':
+        result.warnings.push('Claude protocol is new - using default settings');
         break;
       case 'sonnet':
         // Sonnet is new - no migration needed yet
