@@ -37,6 +37,7 @@ import {
   createSimplifiedInjectionScript,
   createWorkingInjectionScript,
 } from '@/constants/browserScripts';
+import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
 import { clearAllDebugLogs } from '@/utils/logger';
 import {
   formatVideoUriForWebView,
@@ -464,6 +465,19 @@ export default function MotionBrowserScreen() {
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
     };
+    
+    if (activeProtocol === 'allowlist') {
+      const primaryDevice = normalizedDevices.find(d => d.type === 'camera' && d.simulationEnabled) || normalizedDevices[0];
+      const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
+      const advancedSettings = allowlistSettings.advancedRelay;
+      Object.assign(config, {
+        videoUri: videoUri || null,
+        enableWebRTCRelay: advancedSettings.webrtc.enabled,
+        enableASI: advancedSettings.asi.enabled,
+        enableGPU: advancedSettings.gpu.enabled,
+        enableCrypto: advancedSettings.crypto.enabled,
+      });
+    }
 
     console.log('[App] Injecting media config:', {
       stealthMode: effectiveStealthMode,
@@ -475,18 +489,49 @@ export default function MotionBrowserScreen() {
     
     lastInjectionTimeRef.current = Date.now();
     
-    const fallbackScript = createMediaInjectionScript(normalizedDevices, {
-      stealthMode: effectiveStealthMode,
-      fallbackVideoUri,
-      forceSimulation: protocolForceSimulation,
-      protocolId: activeProtocol,
-      protocolLabel: protocolOverlayLabel,
-      showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
-      mirrorVideo: protocolMirrorVideo,
-      debugEnabled: developerModeEnabled,
-      permissionPromptEnabled: true,
-    });
+    let fallbackScript = '';
+    if (activeProtocol === 'standard') {
+      const primaryDevice = normalizedDevices.find(d => d.type === 'camera' && d.simulationEnabled) || normalizedDevices[0];
+      const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
+      fallbackScript = createWorkingInjectionScript({
+        videoUri: videoUri || null,
+        devices: normalizedDevices,
+        stealthMode: effectiveStealthMode,
+        debugEnabled: developerModeEnabled,
+        targetWidth: 1080,
+        targetHeight: 1920,
+        targetFPS: 30,
+      });
+    } else if (activeProtocol === 'allowlist') {
+      const primaryDevice = normalizedDevices.find(d => d.type === 'camera' && d.simulationEnabled) || normalizedDevices[0];
+      const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
+      const advancedSettings = allowlistSettings.advancedRelay;
+      fallbackScript = createAdvancedProtocol2Script({
+        videoUri: videoUri || undefined,
+        devices: normalizedDevices,
+        enableWebRTCRelay: advancedSettings.webrtc.enabled,
+        enableASI: advancedSettings.asi.enabled,
+        enableGPU: advancedSettings.gpu.enabled,
+        enableCrypto: advancedSettings.crypto.enabled,
+        debugEnabled: developerModeEnabled,
+        stealthMode: effectiveStealthMode,
+        protocolLabel: protocolOverlayLabel || 'Protocol 2: Advanced Relay',
+        showOverlayLabel: showProtocolOverlayLabel,
+      });
+    } else {
+      fallbackScript = createMediaInjectionScript(normalizedDevices, {
+        stealthMode: effectiveStealthMode,
+        fallbackVideoUri,
+        forceSimulation: protocolForceSimulation,
+        protocolId: activeProtocol,
+        protocolLabel: protocolOverlayLabel,
+        showOverlayLabel: showProtocolOverlayLabel,
+        loopVideo: standardSettings.loopVideo,
+        mirrorVideo: protocolMirrorVideo,
+        debugEnabled: developerModeEnabled,
+        permissionPromptEnabled: true,
+      });
+    }
 
     webViewRef.current.injectJavaScript(`
       (function() {
@@ -514,6 +559,7 @@ export default function MotionBrowserScreen() {
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
     protocolMirrorVideo,
+    allowlistSettings,
     developerModeEnabled,
   ]);
 
@@ -924,8 +970,8 @@ export default function MotionBrowserScreen() {
     let mediaInjectionScript = '';
     
     if (shouldInjectMedia) {
-      if (activeProtocol === 'standard' || activeProtocol === 'allowlist') {
-        // Use the new working injection for Protocol 1 and 2
+      if (activeProtocol === 'standard') {
+        // Use the working injection for Protocol 1
         const primaryDevice = devices.find(d => d.type === 'camera' && d.simulationEnabled) || devices[0];
         const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
         
@@ -940,6 +986,26 @@ export default function MotionBrowserScreen() {
         });
         
         console.log('[App] Using WORKING injection for', activeProtocol, 'with video:', videoUri ? 'YES' : 'NO');
+      } else if (activeProtocol === 'allowlist') {
+        // Use Advanced Protocol 2 for Allowlist
+        const primaryDevice = devices.find(d => d.type === 'camera' && d.simulationEnabled) || devices[0];
+        const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
+        const advancedSettings = allowlistSettings.advancedRelay;
+        
+        mediaInjectionScript = createAdvancedProtocol2Script({
+          videoUri: videoUri || undefined,
+          devices: devices,
+          enableWebRTCRelay: advancedSettings.webrtc.enabled,
+          enableASI: advancedSettings.asi.enabled,
+          enableGPU: advancedSettings.gpu.enabled,
+          enableCrypto: advancedSettings.crypto.enabled,
+          debugEnabled: developerModeEnabled,
+          stealthMode: effectiveStealthMode,
+          protocolLabel: protocolOverlayLabel || 'Protocol 2: Advanced Relay',
+          showOverlayLabel: showProtocolOverlayLabel,
+        });
+        
+        console.log('[App] Using ADVANCED RELAY injection for allowlist with video:', videoUri ? 'YES' : 'NO');
       } else {
         // Use original injection for other protocols
         const injectionOptions = {
@@ -969,7 +1035,9 @@ export default function MotionBrowserScreen() {
       allowlisted: shouldInjectMedia,
       protocol: activeProtocol,
       fallback: fallbackVideo?.name || 'none',
-      injectionType: shouldInjectMedia ? (activeProtocol === 'standard' || activeProtocol === 'allowlist' ? 'WORKING' : 'LEGACY') : 'NONE',
+      injectionType: shouldInjectMedia
+        ? (activeProtocol === 'standard' ? 'WORKING' : activeProtocol === 'allowlist' ? 'ADVANCED_RELAY' : 'LEGACY')
+        : 'NONE',
     });
     console.log('[App] Devices with videos:', devices.filter(d => d.assignedVideoUri).length);
     return script;
@@ -988,6 +1056,7 @@ export default function MotionBrowserScreen() {
     protocolMirrorVideo,
     developerModeEnabled,
     isProtocolEnabled,
+    allowlistSettings,
   ]);
 
   const afterLoadScript = useMemo(
