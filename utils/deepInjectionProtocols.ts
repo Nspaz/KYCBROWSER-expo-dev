@@ -918,47 +918,105 @@ export function createProtocol3ProxyIntercept(config: Partial<InjectionConfig> =
   }
   
   // ============================================================================
-  // PROXY INTERCEPT
+  // PROXY INTERCEPT - Using method replacement instead of property override
   // ============================================================================
   
-  const originalMediaDevices = navigator.mediaDevices;
+  // Cannot use Proxy on navigator.mediaDevices directly because it's read-only
+  // Instead, we override the individual methods
   
-  navigator.mediaDevices = new Proxy(originalMediaDevices, {
-    get(target, prop) {
-      if (prop === 'getUserMedia') {
-        return async function(constraints) {
-          console.log('[Protocol3] Proxy getUserMedia:', constraints);
+  const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+  const originalEnumerateDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
+  
+  // Create proxy handler for getUserMedia
+  const getUserMediaProxy = new Proxy(originalGetUserMedia || (async () => { throw new Error('Not supported'); }), {
+    apply(target, thisArg, argumentsList) {
+      const constraints = argumentsList[0];
+      console.log('[Protocol3] Proxy getUserMedia apply:', constraints);
+      
+      if (constraints?.video) {
+        try {
+          const stream = makeStream();
           
-          if (constraints?.video) {
-            try {
-              const stream = makeStream();
-              console.log('[Protocol3] Returning injected stream');
-              return stream;
-            } catch (e) {
-              console.error('[Protocol3] Failed:', e);
-              return target.getUserMedia(constraints);
-            }
+          // Spoof track metadata
+          const track = stream.getVideoTracks()[0];
+          if (track) {
+            track.getSettings = function() {
+              return {
+                width: CONFIG.width,
+                height: CONFIG.height,
+                frameRate: CONFIG.fps,
+                facingMode: 'user',
+                deviceId: CONFIG.deviceId,
+                groupId: 'default',
+              };
+            };
+            track.getCapabilities = function() {
+              return {
+                width: { min: 1, max: CONFIG.width },
+                height: { min: 1, max: CONFIG.height },
+                frameRate: { min: 1, max: CONFIG.fps },
+                facingMode: ['user', 'environment'],
+                deviceId: CONFIG.deviceId,
+              };
+            };
+            Object.defineProperty(track, 'label', {
+              get: function() { return CONFIG.deviceLabel; },
+              configurable: true,
+            });
           }
           
-          return target.getUserMedia(constraints);
-        };
+          console.log('[Protocol3] Returning injected stream');
+          return Promise.resolve(stream);
+        } catch (e) {
+          console.error('[Protocol3] Failed:', e);
+        }
       }
       
-      if (prop === 'enumerateDevices') {
-        return async function() {
-          console.log('[Protocol3] Proxy enumerateDevices');
-          return [{
-            deviceId: CONFIG.deviceId,
-            groupId: 'default',
-            kind: 'videoinput',
-            label: CONFIG.deviceLabel
-          }];
-        };
-      }
-      
-      return target[prop];
+      return Reflect.apply(target, thisArg, argumentsList);
     }
   });
+  
+  // Create proxy handler for enumerateDevices
+  const enumerateDevicesProxy = new Proxy(originalEnumerateDevices || (async () => []), {
+    apply(target, thisArg, argumentsList) {
+      console.log('[Protocol3] Proxy enumerateDevices apply');
+      return Promise.resolve([{
+        deviceId: CONFIG.deviceId,
+        groupId: 'default',
+        kind: 'videoinput',
+        label: CONFIG.deviceLabel,
+        toJSON: function() { return this; }
+      }]);
+    }
+  });
+  
+  // Override the methods on mediaDevices
+  if (navigator.mediaDevices) {
+    try {
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+        value: getUserMediaProxy,
+        writable: true,
+        configurable: true,
+      });
+      console.log('[Protocol3] getUserMedia replaced with proxy');
+    } catch (e) {
+      // Fallback: direct assignment
+      navigator.mediaDevices.getUserMedia = getUserMediaProxy;
+      console.log('[Protocol3] getUserMedia replaced (direct)');
+    }
+    
+    try {
+      Object.defineProperty(navigator.mediaDevices, 'enumerateDevices', {
+        value: enumerateDevicesProxy,
+        writable: true,
+        configurable: true,
+      });
+      console.log('[Protocol3] enumerateDevices replaced with proxy');
+    } catch (e) {
+      navigator.mediaDevices.enumerateDevices = enumerateDevicesProxy;
+      console.log('[Protocol3] enumerateDevices replaced (direct)');
+    }
+  }
   
   window.__protocol3 = {
     getStatus: () => ({ initialized: true, animating, frames })
