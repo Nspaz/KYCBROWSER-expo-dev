@@ -4288,3 +4288,6 @@ export type { InjectionConfig, Protocol0Options } from '@/utils/deepInjectionPro
 // Re-export WebSocket Bridge injection for Protocol 6
 export { createWebSocketInjectionScript } from '@/utils/websocketBridge/injectionScript';
 export type { WebSocketInjectionConfig } from '@/utils/websocketBridge/injectionScript';
+
+// Re-export working injection builder for diagnostics/tools.
+export { createWorkingInjectionScript } from '@/constants/workingInjection';

@@ -11,7 +11,8 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { createDiagnosticScript, createGuaranteedInjection } from '@/utils/webcamTestDiagnostics';
-import { createMediaInjectionScript, MEDIARECORDER_POLYFILL_SCRIPT } from '@/constants/browserScripts';
+import { MEDIARECORDER_POLYFILL_SCRIPT } from '@/constants/browserScripts';
+import { createWorkingInjectionScript } from '@/constants/workingInjection';
 import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
 import { createSonnetProtocolScript } from '@/constants/sonnetProtocol';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
@@ -104,17 +105,15 @@ export default function ProtocolTesterScreen() {
         return MEDIARECORDER_POLYFILL_SCRIPT + '\n' + createGuaranteedInjection();
       
       case 'protocol1':
-        return MEDIARECORDER_POLYFILL_SCRIPT + '\n' + createMediaInjectionScript(normalizedDevices, {
+        // Match the app's primary WebView injection path (working injection).
+        return MEDIARECORDER_POLYFILL_SCRIPT + '\n' + createWorkingInjectionScript({
+          videoUri: fallbackVideoUri,
+          devices: normalizedDevices,
           stealthMode: true,
-          fallbackVideoUri,
-          forceSimulation: true,
-          protocolId: 'standard',
-          protocolLabel: 'Protocol 1 Test',
-          showOverlayLabel: true,
-          loopVideo: true,
-          mirrorVideo: false,
           debugEnabled: true,
-          permissionPromptEnabled: false,
+          targetWidth: 1080,
+          targetHeight: 1920,
+          targetFPS: 30,
         });
       
       case 'protocol2':

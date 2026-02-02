@@ -91,7 +91,17 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     stream: null,
     videoLoaded: false,
     mode: 'canvas', // 'video' or 'canvas'
+    // Optional WebCodecs/TrackGenerator pipeline (more native-like than canvas.captureStream).
+    generators: new Set(), // Set<{ track: MediaStreamTrack, writer: any }>
   };
+
+  function supportsTrackGenerator() {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.MediaStreamTrackGenerator === 'function' &&
+      typeof window.VideoFrame === 'function'
+    );
+  }
   
   // ============================================================================
   // SILENT AUDIO GENERATOR
@@ -164,11 +174,10 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         };
       } catch (e) {}
       
-      const ctx = canvas.getContext('2d', { 
-        alpha: false,
-        desynchronized: true,
-        willReadFrequently: false 
-      });
+      // Use the simplest 2D context options possible.
+      // Some WebViews / headless modes behave poorly with "desynchronized" and friends,
+      // and that can result in MediaRecorder producing 0-byte blobs.
+      const ctx = canvas.getContext('2d', { alpha: false });
       
       if (!ctx) {
         error('Failed to get canvas context');
@@ -328,6 +337,30 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         // Canvas mode - draw animated green screen
         drawGreenScreen(ctx, canvas.width, canvas.height, timestamp);
       }
+
+      // If using TrackGenerators, push a frame into each generator.
+      if (State.generators && State.generators.size > 0) {
+        try {
+          State.generators.forEach((entry) => {
+            try {
+              // VideoFrame can be constructed from a canvas in Chromium/WebView builds that support WebCodecs.
+              const frame = new window.VideoFrame(canvas, { timestamp: Math.floor(timestamp * 1000) }); // microseconds-ish
+              entry.writer.write(frame);
+              frame.close();
+            } catch (e) {
+              // If any generator fails, drop it to keep the render loop healthy.
+              try {
+                entry.track?.stop?.();
+              } catch {}
+              try {
+                State.generators.delete(entry);
+              } catch {}
+            }
+          });
+        } catch (e) {
+          // Never let generator failures break the render loop.
+        }
+      }
       
       State.animationFrameId = requestAnimationFrame(render);
     }
@@ -349,28 +382,24 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
-    
-    // Add subtle noise for realism
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    
-    // Only add noise to every 10th pixel for performance
-    for (let i = 0; i < data.length; i += 40) {
-      const noise = (Math.random() - 0.5) * 10;
-      data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+
+    // Subtle noise without readbacks (readbacks can stall captureStream/MediaRecorder).
+    // Keep this extremely cheap to avoid starving the encoder.
+    ctx.fillStyle = 'rgba(0,0,0,0.03)';
+    for (let i = 0; i < 180; i++) {
+      const x = (Math.random() * width) | 0;
+      const y = (Math.random() * height) | 0;
+      ctx.fillRect(x, y, 2, 2);
     }
-    
-    ctx.putImageData(imageData, 0, 0);
   }
   
   // ============================================================================
   // STREAM CREATION
   // ============================================================================
-  
   // Keep track of all created streams for cleanup
   const activeStreams = [];
   
-  function createInjectedStream() {
+  function createInjectedStream(wantsAudio) {
     const canvas = State.canvasElement;
     if (!canvas) {
       error('Cannot create stream: canvas not initialized');
@@ -378,31 +407,50 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
     
     try {
-      // CRITICAL: Always create a NEW stream for each getUserMedia call
-      // This prevents the "track ended" issue when sites call getUserMedia multiple times
-      let stream;
-      const captureMethod = canvas.captureStream || 
-                           canvas.mozCaptureStream || 
-                           canvas.webkitCaptureStream;
-      
-      if (!captureMethod) {
-        error('captureStream not supported on this canvas');
-        error('Available methods:', Object.keys(canvas).filter(k => k.includes('capture')));
-        return null;
       }
       
-      try {
-        stream = captureMethod.call(canvas, CONFIG.TARGET_FPS);
-      } catch (e) {
-        error('captureStream call failed:', e);
-        // Try without FPS argument
+      // Preferred: MediaStreamTrackGenerator + VideoFrame (when available).
+      // Fallback: canvas.captureStream.
+      let stream = null;
+      if (supportsTrackGenerator()) {
         try {
-          stream = captureMethod.call(canvas);
-          log('captureStream succeeded without FPS argument');
-        } catch (e2) {
-          error('captureStream failed completely:', e2);
+          const gen = new window.MediaStreamTrackGenerator({ kind: 'video' });
+          const writer = gen.writable.getWriter();
+          const track = gen;
+          stream = new MediaStream([track]);
+          State.generators.add({ track, writer });
+          log('Using MediaStreamTrackGenerator pipeline');
+        } catch (e) {
+          stream = null;
+        }
+      }
+      
+      if (!stream) {
+        const captureMethod = canvas.captureStream || 
+                             canvas.mozCaptureStream || 
+                             canvas.webkitCaptureStream;
+        
+        if (!captureMethod) {
+          error('captureStream not supported on this canvas');
+          error('Available methods:', Object.keys(canvas).filter(k => k.includes('capture')));
           return null;
         }
+        
+        try {
+          stream = captureMethod.call(canvas, CONFIG.TARGET_FPS);
+        } catch (e) {
+          error('captureStream call failed:', e);
+          // Try without FPS argument
+          try {
+            stream = captureMethod.call(canvas);
+            log('captureStream succeeded without FPS argument');
+          } catch (e2) {
+            error('captureStream failed completely:', e2);
+            return null;
+          }
+        }
+        
+        log('Using canvas.captureStream pipeline');
       }
       
       if (!stream) {
@@ -418,8 +466,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       
       log('Stream created with', videoTracks.length, 'video track(s)');
       
-      // Add silent audio if enabled
-      if (CONFIG.AUDIO_ENABLED) {
+      // Add silent audio only when requested.
+      if (wantsAudio && CONFIG.AUDIO_ENABLED) {
         const audioTrack = createSilentAudioTrack();
         if (audioTrack) {
           stream.addTrack(audioTrack);
@@ -427,7 +475,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         }
       }
       
-      // Spoof track metadata BEFORE storing
+      // Spoof track metadata before storing
       spoofTrackMetadata(stream);
       
       // Track this stream for cleanup
@@ -574,10 +622,18 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       await initializeSync();
     }
     
-    // Always create a fresh stream to avoid issues with stopped tracks
-    // This prevents the "track ended" issue when getUserMedia is called multiple times
-    log('Creating fresh stream for this request...');
-    const stream = createInjectedStream();
+    // IMPORTANT: Create a fresh stream per call (closer to real getUserMedia),
+    // and wait a tick so the canvas has rendered at least one frame before recording starts.
+    await new Promise((resolve) => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
+    
+    log('Creating stream on demand...');
+    let stream = createInjectedStream(wantsAudio);
     if (!stream) {
       error('Failed to create stream');
       throw new DOMException('Could not start video source', 'NotReadableError');
@@ -590,16 +646,16 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       if (videoTrack.readyState !== 'live') {
         error('Track is not live, state:', videoTrack.readyState);
         // Try one more time
-        const retryStream = createInjectedStream();
+        const retryStream = createInjectedStream(wantsAudio);
         if (retryStream && retryStream.getVideoTracks()[0]?.readyState === 'live') {
           log('Retry succeeded');
-          return retryStream;
+          stream = retryStream;
+        } else {
+          throw new DOMException('Could not start video source', 'NotReadableError');
         }
-        throw new DOMException('Could not start video source', 'NotReadableError');
       }
     }
     
-    // Return the fresh stream
     log('Returning stream with', stream.getTracks().length, 'tracks');
     return stream;
   };
@@ -634,14 +690,6 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     // Start rendering
     startRenderLoop();
-    
-    // Create initial stream
-    const stream = createInjectedStream();
-    if (stream) {
-      log('Initial stream created successfully');
-    } else {
-      error('Failed to create initial stream');
-    }
     
     State.ready = true;
     log('Initialization complete - mode:', State.mode);
