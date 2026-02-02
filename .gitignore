@@ -12,6 +12,8 @@ expo-env.d.ts
 # Native
 ios/
 android/
+!packages/webrtc-loopback/ios/
+!packages/webrtc-loopback/ios/**
 *.orig.*
 *.jks
 *.p8
