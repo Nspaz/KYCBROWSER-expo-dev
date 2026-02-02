@@ -61,6 +61,7 @@
           "iosFrameworksDir": "Frameworks",
           "required": true,
           "checksumRequired": true,
+          "autoGenerateChecksum": true,
           "frameworkSha256Env": "CUSTOM_WEBKIT_SHA256"
         }
       ],

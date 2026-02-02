@@ -103,6 +103,35 @@ To compute the hash:
 ```
 shasum -a 256 enterprise/webkit/CustomWebKit.framework/CustomWebKit
 ```
+
+If the SHA256 env var is not provided, the plugin will auto-generate and
+write a checksum file next to the framework:
+
+```
+enterprise/webkit/CustomWebKit.framework.sha256
+```
+
+This becomes the expected checksum for subsequent builds.
+
+## Multiple framework variants (per iOS version)
+You can supply multiple frameworks and map them to iOS version ranges.
+Example:
+
+```
+"plugins": [
+  [
+    "./plugins/withEnterpriseWebKit",
+    {
+      "frameworkVariants": [
+        { "path": "enterprise/webkit/WebKit_iOS17.framework", "minVersion": "17.0" },
+        { "path": "enterprise/webkit/WebKit_iOS18.framework", "minVersion": "18.0" }
+      ],
+      "checksumRequired": true,
+      "autoGenerateChecksum": true
+    }
+  ]
+]
+```
  
  ## Info.plist Flag
  This is enabled in `app.json`:
