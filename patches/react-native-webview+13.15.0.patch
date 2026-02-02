@@ -11,7 +11,7 @@ index 1f6bbfd..a916a6f 100644
  @property (nonatomic, assign) BOOL allowsAirPlayForMediaPlayback;
  @property (nonatomic, assign) BOOL bounces;
 diff --git a/node_modules/react-native-webview/apple/RNCWebViewImpl.m b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
-index 7f5c24d..4c8f7c3 100644
+index 7f5c24d..2ecf221 100644
 --- a/node_modules/react-native-webview/apple/RNCWebViewImpl.m
 +++ b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
 @@ -16,6 +16,7 @@
@@ -22,7 +22,7 @@ index 7f5c24d..4c8f7c3 100644
  
  static NSTimer *keyboardTimer;
  static NSString *const HistoryShimName = @"ReactNativeHistoryShim";
-@@ -23,6 +24,211 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
+@@ -23,6 +24,235 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
  static NSURLCredential* clientAuthenticationCredential;
  static NSDictionary* customCertificatesForHost;
  
@@ -93,6 +93,16 @@ index 7f5c24d..4c8f7c3 100644
 +    return value;
 +  }
 +  return nil;
++}
++
++static void RNCApplyPrivateValue(id target, NSString *key, id value) {
++  if (!target || !key) {
++    return;
++  }
++  @try {
++    [target setValue:value forKey:key];
++  } @catch (NSException *exception) {
++  }
 +}
 +
 +static NSArray<NSString *> *RNCEnterpriseFrameworkPaths(void) {
@@ -228,13 +238,27 @@ index 7f5c24d..4c8f7c3 100644
 +    RNCApplyPrivateBool(config, key, YES);
 +  }
 +  
++  NSDictionary *customPrefSettings = RNCEnterpriseDictionaryFromPlist(@"RNCEnterpriseWebKitCustomPreferenceSettings");
++  if (customPrefSettings && customPrefSettings.count > 0) {
++    for (NSString *key in customPrefSettings) {
++      RNCApplyPrivateValue(prefs, key, customPrefSettings[key]);
++    }
++  }
++  
++  NSDictionary *customConfigSettings = RNCEnterpriseDictionaryFromPlist(@"RNCEnterpriseWebKitCustomConfigSettings");
++  if (customConfigSettings && customConfigSettings.count > 0) {
++    for (NSString *key in customConfigSettings) {
++      RNCApplyPrivateValue(config, key, customConfigSettings[key]);
++    }
++  }
++  
 +  return YES;
 +}
 +
  NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
  
  #if TARGET_OS_IOS
-@@ -174,6 +380,7 @@ RCTAutoInsetsProtocol>
+@@ -174,6 +404,7 @@ RCTAutoInsetsProtocol>
      _mediaPlaybackRequiresUserAction = YES;
      _automaticallyAdjustContentInsets = YES;
      _autoManageStatusBarEnabled = YES;
@@ -242,7 +266,7 @@ index 7f5c24d..4c8f7c3 100644
      _contentInset = UIEdgeInsetsZero;
      _savedKeyboardDisplayRequiresUserAction = YES;
      _injectedJavaScript = nil;
-@@ -456,6 +663,9 @@ RCTAutoInsetsProtocol>
+@@ -456,6 +687,9 @@ RCTAutoInsetsProtocol>
      }
    }
  #endif

@@ -59,7 +59,9 @@
         {
           "frameworkPath": "enterprise/webkit/CustomWebKit.framework",
           "iosFrameworksDir": "Frameworks",
-          "required": true
+          "required": true,
+          "checksumRequired": true,
+          "frameworkSha256Env": "CUSTOM_WEBKIT_SHA256"
         }
       ],
       "expo-font",

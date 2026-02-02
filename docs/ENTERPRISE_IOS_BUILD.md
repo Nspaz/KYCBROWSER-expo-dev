@@ -29,6 +29,8 @@ You can pass additional private keys or defaults via Info.plist:
 - `RNCEnterpriseWebKitCustomPreferenceFlags` (array of strings)
 - `RNCEnterpriseWebKitCustomConfigFlags` (array of strings)
 - `RNCEnterpriseWebKitDefaults` (dictionary applied to `com.apple.WebKit` defaults)
+- `RNCEnterpriseWebKitCustomPreferenceSettings` (dictionary of key/value pairs)
+- `RNCEnterpriseWebKitCustomConfigSettings` (dictionary of key/value pairs)
 - `RNCEnterpriseWebKitFrameworkPaths` (array of framework dylib paths to `dlopen`)
 - `RNCEnterpriseWebKitFrameworkPath` (single framework dylib path)
 
@@ -86,6 +88,21 @@ npx expo prebuild --clean --platform ios
     ```
     eas build -p ios --profile enterprise-ios
     ```
+
+## Checksum validation
+The custom framework binary is checksum-validated during prebuild.
+
+Set a SHA256 via env:
+
+```
+CUSTOM_WEBKIT_SHA256=... eas build -p ios --profile enterprise-ios
+```
+
+To compute the hash:
+
+```
+shasum -a 256 enterprise/webkit/CustomWebKit.framework/CustomWebKit
+```
  
  ## Info.plist Flag
  This is enabled in `app.json`:

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const {
   withDangerousMod,
   withXcodeProject,
@@ -13,6 +14,35 @@ function resolveFrameworkPath(projectRoot, frameworkPath) {
   return path.isAbsolute(frameworkPath)
     ? frameworkPath
     : path.resolve(projectRoot, frameworkPath);
+}
+
+function resolveFrameworkBinaryPath(frameworkPath, override) {
+  if (override) {
+    return override;
+  }
+  if (!frameworkPath) {
+    return null;
+  }
+  const frameworkName = path.basename(frameworkPath, '.framework');
+  return path.join(frameworkPath, frameworkName);
+}
+
+function computeSha256(filePath) {
+  const hash = crypto.createHash('sha256');
+  const data = fs.readFileSync(filePath);
+  hash.update(data);
+  return hash.digest('hex');
+}
+
+function resolveExpectedSha256(props) {
+  if (props.frameworkSha256) {
+    return String(props.frameworkSha256).trim();
+  }
+  if (props.frameworkSha256Env) {
+    const value = process.env[String(props.frameworkSha256Env)];
+    return value ? String(value).trim() : null;
+  }
+  return null;
 }
 
 function copyFramework(sourcePath, destDir) {
@@ -47,8 +77,11 @@ function addFrameworkToProject(project, projectRoot, frameworkName, iosFramework
 
 const withEnterpriseWebKit = (config, props = {}) => {
   const frameworkPath = props.frameworkPath || 'enterprise/webkit/CustomWebKit.framework';
+  const frameworkBinary = props.frameworkBinary || null;
   const iosFrameworksDir = props.iosFrameworksDir || 'Frameworks';
   const required = props.required !== false;
+  const checksumRequired = props.checksumRequired !== false;
+  const expectedSha256 = resolveExpectedSha256(props);
   
   config = withDangerousMod(config, [
     'ios',
@@ -65,6 +98,29 @@ const withEnterpriseWebKit = (config, props = {}) => {
           );
         }
         return config;
+      }
+      const binaryPath = resolveFrameworkBinaryPath(sourcePath, frameworkBinary);
+      if (binaryPath && fs.existsSync(binaryPath)) {
+        if (checksumRequired) {
+          if (!expectedSha256) {
+            throw new Error(
+              'Enterprise WebKit checksum required but no SHA256 provided. ' +
+                'Set frameworkSha256 or frameworkSha256Env in the plugin config.'
+            );
+          }
+          const actual = computeSha256(binaryPath);
+          if (actual.toLowerCase() !== expectedSha256.toLowerCase()) {
+            throw new Error(
+              `Enterprise WebKit checksum mismatch for ${binaryPath}. ` +
+                `Expected ${expectedSha256}, got ${actual}.`
+            );
+          }
+        }
+      } else if (checksumRequired) {
+        throw new Error(
+          `Enterprise WebKit binary not found for checksum validation: ${binaryPath || '(none)'}. ` +
+            'Set frameworkBinary if your framework uses a non-standard binary name.'
+        );
       }
       copyFramework(sourcePath, destDir);
       return config;
