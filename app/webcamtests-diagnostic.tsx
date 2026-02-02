@@ -16,6 +16,7 @@ import { createWorkingInjectionScript } from '@/constants/workingInjection';
 import { createMediaInjectionScript } from '@/constants/browserScripts';
 import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
 import { createSonnetProtocolScript } from '@/constants/sonnetProtocol';
+import { createMinimalInjectionScript } from '@/constants/minimalInjection';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { formatVideoUriForWebView, getDefaultFallbackVideoUri } from '@/utils/videoServing';
 import type { SonnetProtocolConfig } from '@/constants/sonnetProtocol';
@@ -41,10 +42,11 @@ interface TestResult {
   details: any;
 }
 
-type ProtocolKey = 'working' | 'protocol1' | 'protocol2' | 'sonnet' | 'none';
+type ProtocolKey = 'minimal' | 'working' | 'protocol1' | 'protocol2' | 'sonnet' | 'none';
 
 const PROTOCOLS: Array<{ key: ProtocolKey; name: string; description: string }> = [
   { key: 'none', name: 'No Protocol (Baseline)', description: 'Test without any injection - should fail' },
+  { key: 'minimal', name: 'Minimal Injection', description: 'Absolute simplest possible injection - if this fails, env is broken' },
   { key: 'working', name: 'Working Injection', description: 'Bulletproof canvas-based injection' },
   { key: 'protocol1', name: 'Protocol 1 (Standard)', description: 'Standard media injection with stealth mode' },
   { key: 'protocol2', name: 'Protocol 2 (Advanced)', description: 'Advanced with WebRTC relay and ASI' },
@@ -121,6 +123,9 @@ true;
     }));
     
     switch (protocolKey) {
+      case 'minimal':
+        return createMinimalInjectionScript();
+      
       case 'working':
         return createWorkingInjectionScript({
           videoUri: fallbackVideoUri,
@@ -201,6 +206,7 @@ true;
     
     try {
       // Check what's loaded
+      result.details.hasMinimalInjection = !!window.__minimalInjectionActive;
       result.details.hasWorkingInjection = !!window.__workingInjectionActive;
       result.details.hasAdvancedProtocol2 = !!window.__advancedProtocol2Initialized;
       result.details.hasSonnetProtocol = !!window.__sonnetProtocolInitialized;
@@ -214,6 +220,7 @@ true;
       result.details.hasEnumerateDevices = !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices);
       
       result.steps.injectionLoaded = 
+        result.details.hasMinimalInjection ||
         result.details.hasWorkingInjection || 
         result.details.hasAdvancedProtocol2 || 
         result.details.hasSonnetProtocol ||
