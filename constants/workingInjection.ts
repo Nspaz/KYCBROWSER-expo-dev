@@ -598,6 +598,15 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     log('Wants video:', wantsVideo, '| Wants audio:', wantsAudio);
     
+    if (window.__nativeWebRTCBridgeConfig?.enabled && typeof window.__nativeWebRTCBridgeRequest === 'function') {
+      log('Native WebRTC bridge enabled - delegating getUserMedia');
+      try {
+        return await window.__nativeWebRTCBridgeRequest(constraints);
+      } catch (err) {
+        log('Native bridge failed, falling back:', err?.message || err);
+      }
+    }
+    
     if (!wantsVideo) {
       // Audio only - pass through to real getUserMedia if available
       if (originalGetUserMedia && !CONFIG.STEALTH) {

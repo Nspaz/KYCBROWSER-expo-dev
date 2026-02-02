@@ -37,7 +37,9 @@ import {
   createSimplifiedInjectionScript,
 } from '@/constants/browserScripts';
 import { createWorkingInjectionScript } from '@/constants/workingInjection';
+import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
+import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -83,6 +85,14 @@ export default function MotionBrowserScreen() {
         clearTimeout(pendingInjectionRef.current);
         pendingInjectionRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
+    return () => {
+      nativeBridgeRef.current?.dispose();
+      nativeBridgeRef.current = null;
     };
   }, []);
 
@@ -156,6 +166,7 @@ export default function MotionBrowserScreen() {
   const isMountedRef = useRef<boolean>(true);
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeBridgeRef = useRef<NativeWebRTCBridge | null>(null);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [safariModeEnabled, setSafariModeEnabled] = useState(true);
@@ -464,6 +475,13 @@ export default function MotionBrowserScreen() {
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
     };
+    
+    const nativeBridgeConfig = {
+      enabled: nativeBridgeEnabled,
+      preferNative: true,
+      timeoutMs: 10000,
+      debug: developerModeEnabled,
+    };
 
     console.log('[App] Injecting media config:', {
       stealthMode: effectiveStealthMode,
@@ -490,6 +508,11 @@ export default function MotionBrowserScreen() {
 
     webViewRef.current.injectJavaScript(`
       (function() {
+        if (window.__updateNativeWebRTCBridgeConfig) {
+          window.__updateNativeWebRTCBridgeConfig(${JSON.stringify(nativeBridgeConfig)});
+        } else {
+          window.__nativeWebRTCBridgeConfig = ${JSON.stringify(nativeBridgeConfig)};
+        }
         if (window.__updateMediaConfig) {
           window.__updateMediaConfig(${JSON.stringify(config)});
           console.log('[MediaSim] Config injected from RN - devices:', ${activeTemplate.captureDevices.length});
@@ -515,6 +538,7 @@ export default function MotionBrowserScreen() {
     standardSettings.loopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
+    nativeBridgeEnabled,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -895,6 +919,14 @@ export default function MotionBrowserScreen() {
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
 
+  const nativeBridgeEnabled = useMemo(() => {
+    if (isWeb || !webViewAvailable) return false;
+    if (!isProtocolEnabled || allowlistBlocked) return false;
+    if (developerModeEnabled) return true;
+    if (!currentHostname) return false;
+    return currentHostname === 'webcamtests.com' || currentHostname.endsWith('.webcamtests.com');
+  }, [isWeb, webViewAvailable, isProtocolEnabled, allowlistBlocked, developerModeEnabled, currentHostname]);
+
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
   const beforeLoadScript = useMemo(() => {
@@ -957,11 +989,30 @@ export default function MotionBrowserScreen() {
         mediaInjectionScript = createMediaInjectionScript(devices, injectionOptions);
       }
     }
+
+    const nativeBridgeConfig = {
+      enabled: nativeBridgeEnabled,
+      preferNative: true,
+      timeoutMs: 10000,
+      debug: developerModeEnabled,
+    };
+    const nativeBridgeScript = shouldInjectMedia
+      ? NATIVE_WEBRTC_BRIDGE_SCRIPT + `
+        (function() {
+          if (window.__updateNativeWebRTCBridgeConfig) {
+            window.__updateNativeWebRTCBridgeConfig(${JSON.stringify(nativeBridgeConfig)});
+          } else {
+            window.__nativeWebRTCBridgeConfig = ${JSON.stringify(nativeBridgeConfig)};
+          }
+        })();
+        `
+      : '';
     
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
       mediaInjectionScript +
+      nativeBridgeScript +
       VIDEO_SIMULATION_TEST_SCRIPT;
     console.log('[App] Preparing before-load script with', {
       devices: devices.length,
@@ -988,6 +1039,7 @@ export default function MotionBrowserScreen() {
     protocolMirrorVideo,
     developerModeEnabled,
     isProtocolEnabled,
+    nativeBridgeEnabled,
   ]);
 
   const afterLoadScript = useMemo(
@@ -1205,6 +1257,12 @@ export default function MotionBrowserScreen() {
                       console.log('[WebView Injection Ready]', data.payload);
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
+                    } else if (
+                      data.type === 'nativeWebRTCOffer' ||
+                      data.type === 'nativeWebRTCIceCandidate' ||
+                      data.type === 'nativeWebRTCClose'
+                    ) {
+                      nativeBridgeRef.current?.handleSignalMessage(data);
                     } else if (data.type === 'cameraPermissionRequest') {
                       const payload = data.payload || {};
                       if (!payload.requestId) {
