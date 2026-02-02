@@ -58,6 +58,13 @@ the `withEnterpriseWebKit` config plugin will:
 - Copy it into `ios/Frameworks/`
 - Embed it in the Xcode project
 
+By default the plugin requires the framework to exist and will fail prebuild
+if it is missing. You can disable the requirement by setting:
+
+```
+{ "required": false }
+```
+
 This runs during:
 
 ```
@@ -75,9 +82,9 @@ npx expo prebuild --clean --platform ios
     npx expo prebuild --clean --platform ios
     ```
  
- 3. Build with EAS internal profile:
+3. Build with EAS enterprise profile:
     ```
-    eas build -p ios --profile sideload
+    eas build -p ios --profile enterprise-ios
     ```
  
  ## Info.plist Flag

@@ -48,6 +48,7 @@ function addFrameworkToProject(project, projectRoot, frameworkName, iosFramework
 const withEnterpriseWebKit = (config, props = {}) => {
   const frameworkPath = props.frameworkPath || 'enterprise/webkit/CustomWebKit.framework';
   const iosFrameworksDir = props.iosFrameworksDir || 'Frameworks';
+  const required = props.required !== false;
   
   config = withDangerousMod(config, [
     'ios',
@@ -56,6 +57,15 @@ const withEnterpriseWebKit = (config, props = {}) => {
       const iosRoot = config.modRequest.platformProjectRoot;
       const sourcePath = resolveFrameworkPath(projectRoot, frameworkPath);
       const destDir = path.join(iosRoot, iosFrameworksDir);
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        if (required) {
+          throw new Error(
+            `Enterprise WebKit framework missing at: ${sourcePath || frameworkPath}. ` +
+              'Place CustomWebKit.framework under enterprise/webkit or set frameworkPath.'
+          );
+        }
+        return config;
+      }
       copyFramework(sourcePath, destDir);
       return config;
     },

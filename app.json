@@ -58,7 +58,8 @@
         "./plugins/withEnterpriseWebKit",
         {
           "frameworkPath": "enterprise/webkit/CustomWebKit.framework",
-          "iosFrameworksDir": "Frameworks"
+          "iosFrameworksDir": "Frameworks",
+          "required": true
         }
       ],
       "expo-font",
