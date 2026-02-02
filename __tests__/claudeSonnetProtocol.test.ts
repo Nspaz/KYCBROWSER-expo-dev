@@ -90,13 +90,15 @@ describe('Claude Sonnet Protocol', () => {
 
   describe('Monitoring Helpers', () => {
     it('should track async operations', async () => {
-      const operation = async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return 'success';
-      };
+      // Tests run with global fake timers (see `jest.setup.js`), so we must advance timers
+      // for any `setTimeout`-based async work to complete.
+      const operation = () =>
+        new Promise<string>((resolve) => setTimeout(() => resolve('success'), 10));
 
-      const result = await monitoringHelpers.trackOperation('claude-sonnet', operation);
-      expect(result).toBe('success');
+      const promise = monitoringHelpers.trackOperation('claude-sonnet', operation);
+      jest.advanceTimersByTime(20);
+
+      await expect(promise).resolves.toBe('success');
 
       const systemMetrics = protocolMonitor.getSystemMetrics();
       expect(systemMetrics.successfulInjections).toBe(1);

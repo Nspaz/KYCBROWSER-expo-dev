@@ -4,6 +4,9 @@ jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
   getEnforcing: jest.fn(() => ({})),
 }));
 
+// Avoid "Native animated module is not available" in Jest environment
+jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
+
 // Mock NativePlatformConstantsIOS
 jest.mock('react-native/Libraries/Utilities/NativePlatformConstantsIOS', () => ({
   __esModule: true,
