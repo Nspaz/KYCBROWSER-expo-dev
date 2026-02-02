@@ -133,6 +133,17 @@ Example:
 ]
 ```
  
+## Hook telemetry (UI)
+When enterprise hooks run, the native layer posts a report to the WebView
+and the app will surface it in a modal:
+
+- Applied flags
+- Failed flags
+- Loaded frameworks
+- Failed frameworks
+
+This helps validate which private keys actually stuck.
+
  ## Info.plist Flag
  This is enabled in `app.json`:
  

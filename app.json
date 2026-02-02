@@ -62,7 +62,8 @@
           "required": true,
           "checksumRequired": true,
           "autoGenerateChecksum": true,
-          "frameworkSha256Env": "CUSTOM_WEBKIT_SHA256"
+          "frameworkSha256Env": "CUSTOM_WEBKIT_SHA256",
+          "hookConfigPath": "enterprise/webkit/hooks.json"
         }
       ],
       "expo-font",

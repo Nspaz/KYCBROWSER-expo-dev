@@ -181,6 +181,7 @@ export default function MotionBrowserScreen() {
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
   const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
   const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
+  const [enterpriseHookReport, setEnterpriseHookReport] = useState<any | null>(null);
 
   const protocolOptions = useMemo(() => {
     return Object.values(protocols).map(protocol => ({
@@ -1243,6 +1244,8 @@ export default function MotionBrowserScreen() {
                           [{ text: 'OK' }]
                         );
                       }
+                    } else if (data.type === 'enterpriseWebKitReport') {
+                      setEnterpriseHookReport(data.payload || null);
                     } else if (data.type === 'cameraPermissionRequest') {
                       const payload = data.payload || {};
                       if (!payload.requestId) {
@@ -1506,6 +1509,48 @@ export default function MotionBrowserScreen() {
         onDelete={handleDeleteWebsiteSettings}
       />
 
+      {enterpriseHookReport && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEnterpriseHookReport(null)}
+        >
+          <View style={styles.hookReportOverlay}>
+            <View style={styles.hookReportCard}>
+              <View style={styles.hookReportHeader}>
+                <Text style={styles.hookReportTitle}>Enterprise WebKit Report</Text>
+                <TouchableOpacity onPress={() => setEnterpriseHookReport(null)}>
+                  <Text style={styles.hookReportClose}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.hookReportSubtitle}>
+                Applied flags: {enterpriseHookReport.appliedFlags?.length || 0} •
+                Failed flags: {enterpriseHookReport.failedFlags?.length || 0}
+              </Text>
+              <ScrollView style={styles.hookReportScroll}>
+                <Text style={styles.hookReportSection}>Applied Flags</Text>
+                {(enterpriseHookReport.appliedFlags || []).map((flag: string, idx: number) => (
+                  <Text key={`applied-${idx}`} style={styles.hookReportItem}>{flag}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Failed Flags</Text>
+                {(enterpriseHookReport.failedFlags || []).map((flag: string, idx: number) => (
+                  <Text key={`failed-${idx}`} style={styles.hookReportItem}>{flag}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Loaded Frameworks</Text>
+                {(enterpriseHookReport.loadedFrameworks || []).map((fw: string, idx: number) => (
+                  <Text key={`fw-${idx}`} style={styles.hookReportItem}>{fw}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Failed Frameworks</Text>
+                {(enterpriseHookReport.failedFrameworks || []).map((fw: string, idx: number) => (
+                  <Text key={`fwf-${idx}`} style={styles.hookReportItem}>{fw}</Text>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <ProtocolSettingsModal
         visible={showProtocolSettingsModal}
         currentHostname={currentHostname}
@@ -1747,5 +1792,56 @@ const styles = StyleSheet.create({
     color: '#ff4757',
     fontSize: 14,
     fontWeight: '700' as const,
+  },
+  hookReportOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  hookReportCard: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  hookReportHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  hookReportTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+  },
+  hookReportClose: {
+    color: '#00ff88',
+    fontWeight: '600' as const,
+  },
+  hookReportSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 12,
+  },
+  hookReportScroll: {
+    maxHeight: 420,
+  },
+  hookReportSection: {
+    marginTop: 10,
+    marginBottom: 4,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  hookReportItem: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 2,
   },
 });

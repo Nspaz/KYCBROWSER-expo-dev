@@ -64,6 +64,38 @@ function resolveExpectedSha256(props, checksumPath) {
   return null;
 }
 
+function readJsonConfig(jsonPath) {
+  if (!jsonPath || !fs.existsSync(jsonPath)) {
+    return null;
+  }
+  try {
+    const raw = fs.readFileSync(jsonPath, 'utf8');
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Failed to parse enterprise JSON config at ${jsonPath}: ${error.message}`);
+  }
+}
+
+function mergeArray(target, values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return target;
+  }
+  const set = new Set(Array.isArray(target) ? target : []);
+  for (const item of values) {
+    if (typeof item === 'string' && item.trim().length > 0) {
+      set.add(item.trim());
+    }
+  }
+  return Array.from(set);
+}
+
+function mergeObject(target, values) {
+  if (!values || typeof values !== 'object') {
+    return target;
+  }
+  return { ...(target || {}), ...values };
+}
+
 function buildVariantRuntimePath(frameworkPath, binaryOverride) {
   if (!frameworkPath) {
     return null;
@@ -134,6 +166,8 @@ const withEnterpriseWebKit = (config, props = {}) => {
   const checksumRequired = props.checksumRequired !== false;
   const autoGenerateChecksum = props.autoGenerateChecksum !== false;
   const variants = normalizeVariants(props);
+  const hookConfigPath = props.hookConfigPath || 'enterprise/webkit/hooks.json';
+  const hookConfig = readJsonConfig(path.resolve(process.cwd(), hookConfigPath));
   
   config = withInfoPlist(config, (config) => {
     const runtimeVariants = variants.map((variant) => ({
@@ -144,6 +178,29 @@ const withEnterpriseWebKit = (config, props = {}) => {
     
     if (runtimeVariants.length > 0) {
       config.modResults.RNCEnterpriseWebKitFrameworkVariants = runtimeVariants;
+    }
+    
+    if (hookConfig) {
+      config.modResults.RNCEnterpriseWebKitCustomPreferenceFlags = mergeArray(
+        config.modResults.RNCEnterpriseWebKitCustomPreferenceFlags,
+        hookConfig.customPreferenceFlags
+      );
+      config.modResults.RNCEnterpriseWebKitCustomConfigFlags = mergeArray(
+        config.modResults.RNCEnterpriseWebKitCustomConfigFlags,
+        hookConfig.customConfigFlags
+      );
+      config.modResults.RNCEnterpriseWebKitCustomPreferenceSettings = mergeObject(
+        config.modResults.RNCEnterpriseWebKitCustomPreferenceSettings,
+        hookConfig.customPreferenceSettings
+      );
+      config.modResults.RNCEnterpriseWebKitCustomConfigSettings = mergeObject(
+        config.modResults.RNCEnterpriseWebKitCustomConfigSettings,
+        hookConfig.customConfigSettings
+      );
+      config.modResults.RNCEnterpriseWebKitDefaults = mergeObject(
+        config.modResults.RNCEnterpriseWebKitDefaults,
+        hookConfig.defaults
+      );
     }
     
     return config;
@@ -180,11 +237,17 @@ const withEnterpriseWebKit = (config, props = {}) => {
         
         if (binaryPath && fs.existsSync(binaryPath)) {
           if (checksumRequired) {
-            if (!expectedSha256) {
+            let expected = expectedSha256;
+            if (!expected) {
               if (autoGenerateChecksum) {
                 const generated = computeSha256(binaryPath);
-                writeChecksumFile(checksumFile, generated);
-                console.warn(`[Enterprise WebKit] Generated checksum at ${checksumFile}`);
+                if (!fs.existsSync(checksumFile)) {
+                  writeChecksumFile(checksumFile, generated);
+                  console.warn(`[Enterprise WebKit] Generated checksum at ${checksumFile}`);
+                } else {
+                  expected = readChecksumFile(checksumFile);
+                }
+                expected = expected || generated;
               } else {
                 throw new Error(
                   'Enterprise WebKit checksum required but no SHA256 provided. ' +
@@ -192,13 +255,13 @@ const withEnterpriseWebKit = (config, props = {}) => {
                 );
               }
             }
-            const expected = resolveExpectedSha256(
+            expected = resolveExpectedSha256(
               {
                 frameworkSha256: variant.sha256,
                 frameworkSha256Env: variant.sha256Env,
               },
               checksumFile
-            );
+            ) || expected;
             if (!expected) {
               throw new Error(
                 `Enterprise WebKit checksum missing after generation for ${binaryPath}.`
