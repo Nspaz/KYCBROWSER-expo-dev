@@ -20,6 +20,7 @@ export interface WorkingInjectionOptions {
   targetWidth?: number;
   targetHeight?: number;
   targetFPS?: number;
+  preferFrameGenerator?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     targetWidth = 1080,
     targetHeight = 1920,
     targetFPS = 30,
+    preferFrameGenerator = false,
   } = options;
 
   return `
@@ -67,6 +69,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     } catch (e) {}
   }
   window.__workingInjectionActive = true;
+  // Prevent legacy injector from overwriting this implementation
+  window.__mediaInjectorInitialized = true;
   
   // Detect environment
   const isWebView = navigator.userAgent.includes('WebView') || 
@@ -83,11 +87,12 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     TARGET_HEIGHT: ${targetHeight},
     TARGET_FPS: ${targetFPS},
     AUDIO_ENABLED: true,
+    USE_FRAME_GENERATOR: ${preferFrameGenerator},
   };
   
-  const log = (...args) => {
-    if (CONFIG.DEBUG) console.log('[WorkingInject]', ...args);
-  };
+  const log = CONFIG.DEBUG 
+    ? (...args) => console.log('[WorkingInject]', ...args)
+    : () => {};
   const error = (...args) => console.error('[WorkingInject]', ...args);
   const notifyUnsupported = (reason) => {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -177,6 +182,13 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
   }
   
+  function setDebug(enabled) {
+    CONFIG.DEBUG = !!enabled;
+    log = CONFIG.DEBUG
+      ? (...args) => console.log('[WorkingInject]', ...args)
+      : () => {};
+  }
+  
   log('========================================');
   log('WORKING VIDEO INJECTION - INITIALIZING');
   log('Video URI:', CONFIG.VIDEO_URI ? 'SET' : 'NONE (will use canvas)');
@@ -196,23 +208,17 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     stream: null,
     videoLoaded: false,
     mode: 'canvas', // 'video' or 'canvas'
-    // Optional WebCodecs/TrackGenerator pipeline (more native-like than canvas.captureStream).
-    generators: new Set(), // Set<{ track: MediaStreamTrack, writer: any }>
     lastConstraints: null,
     unsupportedReason: null,
     capabilities: {
       canvasCaptureStream: false,
       videoCaptureStream: false,
     },
+    generatorTrack: null,
+    generatorWriter: null,
+    generatorActive: false,
+    generatorWritePending: false,
   };
-
-  function supportsTrackGenerator() {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.MediaStreamTrackGenerator === 'function' &&
-      typeof window.VideoFrame === 'function'
-    );
-  }
 
   // ============================================================================
   // CAPABILITY DETECTION
@@ -396,6 +402,26 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   window.__nativeGumIce = function(payload) { NativeBridge.handleIce(payload); };
   window.__nativeGumError = function(payload) { NativeBridge.handleError(payload); };
   
+  function syncMediaSimConfig(partial) {
+    if (!window.__mediaSimConfig) {
+      window.__mediaSimConfig = {};
+    }
+    if (partial && typeof partial === 'object') {
+      try {
+        Object.assign(window.__mediaSimConfig, partial);
+      } catch (e) {}
+    }
+  }
+  
+  syncMediaSimConfig({
+    devices: CONFIG.DEVICES,
+    stealthMode: CONFIG.STEALTH,
+    fallbackVideoUri: CONFIG.VIDEO_URI,
+    debugEnabled: CONFIG.DEBUG,
+    protocolId: 'standard',
+    useFrameGenerator: CONFIG.USE_FRAME_GENERATOR,
+  });
+  
   // ============================================================================
   // SILENT AUDIO GENERATOR
   // ============================================================================
@@ -500,6 +526,100 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
   }
   
+  function supportsFrameGenerator() {
+    return typeof MediaStreamTrackGenerator !== 'undefined' && typeof VideoFrame !== 'undefined';
+  }
+  
+  function supportsCaptureStream() {
+    const canvas = State.canvasElement || (document && document.createElement ? document.createElement('canvas') : null);
+    if (!canvas) return false;
+    return !!(canvas.captureStream || canvas.mozCaptureStream || canvas.webkitCaptureStream);
+  }
+  
+  function reportCapabilities(source) {
+    const payload = {
+      source: source || 'init',
+      captureStream: supportsCaptureStream(),
+      frameGenerator: supportsFrameGenerator(),
+      spoofingAvailable: supportsCaptureStream() || supportsFrameGenerator(),
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+    };
+    window.__workingInjectionCapabilities = payload;
+    
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'mediaCapabilities',
+          payload,
+        }));
+      } catch (e) {}
+    }
+  }
+  
+  reportCapabilities('init');
+  
+  function stopGenerator() {
+    if (State.generatorWriter) {
+      try {
+        State.generatorWriter.close();
+      } catch (e) {}
+    }
+    State.generatorWriter = null;
+    State.generatorTrack = null;
+    State.generatorActive = false;
+    State.generatorWritePending = false;
+  }
+  
+  function createGeneratorStream() {
+    if (!supportsFrameGenerator()) {
+      error('Frame generator not supported');
+      return null;
+    }
+    
+    try {
+      stopGenerator();
+      const generator = new MediaStreamTrackGenerator({ kind: 'video' });
+      const stream = new MediaStream([generator]);
+      
+      State.generatorTrack = generator;
+      State.generatorWriter = generator.writable.getWriter();
+      State.generatorActive = true;
+      
+      log('Frame generator stream created');
+      return stream;
+    } catch (e) {
+      error('Frame generator creation failed:', e);
+      return null;
+    }
+  }
+  
+  function pushGeneratorFrame(timestamp) {
+    if (!State.generatorActive || !State.generatorWriter || State.generatorWritePending) return;
+    if (!State.canvasElement) return;
+    
+    let frame = null;
+    try {
+      frame = new VideoFrame(State.canvasElement, {
+        timestamp: Math.max(0, Math.round(timestamp * 1000)),
+      });
+      
+      State.generatorWritePending = true;
+      State.generatorWriter.write(frame).then(() => {
+        State.generatorWritePending = false;
+        frame.close();
+      }).catch(err => {
+        State.generatorWritePending = false;
+        frame.close();
+        error('Frame generator write failed:', err);
+      });
+    } catch (e) {
+      if (frame && typeof frame.close === 'function') {
+        try { frame.close(); } catch (err) {}
+      }
+      error('Frame generator frame failed:', e);
+    }
+  }
+  
   // ============================================================================
   // VIDEO STREAM LOADER
   // ============================================================================
@@ -581,6 +701,64 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     });
   }
   
+  function cleanupVideoElement() {
+    if (!State.videoElement) return;
+    try {
+      State.videoElement.pause();
+      State.videoElement.src = '';
+    } catch (e) {}
+    try {
+      if (State.videoElement.parentNode) {
+        State.videoElement.parentNode.removeChild(State.videoElement);
+      }
+    } catch (e) {}
+    State.videoElement = null;
+    State.videoLoaded = false;
+  }
+  
+  function resolveVideoUriFromConfig(config) {
+    if (!config || typeof config !== 'object') return CONFIG.VIDEO_URI;
+    if (typeof config.videoUri === 'string') return config.videoUri;
+    if (Array.isArray(config.devices)) {
+      const camera =
+        config.devices.find(d => d.type === 'camera' && d.simulationEnabled) ||
+        config.devices.find(d => d.type === 'camera') ||
+        config.devices[0];
+      if (camera && camera.assignedVideoUri) {
+        return camera.assignedVideoUri;
+      }
+    }
+    if (typeof config.fallbackVideoUri === 'string') {
+      return config.fallbackVideoUri;
+    }
+    return CONFIG.VIDEO_URI;
+  }
+  
+  async function applyVideoUri(nextUri) {
+    const normalized = nextUri || null;
+    if (!normalized) {
+      CONFIG.VIDEO_URI = null;
+      cleanupVideoElement();
+      State.mode = 'canvas';
+      return;
+    }
+    
+    if (CONFIG.VIDEO_URI === normalized && State.videoLoaded) {
+      return;
+    }
+    
+    CONFIG.VIDEO_URI = normalized;
+    cleanupVideoElement();
+    State.mode = 'video';
+    
+    const videoOk = await initVideoStream();
+    if (videoOk) {
+      State.mode = 'video';
+    } else {
+      State.mode = 'canvas';
+    }
+  }
+  
   // ============================================================================
   // RENDER LOOP
   // ============================================================================
@@ -631,28 +809,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         drawGreenScreen(ctx, canvas.width, canvas.height, timestamp);
       }
 
-      // If using TrackGenerators, push a frame into each generator.
-      if (State.generators && State.generators.size > 0) {
-        try {
-          State.generators.forEach((entry) => {
-            try {
-              // VideoFrame can be constructed from a canvas in Chromium/WebView builds that support WebCodecs.
-              const frame = new window.VideoFrame(canvas, { timestamp: Math.floor(timestamp * 1000) }); // microseconds-ish
-              entry.writer.write(frame);
-              frame.close();
-            } catch (e) {
-              // If any generator fails, drop it to keep the render loop healthy.
-              try {
-                entry.track?.stop?.();
-              } catch {}
-              try {
-                State.generators.delete(entry);
-              } catch {}
-            }
-          });
-        } catch (e) {
-          // Never let generator failures break the render loop.
-        }
+      if (State.generatorActive) {
+        pushGeneratorFrame(timestamp);
       }
       
       State.animationFrameId = requestAnimationFrame(render);
@@ -730,42 +888,44 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
     
     try {
-      // Preferred: MediaStreamTrackGenerator + VideoFrame (when available).
-      // Fallback: captureStream from video/canvas.
       let stream = null;
-      if (supportsTrackGenerator()) {
-        try {
-          const gen = new window.MediaStreamTrackGenerator({ kind: 'video' });
-          const writer = gen.writable.getWriter();
-          const track = gen;
-          stream = new MediaStream([track]);
-          State.generators.add({ track, writer });
-          log('Using MediaStreamTrackGenerator pipeline');
-        } catch (e) {
-          stream = null;
-        }
-      }
-      
+      const generatorPreferred = CONFIG.USE_FRAME_GENERATOR === true;
+      const generatorSupported = supportsFrameGenerator();
+      const captureSupported = supportsCaptureStream();
       const canUseCanvas = State.capabilities.canvasCaptureStream;
       const canUseVideo = State.capabilities.videoCaptureStream && State.videoElement;
       
-      if (!stream && State.mode === 'video' && canUseVideo) {
-        stream = getVideoCaptureStream(State.videoElement, CONFIG.TARGET_FPS);
-      }
-      
-      if (!stream && canUseCanvas) {
-        stream = getCanvasCaptureStream(canvas, CONFIG.TARGET_FPS);
-      }
-      
-      if (!stream && canUseVideo) {
-        // Fallback to video capture if canvas capture failed
-        stream = getVideoCaptureStream(State.videoElement, CONFIG.TARGET_FPS);
+      if ((generatorPreferred && generatorSupported) || (!captureSupported && generatorSupported)) {
+        stream = createGeneratorStream();
+        if (!stream) {
+          error('Frame generator failed');
+          return null;
+        }
+      } else {
+        stopGenerator();
+        if (State.mode === 'video' && canUseVideo) {
+          stream = getVideoCaptureStream(State.videoElement, CONFIG.TARGET_FPS);
+        }
+        
+        if (!stream && canUseCanvas) {
+          stream = getCanvasCaptureStream(canvas, CONFIG.TARGET_FPS);
+        }
+        
+        if (!stream && canUseVideo) {
+          // Fallback to video capture if canvas capture failed
+          stream = getVideoCaptureStream(State.videoElement, CONFIG.TARGET_FPS);
+        }
+        
+        if (!stream) {
+          State.unsupportedReason = 'captureStream not supported in this WebView';
+          error('captureStream not supported');
+          notifyUnsupported(State.unsupportedReason);
+          return null;
+        }
       }
       
       if (!stream) {
-        State.unsupportedReason = 'captureStream not supported in this WebView';
-        error('captureStream not supported');
-        notifyUnsupported(State.unsupportedReason);
+        error('Stream creation failed');
         return null;
       }
       
@@ -1134,6 +1294,59 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     log('Initialization complete - mode:', State.mode);
   }
   
+  // Allow runtime updates without swapping injectors
+  window.__updateMediaConfig = function(config) {
+    if (!config || typeof config !== 'object') return;
+    
+    syncMediaSimConfig(config);
+    
+    if (config.devices) {
+      CONFIG.DEVICES = config.devices;
+    }
+    if (typeof config.stealthMode === 'boolean') {
+      CONFIG.STEALTH = config.stealthMode;
+    }
+    if (typeof config.debugEnabled === 'boolean') {
+      setDebug(config.debugEnabled);
+    }
+    if (typeof config.useFrameGenerator === 'boolean') {
+      const nextUseGenerator = config.useFrameGenerator;
+      if (nextUseGenerator !== CONFIG.USE_FRAME_GENERATOR) {
+        CONFIG.USE_FRAME_GENERATOR = nextUseGenerator;
+        if (nextUseGenerator && !State.generatorActive) {
+          State.stream = null;
+          State.ready = false;
+        }
+        if (!nextUseGenerator && State.generatorActive) {
+          stopGenerator();
+          State.stream = null;
+          State.ready = false;
+        }
+      }
+    }
+    if (typeof config.targetWidth === 'number' && config.targetWidth > 0) {
+      CONFIG.TARGET_WIDTH = config.targetWidth;
+      if (State.canvasElement) State.canvasElement.width = config.targetWidth;
+    }
+    if (typeof config.targetHeight === 'number' && config.targetHeight > 0) {
+      CONFIG.TARGET_HEIGHT = config.targetHeight;
+      if (State.canvasElement) State.canvasElement.height = config.targetHeight;
+    }
+    if (typeof config.targetFPS === 'number' && config.targetFPS > 0) {
+      CONFIG.TARGET_FPS = config.targetFPS;
+    }
+    
+    const nextVideoUri = resolveVideoUriFromConfig(config);
+    applyVideoUri(nextVideoUri).then(() => {
+      if (State.stream) {
+        spoofTrackMetadata(State.stream);
+      }
+      log('Config updated - devices:', CONFIG.DEVICES.length, '| mode:', State.mode);
+    }).catch(err => {
+      error('Config update failed:', err);
+    });
+  };
+  
   // Start initialization immediately
   initializeSync().then(() => {
     log('========================================');
@@ -1167,6 +1380,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         },
       }));
     }
+    
+    reportCapabilities('ready');
   }).catch(err => {
     error('Initialization error:', err);
   });
@@ -1217,6 +1432,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       try { delete window.__workingInjection; } catch (e) {}
     },
     updateConfig: (config) => updateConfig(config),
+    getCapabilities: () => window.__workingInjectionCapabilities || null,
   };
   
 })();

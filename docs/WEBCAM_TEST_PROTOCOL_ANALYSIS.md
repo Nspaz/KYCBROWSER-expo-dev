@@ -180,6 +180,28 @@ navigator.mediaDevices.getUserMedia = async function(constraints) {
 
 **Not a solution**: Trying different `crossOrigin` modes (still blocked)
 
+### Missing canvas.captureStream in some WebViews
+
+**Problem**: Some mobile WebViews do not expose `HTMLCanvasElement.captureStream`, so canvas-based spoofing fails even if `getUserMedia` is overridden.
+
+**Alternative (now supported)**: Use **WebCodecs frame generation** when available.
+
+**Requirements**:
+1. `MediaStreamTrackGenerator` support
+2. `VideoFrame` support
+
+**Notes**:
+- If both `captureStream` and WebCodecs are missing, JavaScript-only spoofing is not possible.
+- In that case, a native virtual camera is required.
+
+### iOS WKWebView constraints
+
+**Important**: iOS does not expose a public API to register a virtual camera device for `WKWebView`.
+
+**Implications**:
+1. If `canvas.captureStream` and WebCodecs are unavailable, **spoofing cannot work** in an App Store-safe build.
+2. A **native virtual camera** would require private WebKit APIs or a custom WebKit build (typically not App Store safe).
+
 ### Override Replacement
 
 **Problem**: Some sites detect override and replace it with original

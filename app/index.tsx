@@ -92,6 +92,15 @@ export default function MotionBrowserScreen() {
       }
     };
   }, []);
+  
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
 
   const { 
     activeTemplate, 
@@ -135,6 +144,7 @@ export default function MotionBrowserScreen() {
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
+    enterpriseWebKitEnabled,
   } = useProtocol();
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -163,6 +173,8 @@ export default function MotionBrowserScreen() {
   const isMountedRef = useRef<boolean>(true);
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const capabilityAlertShownRef = useRef<boolean>(false);
+  const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   // Default OFF: the Safari spoof script is large and can reduce injection reliability/perf in WebViews.
@@ -172,10 +184,12 @@ export default function MotionBrowserScreen() {
 
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
+  const [webViewKey, setWebViewKey] = useState(0);
   const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
   const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
   const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
+  const [enterpriseHookReport, setEnterpriseHookReport] = useState<any | null>(null);
 
   const protocolOptions = useMemo(() => {
     return Object.values(protocols).map(protocol => ({
@@ -339,6 +353,7 @@ export default function MotionBrowserScreen() {
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const enterpriseWebKitActive = Platform.OS === 'ios' ? enterpriseWebKitEnabled : true;
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -471,6 +486,7 @@ export default function MotionBrowserScreen() {
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
+      useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'standard' || activeProtocol === 'allowlist'),
     };
     
     if (activeProtocol === 'allowlist') {
@@ -523,6 +539,7 @@ export default function MotionBrowserScreen() {
           targetWidth: 1080,
           targetHeight: 1920,
           targetFPS: 30,
+          preferFrameGenerator: enterpriseWebKitActive,
         });
       }
       return protocol0Script;
@@ -627,6 +644,7 @@ export default function MotionBrowserScreen() {
     protocolMirrorVideo,
     allowlistSettings,
     developerModeEnabled,
+    enterpriseWebKitActive,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1079,6 +1097,7 @@ export default function MotionBrowserScreen() {
               targetWidth: 1080,
               targetHeight: 1920,
               targetFPS: 30,
+              preferFrameGenerator: enterpriseWebKitActive,
             }),
             type: 'WORKING_FALLBACK',
             usedFallback: true,
@@ -1215,6 +1234,7 @@ export default function MotionBrowserScreen() {
     standardSettings.loopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
+    enterpriseWebKitActive,
     isProtocolEnabled,
     allowlistSettings,
   ]);
@@ -1393,11 +1413,13 @@ export default function MotionBrowserScreen() {
               </View>
             ) : (
               <WebView
+                key={`webview-${webViewKey}`}
                 ref={webViewRef}
                 source={{ uri: url }}
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
+                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 // Ensure injection runs in iframes too (important for some real-world sites).
@@ -1458,6 +1480,26 @@ export default function MotionBrowserScreen() {
                       closeNativeGumSession({ requestId: payload.requestId });
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
+                    } else if (data.type === 'mediaCapabilities') {
+                      const payload = data.payload || {};
+                      console.log('[WebView Capabilities]', payload);
+                      
+                      if (
+                        Platform.OS === 'ios' &&
+                        payload.spoofingAvailable === false &&
+                        !capabilityAlertShownRef.current
+                      ) {
+                        capabilityAlertShownRef.current = true;
+                        Alert.alert(
+                          'iOS WebView Limitation',
+                          'This iOS WebView build does not support canvas.captureStream or WebCodecs. ' +
+                            'JavaScript-only camera spoofing cannot work in this environment. ' +
+                            'A native virtual camera build is required for iOS.',
+                          [{ text: 'OK' }]
+                        );
+                      }
+                    } else if (data.type === 'enterpriseWebKitReport') {
+                      setEnterpriseHookReport(data.payload || null);
                     } else if (data.type === 'cameraPermissionRequest') {
                       const payload = data.payload || {};
                       if (!payload.requestId) {
@@ -1721,6 +1763,48 @@ export default function MotionBrowserScreen() {
         onDelete={handleDeleteWebsiteSettings}
       />
 
+      {enterpriseHookReport && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEnterpriseHookReport(null)}
+        >
+          <View style={styles.hookReportOverlay}>
+            <View style={styles.hookReportCard}>
+              <View style={styles.hookReportHeader}>
+                <Text style={styles.hookReportTitle}>Enterprise WebKit Report</Text>
+                <TouchableOpacity onPress={() => setEnterpriseHookReport(null)}>
+                  <Text style={styles.hookReportClose}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.hookReportSubtitle}>
+                Applied flags: {enterpriseHookReport.appliedFlags?.length || 0} •
+                Failed flags: {enterpriseHookReport.failedFlags?.length || 0}
+              </Text>
+              <ScrollView style={styles.hookReportScroll}>
+                <Text style={styles.hookReportSection}>Applied Flags</Text>
+                {(enterpriseHookReport.appliedFlags || []).map((flag: string, idx: number) => (
+                  <Text key={`applied-${idx}`} style={styles.hookReportItem}>{flag}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Failed Flags</Text>
+                {(enterpriseHookReport.failedFlags || []).map((flag: string, idx: number) => (
+                  <Text key={`failed-${idx}`} style={styles.hookReportItem}>{flag}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Loaded Frameworks</Text>
+                {(enterpriseHookReport.loadedFrameworks || []).map((fw: string, idx: number) => (
+                  <Text key={`fw-${idx}`} style={styles.hookReportItem}>{fw}</Text>
+                ))}
+                <Text style={styles.hookReportSection}>Failed Frameworks</Text>
+                {(enterpriseHookReport.failedFrameworks || []).map((fw: string, idx: number) => (
+                  <Text key={`fwf-${idx}`} style={styles.hookReportItem}>{fw}</Text>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <ProtocolSettingsModal
         visible={showProtocolSettingsModal}
         currentHostname={currentHostname}
@@ -1962,5 +2046,56 @@ const styles = StyleSheet.create({
     color: '#ff4757',
     fontSize: 14,
     fontWeight: '700' as const,
+  },
+  hookReportOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  hookReportCard: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  hookReportHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  hookReportTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+  },
+  hookReportClose: {
+    color: '#00ff88',
+    fontWeight: '600' as const,
+  },
+  hookReportSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 12,
+  },
+  hookReportScroll: {
+    maxHeight: 420,
+  },
+  hookReportSection: {
+    marginTop: 10,
+    marginBottom: 4,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  hookReportItem: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 2,
   },
 });
