@@ -764,6 +764,45 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
     try {
       const stream = canvas.captureStream(CONFIG.fps);
       console.log('[Protocol2] Stream created with', stream.getTracks().length, 'tracks');
+      
+      // Spoof track metadata for webcamtests.com compatibility
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        // Spoof label
+        Object.defineProperty(track, 'label', {
+          get: function() { return CONFIG.deviceLabel; },
+          configurable: true
+        });
+        
+        // Spoof getSettings
+        track.getSettings = function() {
+          return {
+            width: CONFIG.width,
+            height: CONFIG.height,
+            frameRate: CONFIG.fps,
+            aspectRatio: CONFIG.width / CONFIG.height,
+            facingMode: 'user',
+            deviceId: CONFIG.deviceId,
+            groupId: 'default',
+            resizeMode: 'none'
+          };
+        };
+        
+        // Spoof getCapabilities
+        track.getCapabilities = function() {
+          return {
+            width: { min: 1, max: CONFIG.width },
+            height: { min: 1, max: CONFIG.height },
+            frameRate: { min: 1, max: 60 },
+            facingMode: ['user', 'environment'],
+            deviceId: CONFIG.deviceId,
+            resizeMode: ['none', 'crop-and-scale']
+          };
+        };
+        
+        console.log('[Protocol2] Track metadata spoofed');
+      }
+      
       return stream;
     } catch (e) {
       console.error('[Protocol2] Stream creation failed:', e);
@@ -914,16 +953,52 @@ export function createProtocol3ProxyIntercept(config: Partial<InjectionConfig> =
   
   function makeStream() {
     start();
-    return canvas.captureStream(CONFIG.fps);
+    const stream = canvas.captureStream(CONFIG.fps);
+    
+    // Spoof track metadata
+    const track = stream.getVideoTracks()[0];
+    if (track) {
+      Object.defineProperty(track, 'label', {
+        get: function() { return CONFIG.deviceLabel; },
+        configurable: true
+      });
+      
+      track.getSettings = function() {
+        return {
+          width: CONFIG.width,
+          height: CONFIG.height,
+          frameRate: CONFIG.fps,
+          aspectRatio: CONFIG.width / CONFIG.height,
+          facingMode: 'user',
+          deviceId: CONFIG.deviceId,
+          groupId: 'default',
+          resizeMode: 'none'
+        };
+      };
+      
+      track.getCapabilities = function() {
+        return {
+          width: { min: 1, max: CONFIG.width },
+          height: { min: 1, max: CONFIG.height },
+          frameRate: { min: 1, max: 60 },
+          facingMode: ['user', 'environment'],
+          deviceId: CONFIG.deviceId,
+          resizeMode: ['none', 'crop-and-scale']
+        };
+      };
+    }
+    
+    return stream;
   }
   
   // ============================================================================
-  // PROXY INTERCEPT
+  // PROXY INTERCEPT (Fixed for getter-only navigator.mediaDevices)
   // ============================================================================
   
   const originalMediaDevices = navigator.mediaDevices;
   
-  navigator.mediaDevices = new Proxy(originalMediaDevices, {
+  // Create proxy wrapper
+  const mediaDevicesProxy = new Proxy(originalMediaDevices, {
     get(target, prop) {
       if (prop === 'getUserMedia') {
         return async function(constraints) {
@@ -936,11 +1011,11 @@ export function createProtocol3ProxyIntercept(config: Partial<InjectionConfig> =
               return stream;
             } catch (e) {
               console.error('[Protocol3] Failed:', e);
-              return target.getUserMedia(constraints);
+              return target.getUserMedia.call(target, constraints);
             }
           }
           
-          return target.getUserMedia(constraints);
+          return target.getUserMedia.call(target, constraints);
         };
       }
       
@@ -951,14 +1026,61 @@ export function createProtocol3ProxyIntercept(config: Partial<InjectionConfig> =
             deviceId: CONFIG.deviceId,
             groupId: 'default',
             kind: 'videoinput',
-            label: CONFIG.deviceLabel
+            label: CONFIG.deviceLabel,
+            toJSON: function() { return this; }
           }];
         };
       }
       
-      return target[prop];
+      // For other properties, return bound version if function
+      const value = target[prop];
+      if (typeof value === 'function') {
+        return value.bind(target);
+      }
+      return value;
     }
   });
+  
+  // Use Object.defineProperty to override the getter-only property
+  try {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      get: function() { return mediaDevicesProxy; },
+      configurable: true
+    });
+    console.log('[Protocol3] navigator.mediaDevices successfully proxied');
+  } catch (e) {
+    // Fallback: directly override methods on the original object
+    console.warn('[Protocol3] Could not redefine navigator.mediaDevices, using method override fallback');
+    
+    const origGetUserMedia = originalMediaDevices.getUserMedia.bind(originalMediaDevices);
+    originalMediaDevices.getUserMedia = async function(constraints) {
+      console.log('[Protocol3] Fallback getUserMedia:', constraints);
+      
+      if (constraints?.video) {
+        try {
+          const stream = makeStream();
+          console.log('[Protocol3] Returning injected stream (fallback)');
+          return stream;
+        } catch (err) {
+          console.error('[Protocol3] Fallback failed:', err);
+          return origGetUserMedia(constraints);
+        }
+      }
+      
+      return origGetUserMedia(constraints);
+    };
+    
+    originalMediaDevices.enumerateDevices = async function() {
+      console.log('[Protocol3] Fallback enumerateDevices');
+      return [{
+        deviceId: CONFIG.deviceId,
+        groupId: 'default',
+        kind: 'videoinput',
+        label: CONFIG.deviceLabel,
+        toJSON: function() { return this; }
+      }];
+    };
+  }
   
   window.__protocol3 = {
     getStatus: () => ({ initialized: true, animating, frames })
