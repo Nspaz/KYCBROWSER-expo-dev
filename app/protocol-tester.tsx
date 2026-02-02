@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { createDiagnosticScript, createGuaranteedInjection } from '@/utils/webcamTestDiagnostics';
-import { createMediaInjectionScript } from '@/constants/browserScripts';
+import { createWorkingInjectionScript } from '@/constants/browserScripts';
 import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
 import { createSonnetProtocolScript } from '@/constants/sonnetProtocol';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
@@ -104,17 +104,15 @@ export default function ProtocolTesterScreen() {
         return createGuaranteedInjection();
       
       case 'protocol1':
-        return createMediaInjectionScript(normalizedDevices, {
+        // Use the compact "working" injection engine (more reliable in WebViews).
+        return createWorkingInjectionScript({
+          videoUri: fallbackVideoUri,
+          devices: normalizedDevices,
           stealthMode: true,
-          fallbackVideoUri,
-          forceSimulation: true,
-          protocolId: 'standard',
-          protocolLabel: 'Protocol 1 Test',
-          showOverlayLabel: true,
-          loopVideo: true,
-          mirrorVideo: false,
           debugEnabled: true,
-          permissionPromptEnabled: false,
+          targetWidth: 1080,
+          targetHeight: 1920,
+          targetFPS: 30,
         });
       
       case 'protocol2':
@@ -326,6 +324,8 @@ export default function ProtocolTesterScreen() {
             injectedJavaScriptBeforeContentLoaded={
               currentTest ? getInjectionScript(currentTest) : createDiagnosticScript()
             }
+            injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+            injectedJavaScriptForMainFrameOnly={false}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
             onMessage={handleMessage}
