@@ -152,6 +152,13 @@ export class ProtocolValidator {
         if (config.signalingTimeoutMs && (config.signalingTimeoutMs < 1000 || config.signalingTimeoutMs > 60000)) {
           result.warnings.push('Signaling timeout should be between 1000ms and 60000ms');
         }
+        if (config.maxBitrateKbps && config.maxBitrateKbps < 0) {
+          result.errors.push('Max bitrate must be >= 0');
+          result.valid = false;
+        }
+        if (config.keepAliveIntervalMs && config.keepAliveIntervalMs < 500) {
+          result.warnings.push('Keepalive interval < 500ms may be too aggressive');
+        }
         break;
 
       case 'claude-sonnet':

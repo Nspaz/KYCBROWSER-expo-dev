@@ -118,6 +118,14 @@ export interface WebRtcLoopbackProtocolSettings {
   autoStart: boolean;
   signalingTimeoutMs: number;
   requireNativeBridge: boolean;
+  iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+  preferredCodec: 'auto' | 'h264' | 'vp8' | 'vp9' | 'av1';
+  maxBitrateKbps: number;
+  keepAliveIntervalMs: number;
+  statsIntervalMs: number;
+  enableDataChannel: boolean;
+  enableIceRestart: boolean;
+  enableSimulcast: boolean;
 }
 
 export interface ProtocolContextValue {
@@ -314,6 +322,14 @@ const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
   autoStart: true,
   signalingTimeoutMs: 12000,
   requireNativeBridge: true,
+  iceServers: [],
+  preferredCodec: 'auto',
+  maxBitrateKbps: 0,
+  keepAliveIntervalMs: 5000,
+  statsIntervalMs: 4000,
+  enableDataChannel: true,
+  enableIceRestart: true,
+  enableSimulcast: false,
 };
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {

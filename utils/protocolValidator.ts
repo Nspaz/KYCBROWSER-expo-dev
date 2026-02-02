@@ -333,6 +333,44 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
   const warnings: ValidationWarning[] = [];
   const suggestions: string[] = [];
 
+  if (settings.iceServers && !Array.isArray(settings.iceServers)) {
+    errors.push({
+      code: 'INVALID_ICE_SERVERS',
+      field: 'iceServers',
+      message: 'ICE servers must be an array',
+      severity: 'error',
+    });
+  }
+
+  if (settings.preferredCodec) {
+    const valid = ['auto', 'h264', 'vp8', 'vp9', 'av1'];
+    if (!valid.includes(settings.preferredCodec)) {
+      errors.push({
+        code: 'INVALID_CODEC',
+        field: 'preferredCodec',
+        message: `Preferred codec must be one of: ${valid.join(', ')}`,
+        severity: 'error',
+      });
+    }
+  }
+
+  if (settings.maxBitrateKbps !== undefined) {
+    if (settings.maxBitrateKbps < 0) {
+      errors.push({
+        code: 'INVALID_BITRATE',
+        field: 'maxBitrateKbps',
+        message: 'Max bitrate must be >= 0',
+        severity: 'error',
+      });
+    } else if (settings.maxBitrateKbps > 50000) {
+      warnings.push({
+        code: 'HIGH_BITRATE',
+        field: 'maxBitrateKbps',
+        message: 'Max bitrate > 50000 kbps may be unstable on mobile networks',
+      });
+    }
+  }
+
   if (settings.signalingTimeoutMs !== undefined) {
     if (settings.signalingTimeoutMs < 1000) {
       warnings.push({
@@ -345,6 +383,26 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
         code: 'HIGH_SIGNAL_TIMEOUT',
         field: 'signalingTimeoutMs',
         message: 'Timeout > 60000ms may delay failure feedback',
+      });
+    }
+  }
+
+  if (settings.keepAliveIntervalMs !== undefined) {
+    if (settings.keepAliveIntervalMs < 1000) {
+      warnings.push({
+        code: 'LOW_KEEPALIVE',
+        field: 'keepAliveIntervalMs',
+        message: 'Keepalive < 1000ms may be too aggressive',
+      });
+    }
+  }
+
+  if (settings.statsIntervalMs !== undefined) {
+    if (settings.statsIntervalMs < 500) {
+      warnings.push({
+        code: 'LOW_STATS_INTERVAL',
+        field: 'statsIntervalMs',
+        message: 'Stats interval < 500ms may impact performance',
       });
     }
   }

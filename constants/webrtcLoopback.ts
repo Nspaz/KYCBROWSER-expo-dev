@@ -9,6 +9,14 @@ export interface WebRtcLoopbackOptions {
   signalingTimeoutMs?: number;
   autoStart?: boolean;
   requireNativeBridge?: boolean;
+  iceServers?: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+  preferredCodec?: 'auto' | 'h264' | 'vp8' | 'vp9' | 'av1';
+  maxBitrateKbps?: number;
+  keepAliveIntervalMs?: number;
+  statsIntervalMs?: number;
+  enableDataChannel?: boolean;
+  enableIceRestart?: boolean;
+  enableSimulcast?: boolean;
 }
 
 /**
@@ -25,6 +33,14 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     signalingTimeoutMs = 12000,
     autoStart = true,
     requireNativeBridge = true,
+    iceServers = [],
+    preferredCodec = 'auto',
+    maxBitrateKbps = 0,
+    keepAliveIntervalMs = 5000,
+    statsIntervalMs = 4000,
+    enableDataChannel = true,
+    enableIceRestart = true,
+    enableSimulcast = false,
   } = options;
 
   return `
@@ -57,6 +73,14 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     SIGNALING_TIMEOUT_MS: ${signalingTimeoutMs},
     AUTO_START: ${autoStart},
     REQUIRE_NATIVE_BRIDGE: ${requireNativeBridge},
+    ICE_SERVERS: ${JSON.stringify(iceServers)},
+    PREFERRED_CODEC: ${JSON.stringify(preferredCodec)},
+    MAX_BITRATE_KBPS: ${maxBitrateKbps},
+    KEEPALIVE_INTERVAL_MS: ${keepAliveIntervalMs},
+    STATS_INTERVAL_MS: ${statsIntervalMs},
+    ENABLE_DATA_CHANNEL: ${enableDataChannel},
+    ENABLE_ICE_RESTART: ${enableIceRestart},
+    ENABLE_SIMULCAST: ${enableSimulcast},
   };
 
   const log = CONFIG.DEBUG
@@ -74,6 +98,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     readyReject: null,
     lastError: null,
     offerSent: false,
+    offerId: null,
+    statsInterval: null,
+    keepAliveInterval: null,
   };
 
   function postMessage(type, payload) {
@@ -219,6 +246,63 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     }
   }
 
+  function applyCodecPreferences(transceiver) {
+    const preferred = (CONFIG.PREFERRED_CODEC || 'auto').toLowerCase();
+    if (preferred === 'auto') return;
+    if (!window.RTCRtpReceiver || !RTCRtpReceiver.getCapabilities) return;
+    try {
+      const caps = RTCRtpReceiver.getCapabilities('video');
+      if (!caps || !caps.codecs) return;
+      const preferredCodecs = caps.codecs.filter(c => c.mimeType && c.mimeType.toLowerCase().includes(preferred));
+      if (preferredCodecs.length === 0) return;
+      const others = caps.codecs.filter(c => !preferredCodecs.includes(c));
+      if (transceiver && typeof transceiver.setCodecPreferences === 'function') {
+        transceiver.setCodecPreferences([...preferredCodecs, ...others]);
+      }
+    } catch (e) {
+      warn('Failed to apply codec preferences:', e?.message || e);
+    }
+  }
+
+  function startStatsLoop() {
+    if (!State.pc || !CONFIG.STATS_INTERVAL_MS) return;
+    let last = { frames: 0, ts: 0 };
+    State.statsInterval = setInterval(async () => {
+      if (!State.pc) return;
+      try {
+        const report = await State.pc.getStats();
+        let inbound = null;
+        report.forEach(stat => {
+          if (stat.type === 'inbound-rtp' && stat.kind === 'video') inbound = stat;
+        });
+        if (!inbound) return;
+        const frames = inbound.framesDecoded || 0;
+        const ts = inbound.timestamp || Date.now();
+        const fps = last.ts ? ((frames - last.frames) / ((ts - last.ts) / 1000)) : 0;
+        last = { frames, ts };
+        postMessage('webrtcLoopbackStats', {
+          fps: Number.isFinite(fps) ? Math.max(0, fps) : 0,
+          packetsLost: inbound.packetsLost || 0,
+          jitter: inbound.jitter || 0,
+          bytesReceived: inbound.bytesReceived || 0,
+          frameWidth: inbound.frameWidth,
+          frameHeight: inbound.frameHeight,
+        });
+      } catch (e) {
+        // ignore
+      }
+    }, CONFIG.STATS_INTERVAL_MS);
+  }
+
+  function startKeepAlive(channel) {
+    if (!channel || !CONFIG.KEEPALIVE_INTERVAL_MS) return;
+    State.keepAliveInterval = setInterval(() => {
+      try {
+        channel.send(JSON.stringify({ type: 'ping', t: Date.now() }));
+      } catch (e) {}
+    }, CONFIG.KEEPALIVE_INTERVAL_MS);
+  }
+
   async function startLoopback() {
     if (State.started) return waitForStream();
     State.started = true;
@@ -234,8 +318,25 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
       throw err;
     }
 
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({
+      iceServers: CONFIG.ICE_SERVERS || [],
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      iceTransportPolicy: 'all',
+    });
     State.pc = pc;
+
+    let videoTransceiver = null;
+    let audioTransceiver = null;
+    try {
+      if (pc.addTransceiver) {
+        videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'recvonly' });
+        applyCodecPreferences(videoTransceiver);
+      }
+    } catch (e) {
+      warn('Failed to add transceivers:', e?.message || e);
+    }
 
     pc.ontrack = function(event) {
       const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
@@ -252,19 +353,38 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     pc.onconnectionstatechange = function() {
       log('Connection state:', pc.connectionState);
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        if (CONFIG.ENABLE_ICE_RESTART && typeof pc.restartIce === 'function') {
+          try {
+            pc.restartIce();
+            log('ICE restart triggered');
+            return;
+          } catch (e) {}
+        }
         failStream(makeError('NotReadableError', 'WebRTC loopback connection failed.'));
       }
     };
 
     try {
-      pc.createDataChannel('loopback');
+      if (CONFIG.ENABLE_DATA_CHANNEL) {
+        const channel = pc.createDataChannel('loopback');
+        channel.onopen = () => startKeepAlive(channel);
+      }
       const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
       State.offerSent = true;
+      const offerId = 'offer_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      State.offerId = offerId;
       postMessage('webrtcLoopbackOffer', {
+        offerId,
         sdp: offer.sdp,
         type: offer.type,
         target: { width: CONFIG.TARGET_WIDTH, height: CONFIG.TARGET_HEIGHT, fps: CONFIG.TARGET_FPS },
+        config: {
+          preferredCodec: CONFIG.PREFERRED_CODEC,
+          maxBitrateKbps: CONFIG.MAX_BITRATE_KBPS,
+          enableSimulcast: CONFIG.ENABLE_SIMULCAST,
+          iceServers: CONFIG.ICE_SERVERS,
+        },
       });
     } catch (e) {
       const err = makeError('NotReadableError', e?.message || 'Failed to create WebRTC offer.');
@@ -279,6 +399,7 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
       }
     }, CONFIG.SIGNALING_TIMEOUT_MS);
 
+    startStatsLoop();
     return waitForStream();
   }
 
@@ -358,6 +479,28 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     failStream(err);
   };
 
+  function stopLoopback() {
+    if (State.keepAliveInterval) {
+      clearInterval(State.keepAliveInterval);
+      State.keepAliveInterval = null;
+    }
+    if (State.statsInterval) {
+      clearInterval(State.statsInterval);
+      State.statsInterval = null;
+    }
+    if (State.pc) {
+      try { State.pc.close(); } catch (e) {}
+      State.pc = null;
+    }
+    State.stream = null;
+    State.started = false;
+    State.offerSent = false;
+    State.offerId = null;
+    State.readyPromise = null;
+    State.readyResolve = null;
+    State.readyReject = null;
+  }
+
   function updateConfig(newConfig) {
     if (!newConfig || typeof newConfig !== 'object') return;
     if (Array.isArray(newConfig.devices)) CONFIG.DEVICES = newConfig.devices;
@@ -367,11 +510,30 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     if (typeof newConfig.signalingTimeoutMs === 'number') CONFIG.SIGNALING_TIMEOUT_MS = newConfig.signalingTimeoutMs;
     if (typeof newConfig.autoStart === 'boolean') CONFIG.AUTO_START = newConfig.autoStart;
     if (typeof newConfig.requireNativeBridge === 'boolean') CONFIG.REQUIRE_NATIVE_BRIDGE = newConfig.requireNativeBridge;
+    if (Array.isArray(newConfig.iceServers)) CONFIG.ICE_SERVERS = newConfig.iceServers;
+    if (typeof newConfig.preferredCodec === 'string') CONFIG.PREFERRED_CODEC = newConfig.preferredCodec;
+    if (typeof newConfig.maxBitrateKbps === 'number') CONFIG.MAX_BITRATE_KBPS = newConfig.maxBitrateKbps;
+    if (typeof newConfig.keepAliveIntervalMs === 'number') CONFIG.KEEPALIVE_INTERVAL_MS = newConfig.keepAliveIntervalMs;
+    if (typeof newConfig.statsIntervalMs === 'number') CONFIG.STATS_INTERVAL_MS = newConfig.statsIntervalMs;
+    if (typeof newConfig.enableDataChannel === 'boolean') CONFIG.ENABLE_DATA_CHANNEL = newConfig.enableDataChannel;
+    if (typeof newConfig.enableIceRestart === 'boolean') CONFIG.ENABLE_ICE_RESTART = newConfig.enableIceRestart;
+    if (typeof newConfig.enableSimulcast === 'boolean') CONFIG.ENABLE_SIMULCAST = newConfig.enableSimulcast;
+
+    if (State.pc && newConfig.iceServers) {
+      try {
+        State.pc.restartIce?.();
+      } catch (e) {}
+    }
   }
 
   window.__webrtcLoopbackUpdateConfig = updateConfig;
   window.__updateMediaConfig = function(config) {
     updateConfig(config);
+  };
+  window.__webrtcLoopbackStop = stopLoopback;
+  window.__webrtcLoopbackRestart = function() {
+    stopLoopback();
+    return startLoopback();
   };
   window.__mediaInjectorInitialized = true;
 

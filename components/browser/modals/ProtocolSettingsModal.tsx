@@ -470,6 +470,146 @@ export default function ProtocolSettingsModal({
               />
             </View>
 
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Cpu size={12} color="#00ff88" />
+                  <Text style={styles.settingLabel}>Preferred Codec</Text>
+                </View>
+                <Text style={styles.settingHint}>Codec ordering for receive pipeline</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['auto', 'h264', 'vp8', 'vp9'] as const).map((codec) => (
+                  <TouchableOpacity
+                    key={codec}
+                    style={[
+                      styles.sensitivityBtn,
+                      webrtcLoopbackSettings.preferredCodec === codec && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateWebRtcLoopbackSettings({ preferredCodec: codec })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      webrtcLoopbackSettings.preferredCodec === codec && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {codec.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00aaff" />
+                  <Text style={styles.settingLabel}>Max Bitrate (kbps)</Text>
+                </View>
+                <Text style={styles.settingHint}>0 = no cap, tune for stability</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.maxBitrateKbps)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ maxBitrateKbps: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#b388ff" />
+                  <Text style={styles.settingLabel}>Keepalive Interval (ms)</Text>
+                </View>
+                <Text style={styles.settingHint}>Ping channel to keep loopback alive</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.keepAliveIntervalMs)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed) && parsed > 0) {
+                    updateWebRtcLoopbackSettings({ keepAliveIntervalMs: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#ff6b35" />
+                  <Text style={styles.settingLabel}>Stats Interval (ms)</Text>
+                </View>
+                <Text style={styles.settingHint}>How often to sample WebRTC stats</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.statsIntervalMs)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed) && parsed > 0) {
+                    updateWebRtcLoopbackSettings({ statsIntervalMs: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Shield size={12} color="#00aaff" />
+                  <Text style={styles.settingLabel}>Data Channel Keepalive</Text>
+                </View>
+                <Text style={styles.settingHint}>Use a data channel for ping/pong</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.enableDataChannel}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ enableDataChannel: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={webrtcLoopbackSettings.enableDataChannel ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00ff88" />
+                  <Text style={styles.settingLabel}>ICE Restart</Text>
+                </View>
+                <Text style={styles.settingHint}>Auto-restart ICE on failure</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.enableIceRestart}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ enableIceRestart: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={webrtcLoopbackSettings.enableIceRestart ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Video size={12} color="#ff00ff" />
+                  <Text style={styles.settingLabel}>Simulcast</Text>
+                </View>
+                <Text style={styles.settingHint}>Enable multi-layer receive hints</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.enableSimulcast}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ enableSimulcast: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff00ff' }}
+                thumbColor={webrtcLoopbackSettings.enableSimulcast ? '#ffffff' : '#888'}
+              />
+            </View>
+
             <View style={styles.infoNotice}>
               <AlertTriangle size={14} color="#ffcc00" />
               <Text style={styles.infoNoticeText}>

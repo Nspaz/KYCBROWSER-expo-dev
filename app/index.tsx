@@ -38,6 +38,7 @@ import {
   createWorkingInjectionScript,
 } from '@/constants/browserScripts';
 import { createWebRtcLoopbackInjectionScript } from '@/constants/webrtcLoopback';
+import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import {
   formatVideoUriForWebView,
@@ -72,6 +73,7 @@ type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
+  const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -131,6 +133,20 @@ export default function MotionBrowserScreen() {
     httpsEnforced,
     mlSafetyEnabled,
   } = useProtocol();
+
+  useEffect(() => {
+    webrtcLoopbackBridge.setWebViewRef(webViewRef);
+  }, [webrtcLoopbackBridge]);
+
+  useEffect(() => {
+    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings);
+  }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
+
+  useEffect(() => {
+    return () => {
+      webrtcLoopbackBridge.stop().catch(() => {});
+    };
+  }, [webrtcLoopbackBridge]);
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
   const [inputUrl, setInputUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -473,6 +489,14 @@ export default function MotionBrowserScreen() {
       signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
       autoStart: webrtcLoopbackSettings.autoStart,
       requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+      iceServers: webrtcLoopbackSettings.iceServers,
+      preferredCodec: webrtcLoopbackSettings.preferredCodec,
+      maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+      keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+      statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+      enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+      enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+      enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
     };
 
     console.log('[App] Injecting media config:', {
@@ -508,6 +532,14 @@ export default function MotionBrowserScreen() {
         signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
         autoStart: webrtcLoopbackSettings.autoStart,
         requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+        iceServers: webrtcLoopbackSettings.iceServers,
+        preferredCodec: webrtcLoopbackSettings.preferredCodec,
+        maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+        keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+        statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+        enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+        enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+        enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
       });
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
@@ -554,6 +586,14 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.signalingTimeoutMs,
     webrtcLoopbackSettings.autoStart,
     webrtcLoopbackSettings.requireNativeBridge,
+    webrtcLoopbackSettings.iceServers,
+    webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.maxBitrateKbps,
+    webrtcLoopbackSettings.keepAliveIntervalMs,
+    webrtcLoopbackSettings.statsIntervalMs,
+    webrtcLoopbackSettings.enableDataChannel,
+    webrtcLoopbackSettings.enableIceRestart,
+    webrtcLoopbackSettings.enableSimulcast,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -989,6 +1029,14 @@ export default function MotionBrowserScreen() {
           signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
           autoStart: webrtcLoopbackSettings.autoStart,
           requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+          iceServers: webrtcLoopbackSettings.iceServers,
+          preferredCodec: webrtcLoopbackSettings.preferredCodec,
+          maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+          keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+          statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+          enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+          enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+          enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
         });
         console.log('[App] Using WEBRTC loopback injection');
       } else {
@@ -1047,6 +1095,14 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.signalingTimeoutMs,
     webrtcLoopbackSettings.autoStart,
     webrtcLoopbackSettings.requireNativeBridge,
+    webrtcLoopbackSettings.iceServers,
+    webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.maxBitrateKbps,
+    webrtcLoopbackSettings.keepAliveIntervalMs,
+    webrtcLoopbackSettings.statsIntervalMs,
+    webrtcLoopbackSettings.enableDataChannel,
+    webrtcLoopbackSettings.enableIceRestart,
+    webrtcLoopbackSettings.enableSimulcast,
     isProtocolEnabled,
   ]);
 
@@ -1282,16 +1338,13 @@ export default function MotionBrowserScreen() {
                       };
                       setPermissionQueue(queue => [...queue, request]);
                     } else if (data.type === 'webrtcLoopbackOffer') {
-                      console.warn('[App] WebRTC loopback offer received but native bridge is not configured');
-                      const errorMessage = 'Native WebRTC loopback bridge not configured in this build.';
-                      webViewRef.current?.injectJavaScript(`
-                        if (window.__webrtcLoopbackError) {
-                          window.__webrtcLoopbackError(${JSON.stringify(errorMessage)});
-                        }
-                        true;
-                      `);
+                      webrtcLoopbackBridge.handleOffer(data.payload);
                     } else if (data.type === 'webrtcLoopbackCandidate') {
-                      console.warn('[App] WebRTC loopback candidate received but native bridge is not configured');
+                      webrtcLoopbackBridge.handleCandidate(data.payload);
+                    } else if (data.type === 'webrtcLoopbackStats') {
+                      if (data.payload?.fps !== undefined) {
+                        console.log('[WebView WebRTC Stats]', data.payload);
+                      }
                     } else if (data.type === 'videoError') {
                       console.error('[WebView Video Error]', data.payload?.error?.message);
                       const errorMsg = data.payload?.error?.message || 'Video failed to load';
