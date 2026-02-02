@@ -4,7 +4,11 @@
  * This module contains multiple injection strategies that hook into
  * getUserMedia at different levels to replace camera feeds on real websites.
  * Each protocol uses a different approach to maximize compatibility.
+ * 
+ * PROTOCOL 0 is the PRIMARY recommended protocol for webcamtests.com and similar sites.
  */
+
+import type { CaptureDevice } from '@/types/device';
 
 export interface InjectionConfig {
   videoUri?: string;
@@ -17,6 +21,19 @@ export interface InjectionConfig {
   useTestPattern: boolean;
 }
 
+export interface Protocol0Options {
+  devices: CaptureDevice[];
+  videoUri?: string | null;
+  fallbackVideoUri?: string | null;
+  width?: number;
+  height?: number;
+  fps?: number;
+  showDebugOverlay?: boolean;
+  stealthMode?: boolean;
+  loopVideo?: boolean;
+  mirrorVideo?: boolean;
+}
+
 const DEFAULT_CONFIG: InjectionConfig = {
   width: 1080,
   height: 1920,
@@ -26,6 +43,591 @@ const DEFAULT_CONFIG: InjectionConfig = {
   showDebugOverlay: false,
   useTestPattern: true,
 };
+
+/**
+ * PROTOCOL 0 ENHANCED: Primary injection method with full device support
+ * This is the recommended protocol for webcamtests.com and similar sites.
+ * 
+ * Features:
+ * - Ultra-early hook before any page scripts load
+ * - Multiple device support with proper selection
+ * - Video playback with fallback to test pattern
+ * - Full track metadata spoofing
+ * - Silent audio track generation
+ * - React Native WebView communication
+ */
+export function createProtocol0Script(options: Protocol0Options): string {
+  const {
+    devices,
+    videoUri,
+    fallbackVideoUri,
+    width = 1080,
+    height = 1920,
+    fps = 30,
+    showDebugOverlay = false,
+    stealthMode = true,
+    loopVideo = true,
+    mirrorVideo = false,
+  } = options;
+
+  // Get primary camera device
+  const primaryCamera = devices.find(d => d.type === 'camera' && d.simulationEnabled) 
+    || devices.find(d => d.type === 'camera') 
+    || devices[0];
+
+  // Get video URI - prefer device-specific, then options, then fallback
+  const effectiveVideoUri = primaryCamera?.assignedVideoUri || videoUri || fallbackVideoUri || null;
+
+  return `
+(function() {
+  'use strict';
+  
+  // ============================================================================
+  // PROTOCOL 0 ENHANCED: PRIMARY WEBCAM INJECTION
+  // ============================================================================
+  
+  if (window.__protocol0Initialized) {
+    console.log('[Protocol0] Already initialized');
+    return;
+  }
+  window.__protocol0Initialized = true;
+  
+  console.log('[Protocol0] ===== ULTRA-EARLY DEEP HOOK =====');
+  console.log('[Protocol0] Resolution: ${width}x${height} @ ${fps}fps');
+  console.log('[Protocol0] Stealth Mode: ${stealthMode}');
+  
+  // ============================================================================
+  // CONFIGURATION
+  // ============================================================================
+  
+  const CONFIG = {
+    width: ${width},
+    height: ${height},
+    fps: ${fps},
+    showDebugOverlay: ${showDebugOverlay},
+    stealthMode: ${stealthMode},
+    loopVideo: ${loopVideo},
+    mirrorVideo: ${mirrorVideo},
+    videoUri: ${JSON.stringify(effectiveVideoUri)},
+  };
+  
+  const DEVICES = ${JSON.stringify(devices)};
+  
+  // ============================================================================
+  // STATE
+  // ============================================================================
+  
+  let canvas = null;
+  let ctx = null;
+  let animationFrameId = null;
+  let isAnimating = false;
+  let frameCount = 0;
+  let videoElement = null;
+  let useVideo = false;
+  let currentStream = null;
+  
+  // ============================================================================
+  // CANVAS INITIALIZATION
+  // ============================================================================
+  
+  function initCanvas() {
+    if (canvas) return canvas;
+    
+    canvas = document.createElement('canvas');
+    canvas.width = CONFIG.width;
+    canvas.height = CONFIG.height;
+    ctx = canvas.getContext('2d', { 
+      alpha: false,
+      desynchronized: true,
+      willReadFrequently: false
+    });
+    
+    console.log('[Protocol0] Canvas initialized:', CONFIG.width, 'x', CONFIG.height);
+    return canvas;
+  }
+  
+  // ============================================================================
+  // VIDEO LOADING
+  // ============================================================================
+  
+  function loadVideo(uri) {
+    if (!uri) {
+      console.log('[Protocol0] No video URI, using test pattern');
+      return Promise.resolve(false);
+    }
+    
+    if (videoElement && videoElement.src === uri) {
+      return Promise.resolve(useVideo);
+    }
+    
+    console.log('[Protocol0] Loading video:', uri.substring(0, 80));
+    
+    return new Promise(function(resolve) {
+      videoElement = document.createElement('video');
+      videoElement.muted = true;
+      videoElement.loop = CONFIG.loopVideo;
+      videoElement.playsInline = true;
+      videoElement.setAttribute('playsinline', 'true');
+      videoElement.setAttribute('webkit-playsinline', 'true');
+      videoElement.crossOrigin = 'anonymous';
+      videoElement.preload = 'auto';
+      videoElement.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+      
+      var timeout = setTimeout(function() {
+        console.warn('[Protocol0] Video load timeout, using test pattern');
+        useVideo = false;
+        resolve(false);
+      }, 15000);
+      
+      videoElement.onloadeddata = function() {
+        clearTimeout(timeout);
+        console.log('[Protocol0] Video loaded:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+        
+        videoElement.play().then(function() {
+          console.log('[Protocol0] Video playing');
+          useVideo = true;
+          resolve(true);
+        }).catch(function(e) {
+          console.warn('[Protocol0] Autoplay blocked:', e.message);
+          useVideo = false;
+          resolve(false);
+        });
+      };
+      
+      videoElement.onerror = function(e) {
+        clearTimeout(timeout);
+        console.error('[Protocol0] Video load error');
+        useVideo = false;
+        resolve(false);
+      };
+      
+      if (document.body) {
+        document.body.appendChild(videoElement);
+      }
+      
+      videoElement.src = uri;
+      videoElement.load();
+    });
+  }
+  
+  // ============================================================================
+  // RENDERING
+  // ============================================================================
+  
+  function drawGreenScreen(timestamp) {
+    var t = timestamp / 1000;
+    var w = CONFIG.width;
+    var h = CONFIG.height;
+    
+    // Realistic green screen with subtle animation
+    var gradient = ctx.createLinearGradient(0, 0, 0, h);
+    var offset = Math.sin(t * 0.3) * 0.02;
+    
+    gradient.addColorStop(0, 'rgb(0, ' + Math.floor(255 + offset * 20) + ', 0)');
+    gradient.addColorStop(0.5, 'rgb(0, ' + Math.floor(238 + offset * 20) + ', 0)');
+    gradient.addColorStop(1, 'rgb(0, ' + Math.floor(255 + offset * 20) + ', 0)');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+    
+    // Debug overlay if enabled
+    if (CONFIG.showDebugOverlay) {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(10, h - 80, 300, 70);
+      
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('PROTOCOL 0 ACTIVE', 20, h - 55);
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '14px monospace';
+      ctx.fillText('Frame: ' + frameCount + ' | ' + CONFIG.width + 'x' + CONFIG.height, 20, h - 30);
+    }
+  }
+  
+  function drawVideoFrame() {
+    if (!videoElement || !useVideo || videoElement.readyState < 2) {
+      return false;
+    }
+    
+    try {
+      var w = CONFIG.width;
+      var h = CONFIG.height;
+      var vw = videoElement.videoWidth || w;
+      var vh = videoElement.videoHeight || h;
+      
+      // Cover mode - fill canvas while maintaining aspect ratio
+      var scale = Math.max(w / vw, h / vh);
+      var sw = w / scale;
+      var sh = h / scale;
+      var sx = (vw - sw) / 2;
+      var sy = (vh - sh) / 2;
+      
+      if (CONFIG.mirrorVideo) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(videoElement, sx, sy, sw, sh, -w, 0, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, w, h);
+      }
+      
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  function render() {
+    if (!isAnimating || !canvas || !ctx) return;
+    
+    var timestamp = performance.now();
+    
+    // Try video first, fallback to green screen
+    if (!drawVideoFrame()) {
+      drawGreenScreen(timestamp);
+    }
+    
+    frameCount++;
+    animationFrameId = requestAnimationFrame(render);
+  }
+  
+  function startAnimation() {
+    if (isAnimating) return;
+    
+    initCanvas();
+    isAnimating = true;
+    frameCount = 0;
+    render();
+    
+    console.log('[Protocol0] Animation started');
+  }
+  
+  function stopAnimation() {
+    isAnimating = false;
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+  
+  // ============================================================================
+  // STREAM CREATION
+  // ============================================================================
+  
+  function getDeviceForConstraints(constraints) {
+    if (!constraints || !constraints.video) return DEVICES[0];
+    
+    var video = constraints.video;
+    var requestedId = video.deviceId && (video.deviceId.exact || video.deviceId.ideal || video.deviceId);
+    var requestedFacing = video.facingMode && (video.facingMode.exact || video.facingMode.ideal || video.facingMode);
+    
+    // Try to find matching device
+    for (var i = 0; i < DEVICES.length; i++) {
+      var d = DEVICES[i];
+      if (d.type !== 'camera') continue;
+      
+      if (requestedId && (d.id === requestedId || d.nativeDeviceId === requestedId)) {
+        return d;
+      }
+      
+      if (requestedFacing) {
+        var facing = requestedFacing === 'user' ? 'front' : requestedFacing === 'environment' ? 'back' : requestedFacing;
+        if (d.facing === facing) {
+          return d;
+        }
+      }
+    }
+    
+    // Default to first camera
+    return DEVICES.find(function(d) { return d.type === 'camera'; }) || DEVICES[0];
+  }
+  
+  function createInjectedStream(constraints) {
+    startAnimation();
+    
+    try {
+      var stream = canvas.captureStream(CONFIG.fps);
+      
+      if (!stream || stream.getVideoTracks().length === 0) {
+        throw new Error('Failed to capture stream from canvas');
+      }
+      
+      var device = getDeviceForConstraints(constraints);
+      var videoTrack = stream.getVideoTracks()[0];
+      var trackId = 'track_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      
+      // ========== COMPREHENSIVE TRACK METADATA SPOOFING ==========
+      
+      // Spoof track ID
+      try {
+        Object.defineProperty(videoTrack, 'id', {
+          get: function() { return trackId; },
+          configurable: true
+        });
+      } catch(e) {}
+      
+      // Spoof label
+      Object.defineProperty(videoTrack, 'label', {
+        get: function() { return device.name || 'Camera'; },
+        configurable: true
+      });
+      
+      // Spoof readyState
+      try {
+        Object.defineProperty(videoTrack, 'readyState', {
+          get: function() { return 'live'; },
+          configurable: true
+        });
+      } catch(e) {}
+      
+      // Spoof muted
+      try {
+        Object.defineProperty(videoTrack, 'muted', {
+          get: function() { return false; },
+          configurable: true
+        });
+      } catch(e) {}
+      
+      // Spoof enabled
+      var trackEnabled = true;
+      try {
+        Object.defineProperty(videoTrack, 'enabled', {
+          get: function() { return trackEnabled; },
+          set: function(v) { trackEnabled = !!v; },
+          configurable: true
+        });
+      } catch(e) {}
+      
+      // Spoof getSettings
+      videoTrack.getSettings = function() {
+        var facingMode = device.facing === 'back' ? 'environment' : 'user';
+        return {
+          width: CONFIG.width,
+          height: CONFIG.height,
+          frameRate: CONFIG.fps,
+          aspectRatio: CONFIG.width / CONFIG.height,
+          facingMode: facingMode,
+          deviceId: device.nativeDeviceId || device.id,
+          groupId: device.groupId || 'default',
+          resizeMode: 'none'
+        };
+      };
+      
+      // Spoof getCapabilities
+      videoTrack.getCapabilities = function() {
+        return {
+          width: { min: 1, max: CONFIG.width },
+          height: { min: 1, max: CONFIG.height },
+          frameRate: { min: 1, max: 60 },
+          aspectRatio: { min: 0.5, max: 2.0 },
+          facingMode: [device.facing === 'back' ? 'environment' : 'user'],
+          deviceId: device.nativeDeviceId || device.id,
+          groupId: device.groupId || 'default',
+          resizeMode: ['none', 'crop-and-scale']
+        };
+      };
+      
+      // Spoof getConstraints
+      videoTrack.getConstraints = function() {
+        return constraints && constraints.video ? constraints.video : {};
+      };
+      
+      // Spoof applyConstraints
+      videoTrack.applyConstraints = function() {
+        return Promise.resolve();
+      };
+      
+      // Add silent audio if requested
+      if (constraints && constraints.audio) {
+        try {
+          var AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            var audioCtx = new AudioContext();
+            var oscillator = audioCtx.createOscillator();
+            var gainNode = audioCtx.createGain();
+            var destination = audioCtx.createMediaStreamDestination();
+            
+            gainNode.gain.value = 0;
+            oscillator.connect(gainNode);
+            gainNode.connect(destination);
+            oscillator.start();
+            
+            destination.stream.getAudioTracks().forEach(function(track) {
+              stream.addTrack(track);
+            });
+            
+            console.log('[Protocol0] Silent audio added');
+          }
+        } catch (e) {
+          console.warn('[Protocol0] Audio creation failed:', e);
+        }
+      }
+      
+      currentStream = stream;
+      
+      console.log('[Protocol0] ✓ Stream created');
+      console.log('[Protocol0]   Device:', device.name);
+      console.log('[Protocol0]   Video tracks:', stream.getVideoTracks().length);
+      console.log('[Protocol0]   Audio tracks:', stream.getAudioTracks().length);
+      
+      return stream;
+      
+    } catch (e) {
+      console.error('[Protocol0] ✗ Stream creation failed:', e);
+      throw e;
+    }
+  }
+  
+  // ============================================================================
+  // API OVERRIDE - IMMEDIATE
+  // ============================================================================
+  
+  var originalGetUserMedia = navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 
+    navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : null;
+  var originalEnumerateDevices = navigator.mediaDevices && navigator.mediaDevices.enumerateDevices ? 
+    navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices) : null;
+  
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {};
+  }
+  
+  // Override getUserMedia
+  navigator.mediaDevices.getUserMedia = function(constraints) {
+    console.log('[Protocol0] ★ getUserMedia INTERCEPTED ★');
+    console.log('[Protocol0] Constraints:', JSON.stringify(constraints));
+    
+    if (constraints && constraints.video) {
+      try {
+        var stream = createInjectedStream(constraints);
+        return Promise.resolve(stream);
+      } catch (e) {
+        console.error('[Protocol0] Injection failed:', e);
+        if (originalGetUserMedia) {
+          return originalGetUserMedia(constraints);
+        }
+        return Promise.reject(new DOMException('Could not start video source', 'NotReadableError'));
+      }
+    }
+    
+    // Audio-only
+    if (originalGetUserMedia) {
+      return originalGetUserMedia(constraints);
+    }
+    
+    return Promise.reject(new DOMException('Requested device not found', 'NotFoundError'));
+  };
+  
+  // Override enumerateDevices
+  navigator.mediaDevices.enumerateDevices = function() {
+    console.log('[Protocol0] enumerateDevices intercepted');
+    
+    var devices = [];
+    
+    for (var i = 0; i < DEVICES.length; i++) {
+      var d = DEVICES[i];
+      if (d.type === 'camera') {
+        devices.push({
+          deviceId: d.nativeDeviceId || d.id,
+          groupId: d.groupId || 'default',
+          kind: 'videoinput',
+          label: d.name || 'Camera',
+          toJSON: function() { return this; }
+        });
+      }
+    }
+    
+    // Add a microphone
+    devices.push({
+      deviceId: 'microphone-default',
+      groupId: 'default',
+      kind: 'audioinput',
+      label: 'Microphone',
+      toJSON: function() { return this; }
+    });
+    
+    console.log('[Protocol0] Returning', devices.length, 'devices');
+    return Promise.resolve(devices);
+  };
+  
+  // Override getSupportedConstraints
+  navigator.mediaDevices.getSupportedConstraints = function() {
+    return {
+      aspectRatio: true,
+      deviceId: true,
+      facingMode: true,
+      frameRate: true,
+      groupId: true,
+      height: true,
+      width: true,
+      resizeMode: true
+    };
+  };
+  
+  // ============================================================================
+  // PUBLIC API
+  // ============================================================================
+  
+  window.__protocol0 = {
+    setVideoUri: function(uri) {
+      loadVideo(uri);
+    },
+    
+    getStatus: function() {
+      return {
+        initialized: true,
+        animating: isAnimating,
+        frameCount: frameCount,
+        usingVideo: useVideo,
+        hasStream: !!currentStream,
+        config: CONFIG
+      };
+    },
+    
+    restart: function() {
+      stopAnimation();
+      frameCount = 0;
+      startAnimation();
+    },
+    
+    stop: function() {
+      stopAnimation();
+      if (currentStream) {
+        currentStream.getTracks().forEach(function(t) { t.stop(); });
+        currentStream = null;
+      }
+    }
+  };
+  
+  // ============================================================================
+  // INITIALIZATION
+  // ============================================================================
+  
+  // Load video if configured
+  if (CONFIG.videoUri) {
+    loadVideo(CONFIG.videoUri);
+  }
+  
+  console.log('[Protocol0] ===== INJECTION COMPLETE =====');
+  console.log('[Protocol0] Devices configured:', DEVICES.length);
+  console.log('[Protocol0] Video URI:', CONFIG.videoUri || 'NONE (green screen)');
+  
+  // Notify React Native
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'protocol0Ready',
+      payload: {
+        devices: DEVICES.length,
+        videoUri: !!CONFIG.videoUri,
+        resolution: CONFIG.width + 'x' + CONFIG.height
+      }
+    }));
+  }
+  
+})();
+true;
+`;
+}
 
 /**
  * PROTOCOL 0: Ultra-Early Deep Hook
@@ -1429,9 +2031,13 @@ export function createProtocolTestPage(testUrl: string = 'https://webcamtests.co
 
 /**
  * Export all protocol generators
+ * 
+ * Note: Individual functions are already exported via `export function` declarations.
+ * This object provides a convenient way to access all protocols.
  */
 export const DEEP_INJECTION_PROTOCOLS = {
   protocol0: createProtocol0DeepHook,
+  protocol0Enhanced: createProtocol0Script,
   protocol1: createProtocol1MediaStreamOverride,
   protocol2: createProtocol2DescriptorHook,
   protocol3: createProtocol3ProxyIntercept,
