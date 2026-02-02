@@ -1,0 +1,89 @@
+diff --git a/node_modules/react-native-webview/apple/RNCWebViewImpl.m b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
+index 7f5c24d..3047214 100644
+--- a/node_modules/react-native-webview/apple/RNCWebViewImpl.m
++++ b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
+@@ -23,6 +23,74 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
+ static NSURLCredential* clientAuthenticationCredential;
+ static NSDictionary* customCertificatesForHost;
+ 
++static BOOL RNCEnterpriseWebKitEnabled(void) {
++#if TARGET_OS_IOS
++  NSNumber *flag = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"RNCEnterpriseWebKit"];
++  if (flag != nil) {
++    return [flag boolValue];
++  }
++  NSString *env = [[[NSProcessInfo processInfo] environment] objectForKey:@"RNC_ENTERPRISE_WEBKIT"];
++  if (env != nil) {
++    return [env isEqualToString:@"1"] || [env caseInsensitiveCompare:@"true"] == NSOrderedSame;
++  }
++#endif
++  return NO;
++}
++
++static void RNCApplyPrivateBool(id target, NSString *key, BOOL value) {
++  if (!target || !key) {
++    return;
++  }
++  @try {
++    [target setValue:@(value) forKey:key];
++  } @catch (NSException *exception) {
++  }
++}
++
++static BOOL RNCApplyEnterpriseWebKitPreferences(WKWebViewConfiguration *config, WKPreferences *prefs) {
++  if (!config || !prefs) {
++    return NO;
++  }
++  if (!RNCEnterpriseWebKitEnabled()) {
++    return NO;
++  }
++  
++  NSArray<NSString *> *preferenceFlags = @[
++    @"_mediaCaptureEnabled",
++    @"_mediaDevicesEnabled",
++    @"_mediaRecorderEnabled",
++    @"_webCodecsEnabled",
++    @"_webCodecsVideoFrameEnabled",
++    @"_webCodecsAudioEnabled",
++    @"_mediaStreamTrackGeneratorEnabled",
++    @"_captureStreamEnabled",
++    @"_allowUserMedia",
++    @"_allowMediaCapture",
++    @"_developerExtrasEnabled",
++    @"_experimentalFeaturesEnabled",
++    @"_webRTCPlatformVideoEncoderEnabled",
++    @"_webRTCPlatformAudioDecoderEnabled"
++  ];
++  
++  for (NSString *key in preferenceFlags) {
++    RNCApplyPrivateBool(prefs, key, YES);
++  }
++  
++  NSArray<NSString *> *configFlags = @[
++    @"_mediaCaptureEnabled",
++    @"_allowUserMedia",
++    @"_allowsInlineMediaPlayback",
++    @"_mediaDevicesEnabled",
++    @"_captureStreamEnabled"
++  ];
++  
++  for (NSString *key in configFlags) {
++    RNCApplyPrivateBool(config, key, YES);
++  }
++  
++  return YES;
++}
++
+ NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
+ 
+ #if TARGET_OS_IOS
+@@ -456,6 +524,9 @@ RCTAutoInsetsProtocol>
+     }
+   }
+ #endif
++  if (RNCApplyEnterpriseWebKitPreferences(wkWebViewConfig, prefs)) {
++    _prefsUsed = YES;
++  }
+   if (_prefsUsed) {
+     wkWebViewConfig.preferences = prefs;
+   }
