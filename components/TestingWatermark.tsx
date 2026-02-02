@@ -148,7 +148,6 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     bottom: styles.positionBottom,
     'top-right': styles.positionTopRight,
     'bottom-right': styles.positionBottomRight,
-    fullscreen: styles.positionTopRight,
   };
 
   return (

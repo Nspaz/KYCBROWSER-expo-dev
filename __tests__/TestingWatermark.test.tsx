@@ -24,7 +24,7 @@ describe('TestingWatermark', () => {
   });
 
   it('renders fullscreen position with all elements', () => {
-    const { toJSON } = render(
+    const tree = renderer.create(
       <TestingWatermark
         visible={true}
         position="fullscreen"
@@ -33,7 +33,7 @@ describe('TestingWatermark', () => {
         httpsEnforced={true}
         protocolName="TEST-PROTOCOL"
       />
-    );
-    expect(toJSON()).toMatchSnapshot();
+    ).toJSON();
+    expect(tree).toMatchSnapshot();
   });
 });
