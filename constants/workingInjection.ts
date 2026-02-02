@@ -367,6 +367,9 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // STREAM CREATION
   // ============================================================================
   
+  // Keep track of all created streams for cleanup
+  const activeStreams = [];
+  
   function createInjectedStream() {
     const canvas = State.canvasElement;
     if (!canvas) {
@@ -375,7 +378,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
     
     try {
-      // Create video stream from canvas
+      // CRITICAL: Always create a NEW stream for each getUserMedia call
+      // This prevents the "track ended" issue when sites call getUserMedia multiple times
       let stream;
       const captureMethod = canvas.captureStream || 
                            canvas.mozCaptureStream || 
@@ -423,11 +427,14 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         }
       }
       
-      // Store stream
-      State.stream = stream;
-      
-      // Spoof track metadata
+      // Spoof track metadata BEFORE storing
       spoofTrackMetadata(stream);
+      
+      // Track this stream for cleanup
+      activeStreams.push(stream);
+      
+      // Store the latest stream reference
+      State.stream = stream;
       
       return stream;
     } catch (e) {
@@ -558,22 +565,38 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       throw new DOMException('Audio not available', 'NotFoundError');
     }
     
-    // Video requested - return our injected stream
-    log('Video requested, returning injected stream');
+    // Video requested - ALWAYS create a fresh stream
+    log('Video requested, creating fresh stream');
     
-    // Ensure we're initialized
+    // Ensure we're initialized (canvas and render loop running)
     if (!State.ready) {
       log('Not ready yet, initializing now...');
       await initializeSync();
     }
     
     // Always create a fresh stream to avoid issues with stopped tracks
-    // If a previous stream's tracks were stopped, we need new ones
+    // This prevents the "track ended" issue when getUserMedia is called multiple times
     log('Creating fresh stream for this request...');
     const stream = createInjectedStream();
     if (!stream) {
       error('Failed to create stream');
       throw new DOMException('Could not start video source', 'NotReadableError');
+    }
+    
+    // Verify the track is live
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      log('Track state:', videoTrack.readyState, '| enabled:', videoTrack.enabled);
+      if (videoTrack.readyState !== 'live') {
+        error('Track is not live, state:', videoTrack.readyState);
+        // Try one more time
+        const retryStream = createInjectedStream();
+        if (retryStream && retryStream.getVideoTracks()[0]?.readyState === 'live') {
+          log('Retry succeeded');
+          return retryStream;
+        }
+        throw new DOMException('Could not start video source', 'NotReadableError');
+      }
     }
     
     // Return the fresh stream

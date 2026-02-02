@@ -35,6 +35,7 @@ import {
   VIDEO_SIMULATION_TEST_SCRIPT,
   createMediaInjectionScript,
   createProtocol0Script,
+  createWebSocketInjectionScript,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import {
@@ -928,7 +929,22 @@ export default function MotionBrowserScreen() {
       const primaryDevice = devices.find(d => d.type === 'camera' && d.simulationEnabled) || devices[0];
       const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
       
-      if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
+      if (activeProtocol === 'websocket') {
+        // Protocol 6: WebSocket Bridge - Most reliable method for WebView streaming
+        mediaInjectionScript = createWebSocketInjectionScript({
+          width: 1080,
+          height: 1920,
+          fps: 30,
+          devices: devices,
+          debug: developerModeEnabled,
+          stealthMode: effectiveStealthMode,
+          protocolLabel: 'Protocol 6: WebSocket Bridge',
+          showOverlay: showProtocolOverlayLabel,
+          videoUri: videoUri || undefined,
+        });
+        injectionType = 'WEBSOCKET';
+        console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
+      } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
         // Use Sonnet Protocol for Protocol 5
         const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
         const sonnetConfig = {

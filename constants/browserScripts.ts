@@ -4284,3 +4284,7 @@ export {
   createProtocol0DeepHook,
 } from '@/utils/deepInjectionProtocols';
 export type { InjectionConfig, Protocol0Options } from '@/utils/deepInjectionProtocols';
+
+// Re-export WebSocket Bridge injection for Protocol 6
+export { createWebSocketInjectionScript } from '@/utils/websocketBridge/injectionScript';
+export type { WebSocketInjectionConfig } from '@/utils/websocketBridge/injectionScript';
