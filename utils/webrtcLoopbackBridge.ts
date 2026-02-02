@@ -75,7 +75,7 @@ export class WebRtcLoopbackBridge {
 
   updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
     const sources = devices
-      .filter((d) => d.simulationEnabled !== false)
+      .filter((d) => d.type === 'camera' && d.simulationEnabled !== false)
       .map((d) => ({
         id: d.id,
         label: d.name,
