@@ -56,8 +56,10 @@ is required.
 - Requires custom iOS build (cannot work in pure Expo Go).
 - WebRTC signaling must be robust to page reloads.
 - Track metadata spoofing still required for webcamtests compatibility.
-- **File capturer expects a local file URL** (`file://` or absolute path).
-  - `data:` or `ph://` URIs are not supported yet.
+- **File capturer accepts**:
+  - `file://` URLs or absolute paths
+  - `data:` URIs (base64 only)
+  - `ph://` photo library asset identifiers
 
 ### Next steps
 - Implement the iOS native module + signaling.

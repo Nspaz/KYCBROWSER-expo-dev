@@ -353,7 +353,12 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     const nativeConstraints = (constraints && typeof constraints === 'object')
       ? { ...constraints }
       : {};
-    if (CONFIG.VIDEO_URI && (CONFIG.VIDEO_URI.startsWith('file://') || CONFIG.VIDEO_URI.startsWith('/'))) {
+    if (CONFIG.VIDEO_URI && (
+      CONFIG.VIDEO_URI.startsWith('file://') ||
+      CONFIG.VIDEO_URI.startsWith('/') ||
+      CONFIG.VIDEO_URI.startsWith('data:') ||
+      CONFIG.VIDEO_URI.startsWith('ph://')
+    )) {
       nativeConstraints.videoUri = CONFIG.VIDEO_URI;
     } else {
       nativeConstraints.videoUri = null;
