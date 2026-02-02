@@ -1203,6 +1203,8 @@ export default function MotionBrowserScreen() {
                       console.error('[WebView ERROR]', data.message, data.stack || '');
                     } else if (data.type === 'mediaInjectionReady') {
                       console.log('[WebView Injection Ready]', data.payload);
+                    } else if (data.type === 'mediaInjectionUnsupported') {
+                      console.warn('[WebView Injection Unsupported]', data.payload?.reason || data.payload);
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
                     } else if (data.type === 'cameraPermissionRequest') {

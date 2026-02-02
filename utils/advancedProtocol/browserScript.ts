@@ -102,6 +102,17 @@ export function createAdvancedProtocol2Script(
     warn: function(...args) { if (this.enabled) console.warn(this.prefix, ...args); },
     error: function(...args) { console.error(this.prefix, ...args); },
   };
+
+  const CaptureSupport = {
+    canvas: !!(window.HTMLCanvasElement &&
+      (HTMLCanvasElement.prototype.captureStream ||
+        HTMLCanvasElement.prototype.mozCaptureStream ||
+        HTMLCanvasElement.prototype.webkitCaptureStream)),
+    video: !!(window.HTMLVideoElement &&
+      (HTMLVideoElement.prototype.captureStream ||
+        HTMLVideoElement.prototype.mozCaptureStream ||
+        HTMLVideoElement.prototype.webkitCaptureStream)),
+  };
   
   Logger.log('========================================');
   Logger.log('ADVANCED PROTOCOL 2: INITIALIZING');
@@ -637,6 +648,18 @@ export function createAdvancedProtocol2Script(
     const wantsVideo = !!constraints?.video;
     const wantsAudio = !!constraints?.audio;
     
+    if (wantsVideo && !CaptureSupport.canvas && !CaptureSupport.video) {
+      Logger.error('captureStream not supported in this WebView');
+      notifyReactNative('unsupported', {
+        reason: 'captureStream not supported in this WebView',
+        protocol: 'advancedProtocol2',
+      });
+      if (!CONFIG.STEALTH_MODE && originalGetUserMedia) {
+        return originalGetUserMedia(constraints);
+      }
+      throw new DOMException('captureStream not supported', 'NotSupportedError');
+    }
+    
     // Get recommended resolution from ASI
     const recommendedRes = ASIModule.getRecommendedResolution();
     
@@ -698,6 +721,12 @@ export function createAdvancedProtocol2Script(
     
     throw new DOMException('getUserMedia not supported', 'NotSupportedError');
   };
+  
+  // Expose injected handlers for early override/debugging
+  try {
+    navigator.mediaDevices._originalGetUserMedia = originalGetUserMedia;
+    navigator.mediaDevices._injectedGetUserMedia = navigator.mediaDevices.getUserMedia;
+  } catch (e) {}
   
   // ============================================================================
   // HELPER FUNCTIONS
