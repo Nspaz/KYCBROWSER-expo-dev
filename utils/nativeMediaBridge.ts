@@ -1,5 +1,4 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
 import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
@@ -73,6 +72,7 @@ if (!IS_EXPO_GO) {
     // Also try expo-modules-core if NativeModules didn't work
     if (!nativeBridge) {
       try {
+        const { requireNativeModule } = require('expo-modules-core');
         nativeBridge = requireNativeModule('NativeMediaBridge');
       } catch {
         // Module not available
