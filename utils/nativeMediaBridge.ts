@@ -149,6 +149,18 @@ export async function handleNativeGumOffer(
     }
   }
 
+  // Check for Expo Go environment
+  if (isExpoGo()) {
+    handlers.onError(
+      buildError(
+        requestId,
+        'Native WebRTC bridge is not available in Expo Go. Use the WebSocket protocol.',
+        'expo_go'
+      )
+    );
+    return;
+  }
+
   const webrtc = getWebRTCModule();
   if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
