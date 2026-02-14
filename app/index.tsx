@@ -168,7 +168,7 @@ export default function MotionBrowserScreen() {
   }, [webrtcLoopbackBridge]);
 
   useEffect(() => {
-    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings);
+    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings as any);
   }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
 
   useEffect(() => {
@@ -264,7 +264,7 @@ export default function MotionBrowserScreen() {
   }, [activeProtocol, enabledProtocolOptions, protocols, setActiveProtocol]);
 
   // Use protocol context for allowlist (only when allowlist protocol is active/enabled)
-  const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
+  const allowlistModeActive = activeProtocol === 'relay' && (protocols.relay?.enabled ?? true);
   const allowlistEnabled = allowlistModeActive && allowlistSettings.enabled;
   const allowedDomains = allowlistSettings.domains;
 
@@ -286,7 +286,7 @@ export default function MotionBrowserScreen() {
   }, [compatibleVideos, protectedSettings.replacementVideoId]);
 
   const fallbackVideo = useMemo(() => {
-    if (activeProtocol === 'protected' && protectedReplacementVideo) {
+    if (activeProtocol === 'shield' && protectedReplacementVideo) {
       return protectedReplacementVideo;
     }
     return bundledSampleVideo || compatibleVideos[0] || null;
@@ -371,7 +371,7 @@ export default function MotionBrowserScreen() {
   }, [pendingPermissionRequest]);
 
   const effectiveStealthMode = useMemo(() => {
-    if (activeProtocol === 'protected' || activeProtocol === 'harness') {
+    if (activeProtocol === 'shield') {
       return true;
     }
     if (!standardSettings.stealthByDefault) {
@@ -390,11 +390,11 @@ export default function MotionBrowserScreen() {
   ]);
 
   const protocolForceSimulation = isProtocolEnabled && (
-    activeProtocol === 'protected'
-    || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
+    activeProtocol === 'shield'
+    || (activeProtocol === 'shield' && harnessSettings.overlayEnabled)
   );
 
-  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'shield' && harnessSettings.mirrorVideo;
   const enterpriseWebKitActive = Platform.OS === 'ios'
     ? enterpriseWebKitEnabled && !IS_EXPO_GO
     : true;
@@ -403,16 +403,16 @@ export default function MotionBrowserScreen() {
     if (!isProtocolEnabled) {
       return '';
     }
-    if (activeProtocol === 'protected') {
+    if (activeProtocol === 'shield') {
       return 'Protected Replacement Active';
     }
-    if (activeProtocol === 'harness') {
+    if (activeProtocol === 'shield') {
       return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
     }
-    if (activeProtocol === 'allowlist' && allowlistEnabled) {
+    if (activeProtocol === 'relay' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
-    if (activeProtocol === 'webrtc-loopback') {
+    if (activeProtocol === 'bridge') {
       return 'WebRTC Loopback Active';
     }
     return '';
@@ -422,10 +422,10 @@ export default function MotionBrowserScreen() {
     if (!isProtocolEnabled) {
       return false;
     }
-    if (activeProtocol === 'protected') {
+    if (activeProtocol === 'shield') {
       return protectedSettings.showProtectedBadge;
     }
-    if (activeProtocol === 'harness') {
+    if (activeProtocol === 'shield') {
       return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
     return false;
@@ -438,9 +438,9 @@ export default function MotionBrowserScreen() {
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
-    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+    (activeProtocol === 'stealth' || activeProtocol === 'relay')
       ? standardSettings.autoInject
-      : activeProtocol === 'webrtc-loopback'
+      : activeProtocol === 'bridge'
         ? webrtcLoopbackSettings.autoStart
         : true
   );
@@ -545,7 +545,7 @@ export default function MotionBrowserScreen() {
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
-      useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'standard' || activeProtocol === 'allowlist'),
+      useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'stealth' || activeProtocol === 'relay'),
       signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
       autoStart: webrtcLoopbackSettings.autoStart,
       requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
@@ -569,7 +569,7 @@ export default function MotionBrowserScreen() {
       cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
     };
     
-    if (activeProtocol === 'allowlist') {
+    if (activeProtocol === 'relay') {
       const primaryDevice = normalizedDevices.find(d => d.type === 'camera' && d.simulationEnabled) || normalizedDevices[0];
       const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
       const advancedSettings = allowlistSettings.advancedRelay;
@@ -633,7 +633,7 @@ export default function MotionBrowserScreen() {
     };
     
     let fallbackScript = '';
-    if (activeProtocol === 'websocket') {
+    if (activeProtocol === 'bridge') {
       fallbackScript = createWebSocketInjectionScript({
         width: 1080,
         height: 1920,
@@ -662,7 +662,7 @@ export default function MotionBrowserScreen() {
         learningMode: true,
       };
       fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
-    } else if (activeProtocol === 'allowlist') {
+    } else if (activeProtocol === 'relay') {
       const advancedSettings = allowlistSettings.advancedRelay;
       const advancedEnabled = Boolean(
         advancedSettings.webrtc.enabled
@@ -686,9 +686,9 @@ export default function MotionBrowserScreen() {
       } else {
         fallbackScript = buildProtocol0Fallback();
       }
-    } else if (activeProtocol === 'standard') {
+    } else if (activeProtocol === 'stealth') {
       fallbackScript = buildProtocol0Fallback();
-    } else if (activeProtocol === 'webrtc-loopback') {
+    } else if (activeProtocol === 'bridge') {
       fallbackScript = createWebRtcLoopbackInjectionScript({
         devices: normalizedDevices,
         debugEnabled: developerModeEnabled,
@@ -732,7 +732,7 @@ export default function MotionBrowserScreen() {
       });
     }
     
-    if (activeProtocol === 'webrtc-loopback') {
+    if (activeProtocol === 'bridge') {
       webrtcLoopbackBridge.updateDeviceSources(normalizedDevices);
     }
     webViewRef.current.injectJavaScript(`
@@ -1249,7 +1249,7 @@ export default function MotionBrowserScreen() {
         return { script: protocol0Script, type: 'PROTOCOL0', usedFallback: false };
       };
       
-      if (activeProtocol === 'websocket') {
+      if (activeProtocol === 'bridge') {
         // Protocol 6: WebSocket Bridge - Most reliable method for WebView streaming
         mediaInjectionScript = createWebSocketInjectionScript({
           width: 1080,
@@ -1284,7 +1284,7 @@ export default function MotionBrowserScreen() {
         mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
         injectionType = 'SONNET';
         console.log('[App] Using SONNET Protocol injection with video:', videoUri ? 'YES' : 'NO');
-      } else if (activeProtocol === 'allowlist') {
+      } else if (activeProtocol === 'relay') {
         const advancedSettings = allowlistSettings.advancedRelay;
         const advancedEnabled = Boolean(
           advancedSettings.webrtc.enabled
@@ -1318,7 +1318,7 @@ export default function MotionBrowserScreen() {
           console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
           console.log('[App] Devices:', devices.length);
         }
-      } else if (activeProtocol === 'standard') {
+      } else if (activeProtocol === 'stealth') {
         const { script, type, usedFallback } = buildProtocol0Script();
         mediaInjectionScript = script;
         injectionType = type;
@@ -1328,7 +1328,7 @@ export default function MotionBrowserScreen() {
         console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
-      } else if (activeProtocol === 'webrtc-loopback') {
+      } else if (activeProtocol === 'bridge') {
         mediaInjectionScript = createWebRtcLoopbackInjectionScript({
           devices: devices,
           debugEnabled: developerModeEnabled,
