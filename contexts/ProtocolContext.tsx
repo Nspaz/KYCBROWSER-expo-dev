@@ -5,7 +5,7 @@ import * as Crypto from 'expo-crypto';
 import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback' | 'claude-sonnet' | 'claude' | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
