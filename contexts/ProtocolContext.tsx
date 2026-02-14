@@ -5,7 +5,17 @@ import * as Crypto from 'expo-crypto';
 import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolType =
+  | 'standard'
+  | 'allowlist'
+  | 'protected'
+  | 'harness'
+  | 'holographic'
+  | 'websocket'
+  | 'webrtc-loopback'
+  | 'claude-sonnet'
+  | 'claude'
+  | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -410,10 +420,42 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: !IS_EXPO_GO,
     settings: {},
   },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 7: Claude Sonnet',
+    description: 'AI-assisted adaptive injection with Sonnet-level behavioral mimicry and stealth.',
+    enabled: true,
+    settings: {},
+  },
+  claude: {
+    id: 'claude',
+    name: 'Protocol 8: Claude',
+    description: 'Claude-optimized injection profile with adaptive stealth tuning.',
+    enabled: true,
+    settings: {},
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 9: Sonnet',
+    description: 'Standalone Sonnet protocol for experimental AI-driven injection.',
+    enabled: true,
+    settings: {},
+  },
 };
 
-const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness' || value === 'holographic' || value === 'websocket' || value === 'webrtc-loopback';
+export const isProtocolType = (value: string): value is ProtocolType => {
+  return (
+    value === 'standard'
+    || value === 'allowlist'
+    || value === 'protected'
+    || value === 'harness'
+    || value === 'holographic'
+    || value === 'websocket'
+    || value === 'webrtc-loopback'
+    || value === 'claude-sonnet'
+    || value === 'claude'
+    || value === 'sonnet'
+  );
 };
 
 const clampProtocolsForExpoGo = (
@@ -429,6 +471,20 @@ const clampProtocolsForExpoGo = (
       enabled: false,
     },
   };
+};
+
+export const mergeProtocolsWithDefaults = (
+  storedProtocols?: Record<string, ProtocolConfig>
+): Record<ProtocolType, ProtocolConfig> => {
+  const merged = { ...DEFAULT_PROTOCOLS };
+  if (storedProtocols) {
+    Object.entries(storedProtocols).forEach(([key, value]) => {
+      if (isProtocolType(key)) {
+        merged[key] = { ...merged[key], ...value };
+      }
+    });
+  }
+  return clampProtocolsForExpoGo(merged);
 };
 
 const clampWebRtcLoopbackSettings = (
@@ -531,16 +587,15 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        let nextProtocols = { ...DEFAULT_PROTOCOLS };
+        let nextProtocols = mergeProtocolsWithDefaults();
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
-            nextProtocols = { ...DEFAULT_PROTOCOLS, ...parsed };
+            nextProtocols = mergeProtocolsWithDefaults(parsed);
           } catch (e) {
             console.warn('[Protocol] Failed to parse protocols config:', e);
           }
         }
-        nextProtocols = clampProtocolsForExpoGo(nextProtocols);
         setProtocols(nextProtocols);
         if (IS_EXPO_GO && protocolsConfig) {
           await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(nextProtocols));
