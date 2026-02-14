@@ -10,9 +10,9 @@ describe('Claude Sonnet Protocol', () => {
   });
 
   describe('Protocol Configuration', () => {
-    it('should have claude-sonnet protocol ID', () => {
-      const protocolId = 'claude-sonnet';
-      expect(protocolId).toBe('claude-sonnet');
+    it('should have stealth protocol ID', () => {
+      const protocolId = 'stealth';
+      expect(protocolId).toBe('stealth');
     });
 
     it('should support all advanced features', () => {
@@ -40,17 +40,17 @@ describe('Claude Sonnet Protocol', () => {
 
   describe('Protocol Monitoring', () => {
     it('should track protocol sessions', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
-      expect(sessionId).toContain('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
+      expect(sessionId).toContain('stealth');
       
       const metrics = protocolMonitor.getSessionMetrics(sessionId);
       expect(metrics).toBeDefined();
-      expect(metrics?.protocolId).toBe('claude-sonnet');
+      expect(metrics?.protocolId).toBe('stealth');
       expect(metrics?.success).toBe(false);
     });
 
     it('should record successful sessions', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       
       protocolMonitor.recordSuccess(sessionId, {
         fps: 30,
@@ -64,7 +64,7 @@ describe('Claude Sonnet Protocol', () => {
     });
 
     it('should record failed sessions', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       
       protocolMonitor.recordFailure(sessionId, 'Test error', 'high');
 
@@ -74,7 +74,7 @@ describe('Claude Sonnet Protocol', () => {
     });
 
     it('should calculate performance scores', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       
       protocolMonitor.updateMetrics(sessionId, {
         fps: 30,
@@ -104,7 +104,7 @@ describe('Claude Sonnet Protocol', () => {
         return 'success';
       };
 
-      const pending = monitoringHelpers.trackOperation('claude-sonnet', operation);
+      const pending = monitoringHelpers.trackOperation('stealth', operation);
       // This repo enables fake timers globally in `jest.setup.js`.
       // Advance timers so the `setTimeout` inside `operation()` resolves.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,7 +125,7 @@ describe('Claude Sonnet Protocol', () => {
       };
 
       await expect(
-        monitoringHelpers.trackOperation('claude-sonnet', operation)
+        monitoringHelpers.trackOperation('stealth', operation)
       ).rejects.toThrow('Test error');
 
       const systemMetrics = protocolMonitor.getSystemMetrics();
@@ -134,25 +134,25 @@ describe('Claude Sonnet Protocol', () => {
 
     it('should check protocol health', () => {
       // Not enough data yet
-      expect(monitoringHelpers.isProtocolHealthy('claude-sonnet')).toBe(true);
+      expect(monitoringHelpers.isProtocolHealthy('stealth')).toBe(true);
 
       // Add successful sessions
       for (let i = 0; i < 5; i++) {
-        const sessionId = protocolMonitor.startSession('claude-sonnet');
+        const sessionId = protocolMonitor.startSession('stealth');
         protocolMonitor.recordSuccess(sessionId, {
           fps: 30,
           latency: 20,
         });
       }
 
-      expect(monitoringHelpers.isProtocolHealthy('claude-sonnet')).toBe(true);
+      expect(monitoringHelpers.isProtocolHealthy('stealth')).toBe(true);
     });
   });
 
   describe('Protocol Comparison', () => {
     it('should compare protocols', () => {
       // Add sessions for different protocols
-      const protocols = ['standard', 'claude-sonnet', 'protected'];
+      const protocols = ['stealth', 'relay', 'shield'];
       
       protocols.forEach(protocol => {
         for (let i = 0; i < 3; i++) {
@@ -177,9 +177,9 @@ describe('Claude Sonnet Protocol', () => {
     it('should recommend best protocol', () => {
       // Add sessions with different performance
       const protocols = [
-        { id: 'standard', fps: 25, latency: 30 },
-        { id: 'claude-sonnet', fps: 30, latency: 15 },
-        { id: 'protected', fps: 28, latency: 20 },
+        { id: 'relay', fps: 25, latency: 30 },
+        { id: 'stealth', fps: 30, latency: 15 },
+        { id: 'shield', fps: 28, latency: 20 },
       ];
 
       protocols.forEach(({ id, fps, latency }) => {
@@ -190,13 +190,13 @@ describe('Claude Sonnet Protocol', () => {
       });
 
       const recommended = monitoringHelpers.getRecommendedProtocol();
-      expect(recommended).toBe('claude-sonnet'); // Should be best performing
+      expect(recommended).toBe('stealth'); // Should be best performing
     });
   });
 
   describe('Metrics Export', () => {
     it('should export metrics as JSON', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       protocolMonitor.recordSuccess(sessionId, {
         fps: 30,
         latency: 15,
@@ -214,7 +214,7 @@ describe('Claude Sonnet Protocol', () => {
 
   describe('Error Tracking', () => {
     it('should track errors without ending session', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       
       protocolMonitor.recordError(sessionId, 'Minor error', 'low');
       protocolMonitor.recordError(sessionId, 'Another error', 'medium');
@@ -227,7 +227,7 @@ describe('Claude Sonnet Protocol', () => {
     });
 
     it('should track error severity', () => {
-      const sessionId = protocolMonitor.startSession('claude-sonnet');
+      const sessionId = protocolMonitor.startSession('stealth');
       
       protocolMonitor.recordError(sessionId, 'Critical error', 'high');
       
@@ -238,11 +238,11 @@ describe('Claude Sonnet Protocol', () => {
 
   describe('Performance Thresholds', () => {
     it('should penalize poor FPS in performance score', () => {
-      const lowFpsSession = protocolMonitor.startSession('claude-sonnet');
+      const lowFpsSession = protocolMonitor.startSession('stealth');
       protocolMonitor.updateMetrics(lowFpsSession, { fps: 10 });
       const lowFpsScore = protocolMonitor.calculatePerformanceScore(lowFpsSession);
 
-      const highFpsSession = protocolMonitor.startSession('claude-sonnet');
+      const highFpsSession = protocolMonitor.startSession('stealth');
       protocolMonitor.updateMetrics(highFpsSession, { fps: 30 });
       const highFpsScore = protocolMonitor.calculatePerformanceScore(highFpsSession);
 
@@ -250,11 +250,11 @@ describe('Claude Sonnet Protocol', () => {
     });
 
     it('should penalize high latency in performance score', () => {
-      const lowLatencySession = protocolMonitor.startSession('claude-sonnet');
+      const lowLatencySession = protocolMonitor.startSession('stealth');
       protocolMonitor.updateMetrics(lowLatencySession, { latency: 10 });
       const lowLatencyScore = protocolMonitor.calculatePerformanceScore(lowLatencySession);
 
-      const highLatencySession = protocolMonitor.startSession('claude-sonnet');
+      const highLatencySession = protocolMonitor.startSession('stealth');
       protocolMonitor.updateMetrics(highLatencySession, { latency: 150 });
       const highLatencyScore = protocolMonitor.calculatePerformanceScore(highLatencySession);
 

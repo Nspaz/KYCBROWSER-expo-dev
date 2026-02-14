@@ -26,11 +26,11 @@ export interface MigrationResult {
 
 // Protocol version registry
 export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
-  standard: [
+  stealth: [
     {
       version: '1.0.0',
       releaseDate: '2026-01-01',
-      protocolId: 'standard',
+      protocolId: 'stealth',
       changes: ['Initial release', 'Basic media injection', 'Stealth mode support'],
       breakingChanges: false,
       deprecated: false,
@@ -38,7 +38,7 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
     {
       version: '1.1.0',
       releaseDate: '2026-01-15',
-      protocolId: 'standard',
+      protocolId: 'stealth',
       changes: ['Added retry mechanism', 'Improved injection timing', 'Enhanced logging levels'],
       breakingChanges: false,
       deprecated: false,
@@ -46,22 +46,23 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
     {
       version: '1.2.0',
       releaseDate: '2026-01-31',
-      protocolId: 'standard',
+      protocolId: 'stealth',
       changes: [
         'Added loopVideo setting',
         'Optimized injection delay',
         'Enhanced stealth detection',
         'Added respectSiteSettings option',
+        'Consolidated standard/holographic/claude-sonnet/claude/sonnet into stealth',
       ],
       breakingChanges: false,
       deprecated: false,
     },
   ],
-  allowlist: [
+  relay: [
     {
       version: '1.0.0',
       releaseDate: '2026-01-01',
-      protocolId: 'allowlist',
+      protocolId: 'relay',
       changes: ['Initial release', 'Domain-based filtering', 'Block by default mode'],
       breakingChanges: false,
       deprecated: false,
@@ -69,22 +70,23 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
     {
       version: '1.1.0',
       releaseDate: '2026-01-31',
-      protocolId: 'allowlist',
+      protocolId: 'relay',
       changes: [
         'Added wildcard domain support',
         'Subdomain matching',
         'Auto-add current site feature',
         'Improved domain validation',
+        'Consolidated allowlist into relay',
       ],
       breakingChanges: false,
       deprecated: false,
     },
   ],
-  protected: [
+  shield: [
     {
       version: '1.0.0',
       releaseDate: '2026-01-01',
-      protocolId: 'protected',
+      protocolId: 'shield',
       changes: ['Initial release', 'Body detection', 'Safe video swap', 'Configurable sensitivity'],
       breakingChanges: false,
       deprecated: false,
@@ -92,136 +94,32 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
     {
       version: '1.1.0',
       releaseDate: '2026-01-31',
-      protocolId: 'protected',
+      protocolId: 'shield',
       changes: [
         'Enhanced ML model',
         'Faster detection',
         'Blur fallback option',
         'Auto-trigger on face detection',
         'Configurable replacement video',
+        'Local sandbox testing',
+        'Overlay and debug support',
+        'Consolidated protected/harness into shield',
       ],
       breakingChanges: false,
       deprecated: false,
     },
   ],
-  harness: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-01',
-      protocolId: 'harness',
-      changes: ['Initial release', 'Local sandbox testing', 'Overlay support', 'Debug overlay'],
-      breakingChanges: false,
-      deprecated: false,
-    },
-    {
-      version: '1.1.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'harness',
-      changes: [
-        'Added audio passthrough',
-        'Mirror video option',
-        'High frame rate support (60fps)',
-        'Test pattern fallback',
-        'Enhanced debug info',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  holographic: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'holographic',
-      changes: [
-        'Initial release',
-        'WebSocket bridge support',
-        'SDP mutation',
-        'Canvas-based stream synthesis',
-        'Noise injection controls',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  websocket: [
+  bridge: [
     {
       version: '1.0.0',
       releaseDate: '2026-02-02',
-      protocolId: 'websocket',
+      protocolId: 'bridge',
       changes: [
         'Initial release',
         'React Native postMessage bridge',
         'Frame streaming into WebView canvas',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  'webrtc-loopback': [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-02-02',
-      protocolId: 'webrtc-loopback',
-      changes: [
-        'Initial release',
         'Native WebRTC loopback bridge integration',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  'claude-sonnet': [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'claude-sonnet',
-      changes: [
-        'Initial release',
-        'AI-powered adaptive quality',
-        'Advanced stealth techniques',
-        'Protocol chaining',
-        'Neural enhancement',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  claude: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'claude',
-      changes: [
-        'Initial release',
-        'Neural optimization engine',
-        'Quantum fingerprint evasion',
-        'Behavioral mimicry profiles',
-        'Adaptive performance optimization',
-        'Context-aware injection',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  sonnet: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'sonnet',
-      changes: [
-        'Initial release',
-        'AI-powered adaptive injection',
-        'Context awareness engine',
-        'Behavior analysis system',
-        'Self-healing mechanism',
-        'Continuous learning',
-        'Predictive preloading',
-        'Anomaly detection',
-        'Performance optimization',
-        'Privacy preservation',
-        'Cross-protocol sync',
-        'Advanced metrics',
+        'Consolidated websocket/webrtc-loopback into bridge',
       ],
       breakingChanges: false,
       deprecated: false,
@@ -294,36 +192,17 @@ export class ProtocolVersionManager {
 
     // Protocol-specific migrations
     switch (protocolId) {
-      case 'standard':
+      case 'stealth':
         result.migratedSettings = this.migrateStandardSettings(settings, fromVersion, toVersion, result);
         break;
-      case 'allowlist':
+      case 'relay':
         result.migratedSettings = this.migrateAllowlistSettings(settings, fromVersion, toVersion, result);
         break;
-      case 'protected':
+      case 'shield':
         result.migratedSettings = this.migrateProtectedSettings(settings, fromVersion, toVersion, result);
         break;
-      case 'harness':
-        result.migratedSettings = this.migrateHarnessSettings(settings, fromVersion, toVersion, result);
-        break;
-      case 'holographic':
-        result.warnings.push('Holographic protocol is new - using default settings');
-        break;
-      case 'websocket':
-        result.warnings.push('WebSocket bridge protocol is new - using default settings');
-        break;
-      case 'webrtc-loopback':
-        result.warnings.push('WebRTC loopback protocol is new - using default settings');
-        break;
-      case 'claude-sonnet':
-        result.warnings.push('Claude Sonnet protocol is new - using default settings');
-        break;
-      case 'claude':
-        result.warnings.push('Claude protocol is new - using default settings');
-        break;
-      case 'sonnet':
-        // Sonnet is new - no migration needed yet
-        result.warnings.push('Sonnet protocol is new - using default settings');
+      case 'bridge':
+        result.warnings.push('Bridge protocol is new - using default settings');
         break;
       default:
         result.errors.push(`Unknown protocol: ${protocolId}`);

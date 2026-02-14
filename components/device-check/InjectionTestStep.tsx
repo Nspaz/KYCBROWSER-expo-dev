@@ -22,13 +22,10 @@ export default function InjectionTestStep({
   onComplete 
 }: InjectionTestStepProps) {
   const [protocols, setProtocols] = useState<ProtocolTestState[]>([
-    { id: 'standard', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'allowlist', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'protected', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'harness', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'holographic', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'websocket', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
-    { id: 'webrtc-loopback', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
+    { id: 'stealth', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
+    { id: 'relay', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
+    { id: 'shield', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
+    { id: 'bridge', status: 'pending', runs: ['pending', 'pending', 'pending', 'pending'] },
   ]);
   
   const [currentProtocolIndex, setCurrentProtocolIndex] = useState(0);
@@ -99,13 +96,10 @@ export default function InjectionTestStep({
 
   const getProtocolIcon = (id: ProtocolId) => {
     switch (id) {
-      case 'standard': return <Globe size={20} color="#00ff88" />;
-      case 'allowlist': return <Shield size={20} color="#00ff88" />;
-      case 'protected': return <Layers size={20} color="#00ff88" />;
-      case 'harness': return <Radio size={20} color="#00ff88" />;
-      case 'holographic': return <Radio size={20} color="#00ff88" />;
-      case 'websocket': return <Radio size={20} color="#00ff88" />;
-      case 'webrtc-loopback': return <Radio size={20} color="#00ff88" />;
+      case 'stealth': return <Globe size={20} color="#00ff88" />;
+      case 'relay': return <Shield size={20} color="#00ff88" />;
+      case 'shield': return <Layers size={20} color="#00ff88" />;
+      case 'bridge': return <Radio size={20} color="#00ff88" />;
     }
   };
 

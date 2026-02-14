@@ -697,7 +697,27 @@ export default function MotionBrowserScreen() {
         fallbackScript = buildProtocol0Fallback();
       }
     } else if (activeProtocol === 'stealth') {
-      fallbackScript = buildProtocol0Fallback();
+      // Quantum Stealth Engine: use sonnet AI when advanced features are enabled
+      if (stealthSettings.aiAdaptiveQuality || stealthSettings.behavioralMimicry || stealthSettings.quantumTimingRandomness) {
+        const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
+        const sonnetConfig = {
+          enabled: true,
+          aiAdaptiveQuality: stealthSettings.aiAdaptiveQuality,
+          behavioralMimicry: stealthSettings.behavioralMimicry,
+          neuralStyleTransfer: false,
+          predictiveFrameOptimization: stealthSettings.predictiveFrameOptimization,
+          quantumTimingRandomness: stealthSettings.quantumTimingRandomness,
+          biometricSimulation: true,
+          realTimeProfiler: true,
+          adaptiveStealth: true,
+          performanceTarget: 'balanced' as const,
+          stealthIntensity: stealthSettings.stealthIntensity,
+          learningMode: true,
+        };
+        fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
+      } else {
+        fallbackScript = buildProtocol0Fallback();
+      }
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
         stealthMode: effectiveStealthMode,
@@ -1312,17 +1332,38 @@ export default function MotionBrowserScreen() {
           console.log('[App] Devices:', devices.length);
         }
       } else if (activeProtocol === 'stealth') {
-        const { script, type, usedFallback } = buildProtocol0Script();
-        mediaInjectionScript = script;
-        injectionType = type;
-        if (usedFallback) {
-          console.warn('[App] Protocol 0 script is large; using working injection fallback');
+        // Quantum Stealth Engine: use sonnet AI when advanced features are enabled
+        if (stealthSettings.aiAdaptiveQuality || stealthSettings.behavioralMimicry || stealthSettings.quantumTimingRandomness) {
+          const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
+          const sonnetConfig = {
+            enabled: true,
+            aiAdaptiveQuality: stealthSettings.aiAdaptiveQuality,
+            behavioralMimicry: stealthSettings.behavioralMimicry,
+            neuralStyleTransfer: false,
+            predictiveFrameOptimization: stealthSettings.predictiveFrameOptimization,
+            quantumTimingRandomness: stealthSettings.quantumTimingRandomness,
+            biometricSimulation: true,
+            realTimeProfiler: true,
+            adaptiveStealth: true,
+            performanceTarget: 'balanced' as const,
+            stealthIntensity: stealthSettings.stealthIntensity,
+            learningMode: true,
+          };
+          mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
+          injectionType = 'STEALTH_AI';
+        } else {
+          const { script, type, usedFallback } = buildProtocol0Script();
+          mediaInjectionScript = script;
+          injectionType = type;
+          if (usedFallback) {
+            console.warn('[App] Protocol 0 script is large; using working injection fallback');
+          }
         }
-        console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
+        console.log('[App] Using Quantum Stealth Engine for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
       } else {
-        // Use original injection for other protocols (protected, harness, holographic)
+        // Shield protocol: use media injection for body detection + harness overlay
         const injectionOptions = {
           stealthMode: effectiveStealthMode,
           fallbackVideoUri,

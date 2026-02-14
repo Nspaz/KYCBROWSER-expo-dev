@@ -48,16 +48,10 @@ export class ProtocolValidator {
   private constructor() {
     // Initialize default states for all protocols
     const protocols: string[] = [
-      'standard',
-      'allowlist',
-      'protected',
-      'harness',
-      'holographic',
-      'websocket',
-      'webrtc-loopback',
-      'claude-sonnet',
-      'claude',
-      'sonnet',
+      'stealth',
+      'relay',
+      'shield',
+      'bridge',
     ];
     protocols.forEach(id => {
       this.protocolStates.set(id, {
@@ -94,7 +88,7 @@ export class ProtocolValidator {
     };
 
     // Validate protocol ID
-    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'websocket', 'webrtc-loopback', 'claude-sonnet', 'claude', 'sonnet'].includes(protocolId)) {
+    if (!['stealth', 'relay', 'shield', 'bridge'].includes(protocolId)) {
       result.valid = false;
       result.errors.push(`Invalid protocol ID: ${protocolId}`);
       return result;
@@ -102,124 +96,58 @@ export class ProtocolValidator {
 
     // Protocol-specific validation
     switch (protocolId) {
-      case 'standard':
+      case 'stealth':
         if (config.injectionDelay && (config.injectionDelay < 0 || config.injectionDelay > 5000)) {
           result.warnings.push('Injection delay should be between 0-5000ms for optimal performance');
         }
         if (config.maxRetries && config.maxRetries > 10) {
           result.warnings.push('Max retries > 10 may cause performance issues');
         }
+        if (config.antiDetectionLevel && !['standard', 'advanced', 'maximum'].includes(config.antiDetectionLevel)) {
+          result.warnings.push('Unknown anti-detection level - using standard');
+        }
         break;
 
-      case 'allowlist':
+      case 'relay':
         if (config.domains && !Array.isArray(config.domains)) {
           result.valid = false;
-          result.errors.push('Allowlist domains must be an array');
+          result.errors.push('Relay domains must be an array');
         }
         if (config.domains && config.domains.length === 0 && config.blockByDefault) {
-          result.warnings.push('Allowlist is blocking all domains - no domains configured');
+          result.warnings.push('Relay is blocking all domains - no domains configured');
         }
         if (config.domains && config.domains.some((d: string) => !this.isValidDomain(d))) {
           result.warnings.push('Some domains may not be valid - check format');
         }
         break;
 
-      case 'protected':
+      case 'shield':
         if (config.swapDelayMs && config.swapDelayMs < 50) {
           result.warnings.push('Swap delay < 50ms may cause visual artifacts');
         }
         if (!config.fallbackToPlaceholder && !config.replacementVideoId) {
           result.warnings.push('No fallback configured - users may see blank video');
         }
-        break;
-
-      case 'harness':
         if (config.captureFrameRate && config.captureFrameRate > 60) {
           result.warnings.push('Frame rate > 60fps may not be supported on all devices');
         }
         break;
 
-      case 'holographic':
-        if (config.bridgePort && (config.bridgePort < 1 || config.bridgePort > 65535)) {
-          result.warnings.push('Bridge port should be between 1 and 65535');
-        }
-        if (config.noiseInjectionLevel && (config.noiseInjectionLevel < 0 || config.noiseInjectionLevel > 1)) {
-          result.errors.push('Noise injection level must be between 0 and 1');
-          result.valid = false;
-        }
-        break;
-
-      case 'websocket':
+      case 'bridge':
         if (config.port && (config.port < 1 || config.port > 65535)) {
-          result.errors.push('WebSocket bridge port must be between 1 and 65535');
+          result.errors.push('Bridge port must be between 1 and 65535');
           result.valid = false;
         }
         if (config.quality && (config.quality < 0 || config.quality > 1)) {
           result.errors.push('Quality must be between 0 and 1');
           result.valid = false;
         }
-        break;
-
-      case 'webrtc-loopback':
         if (config.signalingTimeoutMs && (config.signalingTimeoutMs < 1000 || config.signalingTimeoutMs > 60000)) {
           result.warnings.push('Signaling timeout should be between 1000ms and 60000ms');
         }
         if (config.maxBitrateKbps && config.maxBitrateKbps < 0) {
           result.errors.push('Max bitrate must be >= 0');
           result.valid = false;
-        }
-        if (config.minBitrateKbps && config.minBitrateKbps < 0) {
-          result.errors.push('Min bitrate must be >= 0');
-          result.valid = false;
-        }
-        if (config.targetBitrateKbps && config.targetBitrateKbps < 0) {
-          result.errors.push('Target bitrate must be >= 0');
-          result.valid = false;
-        }
-        if (config.keepAliveIntervalMs && config.keepAliveIntervalMs < 500) {
-          result.warnings.push('Keepalive interval < 500ms may be too aggressive');
-        }
-        if (config.ringBufferSeconds && config.ringBufferSeconds < 1) {
-          result.warnings.push('Ring buffer < 1s may be too small for playback');
-        }
-        if (config.cacheTTLHours && config.cacheTTLHours < 1) {
-          result.warnings.push('Cache TTL < 1 hour may cause frequent re-downloads');
-        }
-        if (config.cacheMaxSizeMB && config.cacheMaxSizeMB < 50) {
-          result.warnings.push('Cache max size < 50MB may be too small for large videos');
-        }
-        break;
-
-      case 'claude-sonnet':
-        if (config.antiDetectionLevel && !['standard', 'advanced', 'maximum'].includes(config.antiDetectionLevel)) {
-          result.warnings.push('Unknown anti-detection level - using standard');
-        }
-        if (config.fallbackProtocols && !Array.isArray(config.fallbackProtocols)) {
-          result.errors.push('Fallback protocols must be an array');
-          result.valid = false;
-        }
-        break;
-
-      case 'claude':
-        if (config.antiDetectionLevel && !['standard', 'enhanced', 'maximum', 'paranoid'].includes(config.antiDetectionLevel)) {
-          result.warnings.push('Unknown anti-detection level - using standard');
-        }
-        if (config.noiseReductionLevel && !['off', 'light', 'moderate', 'aggressive'].includes(config.noiseReductionLevel)) {
-          result.warnings.push('Unknown noise reduction level - using moderate');
-        }
-        break;
-
-      case 'sonnet':
-        // Advanced AI-powered protocol validation
-        if (!config.aiModelVersion) {
-          result.warnings.push('AI model version not specified - using default');
-        }
-        if (config.adaptiveThreshold && (config.adaptiveThreshold < 0 || config.adaptiveThreshold > 1)) {
-          result.valid = false;
-          result.errors.push('Adaptive threshold must be between 0 and 1');
-        }
-        if (config.mlInferenceEnabled && !config.mlModelPath) {
-          result.warnings.push('ML inference enabled but no model path configured');
         }
         break;
     }

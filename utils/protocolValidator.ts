@@ -542,13 +542,10 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
  */
 export function validateProtocolSettings(settings: Partial<ProtocolSettings>): Record<ProtocolId, ValidationResult> {
   return {
-    standard: validateStandardSettings(settings.standard || {}),
-    allowlist: validateAllowlistSettings(settings.allowlist || {}),
-    protected: validateProtectedSettings(settings.protected || {}),
-    harness: validateHarnessSettings(settings.harness || {}),
-    holographic: validateHolographicSettings(settings.holographic || {}),
-    websocket: validateWebSocketSettings(settings.websocket || {}),
-    'webrtc-loopback': validateWebRtcLoopbackSettings(settings.webrtcLoopback || {}),
+    stealth: validateStandardSettings(settings.stealth || settings.standard || {}),
+    relay: validateAllowlistSettings(settings.relay || settings.allowlist || {}),
+    shield: validateProtectedSettings(settings.shield || settings.protected || {}),
+    bridge: validateWebSocketSettings(settings.bridge || settings.websocket || {}),
   };
 }
 
@@ -557,7 +554,7 @@ export function validateProtocolSettings(settings: Partial<ProtocolSettings>): R
  */
 export function getProtocolCapabilities(protocolId: ProtocolId): ProtocolCapabilities {
   switch (protocolId) {
-    case 'standard':
+    case 'stealth':
       return {
         supportsVideo: true,
         supportsAudio: true,
@@ -567,7 +564,7 @@ export function getProtocolCapabilities(protocolId: ProtocolId): ProtocolCapabil
         stealthLevel: 'advanced',
         performanceImpact: 'medium',
       };
-    case 'allowlist':
+    case 'relay':
       return {
         supportsVideo: true,
         supportsAudio: true,
@@ -577,53 +574,23 @@ export function getProtocolCapabilities(protocolId: ProtocolId): ProtocolCapabil
         stealthLevel: 'advanced',
         performanceImpact: 'medium',
       };
-    case 'protected':
+    case 'shield':
       return {
         supportsVideo: true,
-        supportsAudio: false,
+        supportsAudio: true,
         supportsMotion: false,
         requiresCamera: true,
         requiresNetwork: false,
         stealthLevel: 'basic',
         performanceImpact: 'high',
       };
-    case 'harness':
-      return {
-        supportsVideo: true,
-        supportsAudio: true,
-        supportsMotion: false,
-        requiresCamera: true,
-        requiresNetwork: false,
-        stealthLevel: 'none',
-        performanceImpact: 'low',
-      };
-    case 'holographic':
-      return {
-        supportsVideo: true,
-        supportsAudio: true,
-        supportsMotion: true,
-        requiresCamera: false,
-        requiresNetwork: true,
-        stealthLevel: 'maximum',
-        performanceImpact: 'high',
-      };
-    case 'websocket':
+    case 'bridge':
       return {
         supportsVideo: true,
         supportsAudio: true,
         supportsMotion: false,
         requiresCamera: false,
         requiresNetwork: false,
-        stealthLevel: 'advanced',
-        performanceImpact: 'medium',
-      };
-    case 'webrtc-loopback':
-      return {
-        supportsVideo: true,
-        supportsAudio: true,
-        supportsMotion: false,
-        requiresCamera: false,
-        requiresNetwork: true,
         stealthLevel: 'advanced',
         performanceImpact: 'medium',
       };
@@ -817,7 +784,7 @@ export function getRecommendedSettings(
 ): Partial<ProtocolSettings> {
   const { networkQuality = 'good', devicePerformance = 'medium', privacyConcern = 'medium' } = conditions;
 
-  if (protocolId === 'holographic') {
+  if (protocolId === 'stealth') {
     let latencyMode: 'ultra-low' | 'balanced' | 'quality' = 'balanced';
     let canvasResolution: '720p' | '1080p' | '4k' = '1080p';
     let frameRate: 30 | 60 = 30;
@@ -881,7 +848,7 @@ export function checkProtocolCompatibility(protocolId: ProtocolId): {
     }
   }
 
-  const requiresCanvasCapture = protocolId !== 'webrtc-loopback';
+  const requiresCanvasCapture = protocolId !== 'bridge';
   if (requiresCanvasCapture) {
     // Check for canvas support
     if (typeof HTMLCanvasElement === 'undefined') {
@@ -905,8 +872,8 @@ export function checkProtocolCompatibility(protocolId: ProtocolId): {
   }
 
   // Protocol-specific checks
-  if (protocolId === 'holographic') {
-    // Holographic protocol has more advanced requirements
+  if (protocolId === 'stealth') {
+    // Stealth protocol has more advanced requirements
     if (typeof Worker === 'undefined') {
       recommendations.push('Web Workers not available - some features will be disabled');
     }
@@ -914,17 +881,12 @@ export function checkProtocolCompatibility(protocolId: ProtocolId): {
       missingFeatures.push('WebSocket API');
     }
   }
-  if (protocolId === 'websocket') {
-    if (!(window as any).ReactNativeWebView) {
-      recommendations.push('ReactNativeWebView bridge missing - WebSocket bridge requires RN postMessage');
-    }
-  }
-  if (protocolId === 'webrtc-loopback') {
+  if (protocolId === 'bridge') {
     if (typeof RTCPeerConnection === 'undefined') {
       missingFeatures.push('WebRTC RTCPeerConnection');
     }
     if (!(window as any).ReactNativeWebView) {
-      recommendations.push('ReactNativeWebView bridge missing - native loopback required');
+      recommendations.push('ReactNativeWebView bridge missing - bridge protocol requires RN postMessage');
     }
   }
 
