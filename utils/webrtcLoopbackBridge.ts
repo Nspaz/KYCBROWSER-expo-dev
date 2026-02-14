@@ -47,7 +47,7 @@ const EVENT_NAMES = {
  * gracefully indicate that WebView-based injection should be used instead.
  */
 export class WebRtcLoopbackBridge {
-  private webViewRef: RefObject<WebView> | null = null;
+  private webViewRef: RefObject<WebView | null> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
   private emitter: NativeEventEmitter | null = null;
   private subscriptions: Array<{ remove: () => void }> = [];
@@ -85,7 +85,7 @@ export class WebRtcLoopbackBridge {
     return !this.isExpoGoEnv && this.nativeModule !== null;
   }
 
-  setWebViewRef(ref: RefObject<WebView>) {
+  setWebViewRef(ref: RefObject<WebView | null>) {
     this.webViewRef = ref;
   }
 

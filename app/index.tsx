@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   View, 
   Text,
+  ScrollView,
   StyleSheet, 
   Platform, 
   KeyboardAvoidingView,
@@ -100,15 +101,6 @@ export default function MotionBrowserScreen() {
   }, []);
   
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
-  useEffect(() => {
     nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
     return () => {
       nativeBridgeRef.current?.dispose();
@@ -161,6 +153,15 @@ export default function MotionBrowserScreen() {
     mlSafetyEnabled,
     enterpriseWebKitEnabled,
   } = useProtocol();
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
 
   useEffect(() => {
     webrtcLoopbackBridge.setWebViewRef(webViewRef);
@@ -490,6 +491,16 @@ export default function MotionBrowserScreen() {
     `);
   }, [standardSettings.injectMotionData]);
 
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
+
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
       console.log('[App] Skipping injection - not ready:', {
@@ -634,7 +645,7 @@ export default function MotionBrowserScreen() {
         showOverlay: showProtocolOverlayLabel,
         videoUri: videoUri || undefined,
       });
-    } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
+    } else if ((activeProtocol as string) === 'sonnet' || (activeProtocol as string) === 'claude-sonnet') {
       const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
       const sonnetConfig = {
         enabled: true,
@@ -1163,11 +1174,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1175,10 +1181,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1262,7 +1264,7 @@ export default function MotionBrowserScreen() {
         });
         injectionType = 'WEBSOCKET';
         console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
-      } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
+      } else if ((activeProtocol as string) === 'sonnet' || (activeProtocol as string) === 'claude-sonnet') {
         // Use Sonnet Protocol for Protocol 5
         const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
         const sonnetConfig = {
@@ -1645,7 +1647,6 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 // Ensure injection runs in iframes too (important for some real-world sites).
@@ -1810,11 +1811,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled
