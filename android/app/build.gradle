@@ -79,7 +79,7 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.0'
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -104,15 +104,28 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (project.hasProperty('RELEASE_STORE_FILE')) {
+            release {
+                storeFile file(RELEASE_STORE_FILE)
+                storePassword RELEASE_STORE_PASSWORD
+                keyAlias RELEASE_KEY_ALIAS
+                keyPassword RELEASE_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
+            // Release builds require a proper signing config.
+            // Configure RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD,
+            // RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD in gradle.properties
+            // or as environment variables.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (project.hasProperty('RELEASE_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
