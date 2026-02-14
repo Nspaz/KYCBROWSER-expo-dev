@@ -41,7 +41,7 @@ async function main() {
     const injection = createMediaInjectionScript(devices, {
       stealthMode: true,
       forceSimulation: true,
-      protocolId: 'standard',
+      protocolId: 'stealth',
       debugEnabled: false,
       permissionPromptEnabled: false,
       showOverlayLabel: false,
