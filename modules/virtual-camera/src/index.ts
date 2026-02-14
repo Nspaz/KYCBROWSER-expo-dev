@@ -38,7 +38,7 @@
  * ```
  */
 
-import { EventEmitter, Subscription } from 'expo-modules-core';
+import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 
 // Safe import of VirtualCameraModule with Expo Go detection
 let VirtualCameraModule: any = null;
@@ -103,10 +103,10 @@ export type VirtualCameraEvent = {
 const VirtualCameraNative = VirtualCameraModule;
 
 // Event emitter for native events (only create if native module exists)
-let emitter: EventEmitter | null = null;
+let emitter: InstanceType<typeof EventEmitter> | null = null;
 if (VirtualCameraNative) {
   try {
-    emitter = new EventEmitter(VirtualCameraNative);
+    emitter = new EventEmitter(VirtualCameraNative as unknown as InstanceType<typeof EventEmitter>);
   } catch {
     console.warn('[VirtualCamera] Failed to create event emitter');
   }
@@ -295,7 +295,7 @@ export const VirtualCamera = {
    * 
    * NOTE: Returns a no-op subscription in Expo Go
    */
-  addListener(callback: (event: VirtualCameraEvent) => void): Subscription {
+  addListener(callback: (event: VirtualCameraEvent) => void): EventSubscription {
     if (!emitter) {
       // Return a no-op subscription for Expo Go
       return {
@@ -308,7 +308,7 @@ export const VirtualCamera = {
   /**
    * Remove event listener
    */
-  removeSubscription(subscription: Subscription): void {
+  removeSubscription(subscription: EventSubscription): void {
     if (subscription && typeof subscription.remove === 'function') {
       subscription.remove();
     }

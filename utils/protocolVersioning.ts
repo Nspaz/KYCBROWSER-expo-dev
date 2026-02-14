@@ -8,7 +8,7 @@ import type { ProtocolType } from '@/contexts/ProtocolContext';
 export interface ProtocolVersion {
   version: string;
   releaseDate: string;
-  protocolId: ProtocolType;
+  protocolId: ProtocolType | string;
   changes: string[];
   breakingChanges: boolean;
   deprecated: boolean;

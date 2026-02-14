@@ -33,8 +33,8 @@ interface TestResult {
 
 const results: TestResult[] = [];
 
-function log(message: string) {
-  console.log(`[TestRunner] ${message}`);
+function log(message: string, ...args: unknown[]) {
+  console.log(`[TestRunner] ${message}`, ...args);
 }
 
 function buildTestDevices(): CaptureDevice[] {
@@ -241,7 +241,7 @@ async function testProtocol(
       log(`   Stream: ${testResult.streamCreated ? 'Created' : 'Failed'}`);
       log(`   Video tracks: ${testResult.videoTracks}`);
       log(`   Audio tracks: ${testResult.audioTracks}`);
-      log(`   Resolution: ${testResult.resolution.width}x${testResult.resolution.height}`);
+      log(`   Resolution: ${testResult.resolution?.width ?? 'unknown'}x${testResult.resolution?.height ?? 'unknown'}`);
       log(`   Frame rate: ${testResult.frameRate || 'unknown'}`);
       log(`   Device ID: ${testResult.deviceId || 'unknown'}`);
       log(`   Facing mode: ${testResult.facingMode || 'unknown'}`);
