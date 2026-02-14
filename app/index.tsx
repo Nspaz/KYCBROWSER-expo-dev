@@ -148,6 +148,7 @@ export default function MotionBrowserScreen() {
     protectedSettings,
     harnessSettings,
     webrtcLoopbackSettings,
+    bridgeSettings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -628,34 +629,48 @@ export default function MotionBrowserScreen() {
     
     let fallbackScript = '';
     if (activeProtocol === 'bridge') {
-      fallbackScript = createWebSocketInjectionScript({
-        width: 1080,
-        height: 1920,
-        fps: 30,
-        devices: normalizedDevices,
-        debug: developerModeEnabled,
-        stealthMode: effectiveStealthMode,
-        protocolLabel: 'Protocol 6: WebSocket Bridge',
-        showOverlay: showProtocolOverlayLabel,
-        videoUri: videoUri || undefined,
-      });
-    } else if ((activeProtocol as string) === 'sonnet' || (activeProtocol as string) === 'claude-sonnet') {
-      const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-      const sonnetConfig = {
-        enabled: true,
-        aiAdaptiveQuality: true,
-        behavioralMimicry: true,
-        neuralStyleTransfer: false,
-        predictiveFrameOptimization: true,
-        quantumTimingRandomness: true,
-        biometricSimulation: true,
-        realTimeProfiler: true,
-        adaptiveStealth: true,
-        performanceTarget: 'balanced' as const,
-        stealthIntensity: 'maximum' as const,
-        learningMode: true,
-      };
-      fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
+      if (bridgeSettings.preferNativeBridge) {
+        fallbackScript = createWebRtcLoopbackInjectionScript({
+          devices: normalizedDevices,
+          debugEnabled: developerModeEnabled,
+          targetWidth: 1080,
+          targetHeight: 1920,
+          targetFPS: 30,
+          signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
+          autoStart: webrtcLoopbackSettings.autoStart,
+          requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+          iceServers: webrtcLoopbackSettings.iceServers,
+          preferredCodec: webrtcLoopbackSettings.preferredCodec,
+          enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+          enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+          minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+          targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
+          maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+          keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+          statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+          enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+          enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+          enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+          recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+          ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+          ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+          cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+          cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+          cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
+        });
+      } else {
+        fallbackScript = createWebSocketInjectionScript({
+          width: 1080,
+          height: 1920,
+          fps: 30,
+          devices: normalizedDevices,
+          debug: developerModeEnabled,
+          stealthMode: effectiveStealthMode,
+          protocolLabel: 'Native Bridge',
+          showOverlay: showProtocolOverlayLabel,
+          videoUri: videoUri || undefined,
+        });
+      }
     } else if (activeProtocol === 'relay') {
       const advancedSettings = allowlistSettings.advancedRelay;
       const advancedEnabled = Boolean(
@@ -682,35 +697,6 @@ export default function MotionBrowserScreen() {
       }
     } else if (activeProtocol === 'stealth') {
       fallbackScript = buildProtocol0Fallback();
-    } else if (activeProtocol === 'bridge') {
-      fallbackScript = createWebRtcLoopbackInjectionScript({
-        devices: normalizedDevices,
-        debugEnabled: developerModeEnabled,
-        targetWidth: 1080,
-        targetHeight: 1920,
-        targetFPS: 30,
-        signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
-        autoStart: webrtcLoopbackSettings.autoStart,
-        requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
-        iceServers: webrtcLoopbackSettings.iceServers,
-        preferredCodec: webrtcLoopbackSettings.preferredCodec,
-        enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
-        enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
-        minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
-        targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
-        maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
-        keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
-        statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
-        enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
-        enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
-        enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
-        recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
-        ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
-        ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
-        cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
-        cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
-        cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
-      });
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
         stealthMode: effectiveStealthMode,
@@ -1244,40 +1230,52 @@ export default function MotionBrowserScreen() {
       };
       
       if (activeProtocol === 'bridge') {
-        // Protocol 6: WebSocket Bridge - Most reliable method for WebView streaming
-        mediaInjectionScript = createWebSocketInjectionScript({
-          width: 1080,
-          height: 1920,
-          fps: 30,
-          devices: devices,
-          debug: developerModeEnabled,
-          stealthMode: effectiveStealthMode,
-          protocolLabel: 'Protocol 6: WebSocket Bridge',
-          showOverlay: showProtocolOverlayLabel,
-          videoUri: videoUri || undefined,
-        });
-        injectionType = 'WEBSOCKET';
-        console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
-      } else if ((activeProtocol as string) === 'sonnet' || (activeProtocol as string) === 'claude-sonnet') {
-        // Use Sonnet Protocol for Protocol 5
-        const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-        const sonnetConfig = {
-          enabled: true,
-          aiAdaptiveQuality: true,
-          behavioralMimicry: true,
-          neuralStyleTransfer: false,
-          predictiveFrameOptimization: true,
-          quantumTimingRandomness: true,
-          biometricSimulation: true,
-          realTimeProfiler: true,
-          adaptiveStealth: true,
-          performanceTarget: 'balanced' as const,
-          stealthIntensity: 'maximum' as const,
-          learningMode: true,
-        };
-        mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
-        injectionType = 'SONNET';
-        console.log('[App] Using SONNET Protocol injection with video:', videoUri ? 'YES' : 'NO');
+        if (bridgeSettings.preferNativeBridge) {
+          mediaInjectionScript = createWebRtcLoopbackInjectionScript({
+            devices: devices,
+            debugEnabled: developerModeEnabled,
+            targetWidth: 1080,
+            targetHeight: 1920,
+            targetFPS: 30,
+            signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
+            autoStart: webrtcLoopbackSettings.autoStart,
+            requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+            iceServers: webrtcLoopbackSettings.iceServers,
+            preferredCodec: webrtcLoopbackSettings.preferredCodec,
+            enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+            enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+            minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+            targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
+            maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+            keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+            statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+            enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+            enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+            enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+            recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+            ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+            ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+            cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+            cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+            cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
+          });
+          injectionType = 'WEBRTC_LOOPBACK';
+          console.log('[App] Using WEBRTC loopback injection');
+        } else {
+          mediaInjectionScript = createWebSocketInjectionScript({
+            width: 1080,
+            height: 1920,
+            fps: 30,
+            devices: devices,
+            debug: developerModeEnabled,
+            stealthMode: effectiveStealthMode,
+            protocolLabel: 'Native Bridge',
+            showOverlay: showProtocolOverlayLabel,
+            videoUri: videoUri || undefined,
+          });
+          injectionType = 'WEBSOCKET';
+          console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
+        }
       } else if (activeProtocol === 'relay') {
         const advancedSettings = allowlistSettings.advancedRelay;
         const advancedEnabled = Boolean(
@@ -1322,37 +1320,6 @@ export default function MotionBrowserScreen() {
         console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
-      } else if (activeProtocol === 'bridge') {
-        mediaInjectionScript = createWebRtcLoopbackInjectionScript({
-          devices: devices,
-          debugEnabled: developerModeEnabled,
-          targetWidth: 1080,
-          targetHeight: 1920,
-          targetFPS: 30,
-          signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
-          autoStart: webrtcLoopbackSettings.autoStart,
-          requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
-          iceServers: webrtcLoopbackSettings.iceServers,
-          preferredCodec: webrtcLoopbackSettings.preferredCodec,
-          enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
-          enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
-          minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
-          targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
-          maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
-          keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
-          statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
-          enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
-          enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
-          enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
-          recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
-          ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
-          ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
-          cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
-          cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
-          cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
-        });
-        injectionType = 'WEBRTC_LOOPBACK';
-        console.log('[App] Using WEBRTC loopback injection');
       } else {
         // Use original injection for other protocols (protected, harness, holographic)
         const injectionOptions = {
