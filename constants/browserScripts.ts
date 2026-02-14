@@ -1127,7 +1127,7 @@ export const createMediaInjectionScript = (
     stealthMode = true,
     fallbackVideoUri = null,
     forceSimulation = false,
-    protocolId = 'standard',
+    protocolId = 'stealth',
     protocolLabel = '',
     showOverlayLabel = false,
     loopVideo = true,
@@ -2226,7 +2226,7 @@ export const createMediaInjectionScript = (
                 video: !!constraints?.video,
                 audio: !!constraints?.audio,
               },
-              currentProtocol: cfg.protocolId || 'standard',
+              currentProtocol: cfg.protocolId || 'stealth',
               hasVideos: !!(cfg.fallbackVideoUri || (cfg.devices && cfg.devices.some(function(d) { return d.assignedVideoUri; }))),
               timestamp: Date.now()
             }

@@ -48,9 +48,9 @@ const PROTOCOLS: Array<{ key: ProtocolKey; name: string; description: string }> 
   { key: 'none', name: 'No Protocol (Baseline)', description: 'Test without any injection - should fail' },
   { key: 'minimal', name: 'Minimal Injection', description: 'Absolute simplest possible injection - if this fails, env is broken' },
   { key: 'working', name: 'Working Injection', description: 'Bulletproof canvas-based injection' },
-  { key: 'protocol1', name: 'Protocol 1 (Standard)', description: 'Standard media injection with stealth mode' },
-  { key: 'protocol2', name: 'Protocol 2 (Advanced)', description: 'Advanced with WebRTC relay and ASI' },
-  { key: 'sonnet', name: 'Sonnet Protocol', description: 'AI-powered adaptive injection' },
+  { key: 'protocol1', name: 'Stealth Protocol', description: 'Standard media injection with stealth mode' },
+  { key: 'protocol2', name: 'Relay Protocol', description: 'Advanced with WebRTC relay and ASI' },
+  { key: 'sonnet', name: 'Stealth (AI-Enhanced)', description: 'AI-powered adaptive injection' },
 ];
 
 export default function WebcamTestsDiagnosticScreen() {

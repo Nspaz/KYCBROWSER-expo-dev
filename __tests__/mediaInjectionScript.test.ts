@@ -13,16 +13,16 @@ const baseDevices: CaptureDevice[] = [
   },
 ];
 
-const protocols = ['standard', 'allowlist', 'protected', 'harness', 'holographic'] as const;
+const protocols = ['stealth', 'relay', 'shield', 'bridge'] as const;
 
 describe('createMediaInjectionScript', () => {
   it('defines async getUserMedia override', () => {
-    const script = createMediaInjectionScript(baseDevices, { protocolId: 'standard' });
+    const script = createMediaInjectionScript(baseDevices, { protocolId: 'stealth' });
     expect(script).toContain('mediaDevices.getUserMedia = async function');
   });
 
   it('uses config-based forceSimulation in shouldSimulate', () => {
-    const script = createMediaInjectionScript(baseDevices, { protocolId: 'standard' });
+    const script = createMediaInjectionScript(baseDevices, { protocolId: 'stealth' });
     expect(script).toContain('cfg.forceSimulation || cfg.stealthMode');
   });
 
