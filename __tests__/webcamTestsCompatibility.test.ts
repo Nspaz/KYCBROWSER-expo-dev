@@ -31,14 +31,16 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'FaceTime HD Camera',
     type: 'camera',
     facing: 'front',
+    lensType: 'wide',
     isDefault: true,
     isPrimary: true,
     groupId: 'group_1',
+    tested: false,
     simulationEnabled: true,
     capabilities: {
       videoResolutions: [
-        { width: 1920, height: 1080, fps: 30 },
-        { width: 1280, height: 720, fps: 30 },
+        { width: 1920, height: 1080, maxFps: 30, label: '1080p' },
+        { width: 1280, height: 720, maxFps: 30, label: '720p' },
       ],
     },
   },
@@ -48,14 +50,16 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'Back Camera',
     type: 'camera',
     facing: 'back',
+    lensType: 'wide',
     isDefault: false,
     isPrimary: false,
     groupId: 'group_2',
+    tested: false,
     simulationEnabled: true,
     capabilities: {
       videoResolutions: [
-        { width: 3840, height: 2160, fps: 30 },
-        { width: 1920, height: 1080, fps: 60 },
+        { width: 3840, height: 2160, maxFps: 30, label: '4K' },
+        { width: 1920, height: 1080, maxFps: 60, label: '1080p' },
       ],
     },
   },
@@ -494,7 +498,7 @@ class WebcamTestsSiteSimulator {
     }
     
     // Step 3: Check video element
-    let videoElement = { success: false, error: 'No stream to test' };
+    let videoElement: { success: boolean; videoWidth?: number; videoHeight?: number; error?: string } = { success: false, error: 'No stream to test' };
     if (getUserMedia.stream) {
       videoElement = await this.checkVideoElement(getUserMedia.stream);
       if (!videoElement.success) {
@@ -503,7 +507,7 @@ class WebcamTestsSiteSimulator {
     }
     
     // Step 4: Check MediaRecorder
-    let mediaRecorder = { success: false, supported: false, error: 'No stream to test' };
+    let mediaRecorder: { success: boolean; supported: boolean; error?: string } = { success: false, supported: false, error: 'No stream to test' };
     if (getUserMedia.stream) {
       mediaRecorder = await this.checkMediaRecorder(getUserMedia.stream);
       if (!mediaRecorder.success || !mediaRecorder.supported) {

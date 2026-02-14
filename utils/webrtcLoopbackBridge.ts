@@ -47,7 +47,7 @@ const EVENT_NAMES = {
  * gracefully indicate that WebView-based injection should be used instead.
  */
 export class WebRtcLoopbackBridge {
-  private webViewRef: RefObject<WebView> | null = null;
+  private webViewRef: RefObject<WebView | null> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
   private emitter: NativeEventEmitter | null = null;
   private subscriptions: Array<{ remove: () => void }> = [];
@@ -66,7 +66,7 @@ export class WebRtcLoopbackBridge {
     
     // Only attempt to load native module if not in Expo Go
     if (!this.isExpoGoEnv) {
-      this.nativeModule = safeRequireNativeModule<NativeLoopbackModule>('WebRtcLoopback', null);
+      this.nativeModule = safeRequireNativeModule<NativeLoopbackModule | null>('WebRtcLoopback', null);
       
       if (this.nativeModule) {
         this.emitter = new NativeEventEmitter(this.nativeModule as any);
@@ -85,7 +85,7 @@ export class WebRtcLoopbackBridge {
     return !this.isExpoGoEnv && this.nativeModule !== null;
   }
 
-  setWebViewRef(ref: RefObject<WebView>) {
+  setWebViewRef(ref: RefObject<WebView | null>) {
     this.webViewRef = ref;
   }
 
@@ -99,7 +99,7 @@ export class WebRtcLoopbackBridge {
     }
   }
 
-  updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
+  updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean; type?: string }>) {
     const sources = devices
       .filter((d) => d.type === 'camera' && d.simulationEnabled !== false)
       .map((d) => ({

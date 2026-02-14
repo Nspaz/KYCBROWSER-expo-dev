@@ -47,7 +47,7 @@ export class ProtocolValidator {
 
   private constructor() {
     // Initialize default states for all protocols
-    const protocols: ProtocolType[] = [
+    const protocols: string[] = [
       'standard',
       'allowlist',
       'protected',
@@ -61,7 +61,7 @@ export class ProtocolValidator {
     ];
     protocols.forEach(id => {
       this.protocolStates.set(id, {
-        id,
+        id: id as ProtocolType,
         status: 'idle',
         health: 'excellent',
         lastHealthCheck: null,

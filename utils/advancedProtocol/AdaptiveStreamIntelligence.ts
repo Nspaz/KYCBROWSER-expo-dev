@@ -617,7 +617,7 @@ class ProfileManager {
     // Update patterns
     if (analysis.getUserMediaPatterns.length > 0) {
       const constraints = analysis.getUserMediaPatterns.map(p => p.constraints);
-      profile.getUserMediaCallPattern.constraints = constraints;
+      profile.getUserMediaCallPattern.constraints = constraints as Record<string, unknown>[];
       profile.getUserMediaCallPattern.frequency = analysis.getUserMediaPatterns.length;
       profile.getUserMediaCallPattern.timing = analysis.getUserMediaPatterns.map(p => p.responseTime);
     }

@@ -720,7 +720,7 @@ export class GPUProcessor {
   private setUniform(name: string, value: number): void {
     if (!this.gl || !this.activeProgram) return;
     
-    let location = this.uniforms.get(name);
+    let location: WebGLUniformLocation | null | undefined = this.uniforms.get(name);
     if (!location) {
       location = this.gl.getUniformLocation(this.activeProgram, name);
       if (location) {
@@ -740,7 +740,7 @@ export class GPUProcessor {
   private setUniform3f(name: string, x: number, y: number, z: number): void {
     if (!this.gl || !this.activeProgram) return;
     
-    let location = this.uniforms.get(name);
+    let location: WebGLUniformLocation | null | undefined = this.uniforms.get(name);
     if (!location) {
       location = this.gl.getUniformLocation(this.activeProgram, name);
       if (location) {
