@@ -146,7 +146,7 @@ export default function MotionBrowserScreen() {
     standardSettings,
     allowlistSettings,
     protectedSettings,
-    harnessSettings,
+    shieldSettings,
     webrtcLoopbackSettings,
     bridgeSettings,
     isAllowlisted: checkIsAllowlisted,
@@ -169,6 +169,7 @@ export default function MotionBrowserScreen() {
   }, [webrtcLoopbackBridge]);
 
   useEffect(() => {
+    // BridgeProtocolSettings is a superset; cast needed because bridge type differs from legacy WebRtcLoopbackSettings
     webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings as any);
   }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
 
@@ -392,7 +393,7 @@ export default function MotionBrowserScreen() {
 
   const protocolForceSimulation = isProtocolEnabled && activeProtocol === 'shield';
 
-  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'shield' && harnessSettings.mirrorVideo;
+  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'shield' && shieldSettings.mirrorVideo;
   const enterpriseWebKitActive = Platform.OS === 'ios'
     ? enterpriseWebKitEnabled && !IS_EXPO_GO
     : true;
@@ -402,7 +403,7 @@ export default function MotionBrowserScreen() {
       return '';
     }
     if (activeProtocol === 'shield') {
-      if (harnessSettings.overlayEnabled) {
+      if (shieldSettings.overlayEnabled) {
         return 'Harness Overlay Active';
       }
       return 'Protected Replacement Active';
@@ -414,21 +415,21 @@ export default function MotionBrowserScreen() {
       return 'WebRTC Loopback Active';
     }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
+  }, [activeProtocol, shieldSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
 
   const showProtocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
       return false;
     }
     if (activeProtocol === 'shield') {
-      return protectedSettings.showProtectedBadge || harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
+      return protectedSettings.showProtectedBadge || shieldSettings.showDebugInfo || shieldSettings.overlayEnabled;
     }
     return false;
   }, [
     activeProtocol,
     protectedSettings.showProtectedBadge,
-    harnessSettings.showDebugInfo,
-    harnessSettings.overlayEnabled,
+    shieldSettings.showDebugInfo,
+    shieldSettings.overlayEnabled,
     isProtocolEnabled,
   ]);
 

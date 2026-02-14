@@ -630,6 +630,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             if (legacyHolographic) Object.assign(base, JSON.parse(legacyHolographic));
             setStealthSettings(base);
             await AsyncStorage.setItem(STORAGE_KEYS.STEALTH_SETTINGS, JSON.stringify(base));
+            // Remove legacy keys after successful migration
+            await AsyncStorage.multiRemove([STORAGE_KEYS.STANDARD_SETTINGS, STORAGE_KEYS.HOLOGRAPHIC_SETTINGS]);
             console.log('[Protocol] Migrated legacy standard/holographic → stealth settings');
           } catch (e) {
             console.warn('[Protocol] Failed to migrate stealth settings:', e);
@@ -660,6 +662,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             const sanitized = clampBridgeSettings(base);
             setBridgeSettings(sanitized);
             await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(sanitized));
+            await AsyncStorage.removeItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS);
             console.log('[Protocol] Migrated legacy webrtc-loopback → bridge settings');
           } catch (e) {
             console.warn('[Protocol] Failed to migrate bridge settings:', e);
@@ -682,6 +685,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             if (legacyHarness) Object.assign(base, JSON.parse(legacyHarness));
             setShieldSettings(base);
             await AsyncStorage.setItem(STORAGE_KEYS.SHIELD_SETTINGS, JSON.stringify(base));
+            await AsyncStorage.multiRemove([STORAGE_KEYS.PROTECTED_SETTINGS, STORAGE_KEYS.HARNESS_SETTINGS]);
             console.log('[Protocol] Migrated legacy protected/harness → shield settings');
           } catch (e) {
             console.warn('[Protocol] Failed to migrate shield settings:', e);
