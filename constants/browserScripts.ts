@@ -2379,7 +2379,7 @@ export const createMediaInjectionScript = (
     const enumerateApplied = safeDefine(navigator.mediaDevices, 'enumerateDevices', overrideEnumerateDevices);
     const gumApplied = safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia);
     if (!gumApplied) {
-      mediaDevices.getUserMedia = async function(...args) { return overrideGetUserMedia.apply(this, args); };
+      mediaDevices.getUserMedia = overrideGetUserMedia;
     }
 
     // Expose injected handlers for early override/debugging
