@@ -123,6 +123,7 @@ export interface RelayProtocolSettings {
 
 /** Bridge – merges WebRTC loopback + WebSocket/postMessage bridge */
 export interface BridgeProtocolSettings {
+  enabled: boolean;
   preferNativeBridge: boolean;
   autoStart: boolean;
   // Native WebRTC settings
@@ -146,10 +147,10 @@ export interface BridgeProtocolSettings {
   cacheRemoteVideos: boolean;
   cacheTTLHours: number;
   cacheMaxSizeMB: number;
-  // PostMessage bridge settings
-  bridgeResolution: '720p' | '1080p' | '4k';
-  bridgeFrameRate: 24 | 30 | 60;
-  bridgeQuality: number;
+  // PostMessage bridge settings (field names match WebSocketBridgeSettings)
+  resolution: '720p' | '1080p' | '4k';
+  frameRate: 24 | 30 | 60;
+  quality: number;
   useSyntheticFallback: boolean;
 }
 
@@ -375,6 +376,7 @@ const DEFAULT_RELAY_SETTINGS: RelayProtocolSettings = {
 };
 
 const DEFAULT_BRIDGE_SETTINGS: BridgeProtocolSettings = {
+  enabled: !IS_EXPO_GO,
   preferNativeBridge: !IS_EXPO_GO,
   autoStart: true,
   signalingTimeoutMs: 12000,
@@ -397,9 +399,9 @@ const DEFAULT_BRIDGE_SETTINGS: BridgeProtocolSettings = {
   cacheRemoteVideos: true,
   cacheTTLHours: 24,
   cacheMaxSizeMB: 1024,
-  bridgeResolution: '1080p',
-  bridgeFrameRate: 30,
-  bridgeQuality: 0.85,
+  resolution: '1080p',
+  frameRate: 30,
+  quality: 0.85,
   useSyntheticFallback: true,
 };
 

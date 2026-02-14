@@ -169,9 +169,8 @@ export default function MotionBrowserScreen() {
   }, [webrtcLoopbackBridge]);
 
   useEffect(() => {
-    // BridgeProtocolSettings extends WebRtcLoopbackSettings with extra postMessage bridge fields;
-    // the loopback bridge ignores unknown properties, so the cast is safe
-    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings as any);
+    // BridgeProtocolSettings is a structural superset of WebRtcLoopbackSettings
+    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings);
   }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
 
   useEffect(() => {

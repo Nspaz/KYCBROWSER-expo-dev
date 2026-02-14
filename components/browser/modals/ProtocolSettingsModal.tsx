@@ -255,13 +255,6 @@ export default function ProtocolSettingsModal({
                 thumbColor={standardSettings.loopVideo ? '#ffffff' : '#888'}
               />
             </View>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Native WebRTC Bridge</Text>
-                <Text style={styles.settingHint}>Forced ON (native dev client required)</Text>
-              </View>
-              <Text style={styles.settingValue}>FORCED</Text>
-            </View>
 
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>

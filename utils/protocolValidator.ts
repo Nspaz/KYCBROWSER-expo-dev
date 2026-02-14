@@ -541,11 +541,20 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
  * Validate all protocol settings
  */
 export function validateProtocolSettings(settings: Partial<ProtocolSettings>): Record<ProtocolId, ValidationResult> {
+  const bridgeInput = settings.bridge || settings.websocket || {};
+  const wsResult = validateWebSocketSettings(bridgeInput);
+  const rtcResult = validateWebRtcLoopbackSettings(bridgeInput as Partial<WebRtcLoopbackSettings>);
+  const bridgeResult: ValidationResult = {
+    valid: wsResult.valid && rtcResult.valid,
+    errors: [...wsResult.errors, ...rtcResult.errors],
+    warnings: [...wsResult.warnings, ...rtcResult.warnings],
+    suggestions: [...wsResult.suggestions, ...rtcResult.suggestions],
+  };
   return {
     stealth: validateStandardSettings(settings.stealth || settings.standard || {}),
     relay: validateAllowlistSettings(settings.relay || settings.allowlist || {}),
     shield: validateProtectedSettings(settings.shield || settings.protected || {}),
-    bridge: validateWebSocketSettings(settings.bridge || settings.websocket || {}),
+    bridge: bridgeResult,
   };
 }
 
@@ -786,17 +795,14 @@ export function getRecommendedSettings(
   const { networkQuality = 'good', devicePerformance = 'medium', privacyConcern = 'medium' } = conditions;
 
   if (protocolId === 'stealth') {
-    let latencyMode: 'ultra-low' | 'balanced' | 'quality' = 'balanced';
     let canvasResolution: '720p' | '1080p' | '4k' = '1080p';
     let frameRate: 30 | 60 = 30;
 
     // Adjust based on network
     if (networkQuality === 'poor') {
       canvasResolution = '720p';
-      latencyMode = 'ultra-low';
     } else if (networkQuality === 'good') {
       canvasResolution = '1080p';
-      latencyMode = 'quality';
     }
 
     // Adjust based on device performance
@@ -809,14 +815,10 @@ export function getRecommendedSettings(
     }
 
     return {
-      holographic: {
-        ...(DEFAULT_PROTOCOL_SETTINGS.holographic ?? {}),
-        enabled: true,
-        latencyMode,
-        canvasResolution,
-        frameRate,
-        sdpMasquerade: privacyConcern !== 'low',
-      } as HolographicSettings,
+      stealth: {
+        ...DEFAULT_PROTOCOL_SETTINGS.stealth,
+        stealthByDefault: privacyConcern !== 'low',
+      },
     };
   }
 
