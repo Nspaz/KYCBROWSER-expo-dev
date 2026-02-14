@@ -169,7 +169,8 @@ export default function MotionBrowserScreen() {
   }, [webrtcLoopbackBridge]);
 
   useEffect(() => {
-    // BridgeProtocolSettings is a superset; cast needed because bridge type differs from legacy WebRtcLoopbackSettings
+    // BridgeProtocolSettings extends WebRtcLoopbackSettings with extra postMessage bridge fields;
+    // the loopback bridge ignores unknown properties, so the cast is safe
     webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings as any);
   }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
 
@@ -698,20 +699,20 @@ export default function MotionBrowserScreen() {
       }
     } else if (activeProtocol === 'stealth') {
       // Quantum Stealth Engine: use sonnet AI when advanced features are enabled
-      if (stealthSettings.aiAdaptiveQuality || stealthSettings.behavioralMimicry || stealthSettings.quantumTimingRandomness) {
+      if (standardSettings.aiAdaptiveQuality || standardSettings.behavioralMimicry || standardSettings.quantumTimingRandomness) {
         const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
         const sonnetConfig = {
           enabled: true,
-          aiAdaptiveQuality: stealthSettings.aiAdaptiveQuality,
-          behavioralMimicry: stealthSettings.behavioralMimicry,
+          aiAdaptiveQuality: standardSettings.aiAdaptiveQuality,
+          behavioralMimicry: standardSettings.behavioralMimicry,
           neuralStyleTransfer: false,
-          predictiveFrameOptimization: stealthSettings.predictiveFrameOptimization,
-          quantumTimingRandomness: stealthSettings.quantumTimingRandomness,
+          predictiveFrameOptimization: standardSettings.predictiveFrameOptimization,
+          quantumTimingRandomness: standardSettings.quantumTimingRandomness,
           biometricSimulation: true,
           realTimeProfiler: true,
           adaptiveStealth: true,
           performanceTarget: 'balanced' as const,
-          stealthIntensity: stealthSettings.stealthIntensity,
+          stealthIntensity: standardSettings.stealthIntensity,
           learningMode: true,
         };
         fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
@@ -1333,20 +1334,20 @@ export default function MotionBrowserScreen() {
         }
       } else if (activeProtocol === 'stealth') {
         // Quantum Stealth Engine: use sonnet AI when advanced features are enabled
-        if (stealthSettings.aiAdaptiveQuality || stealthSettings.behavioralMimicry || stealthSettings.quantumTimingRandomness) {
+        if (standardSettings.aiAdaptiveQuality || standardSettings.behavioralMimicry || standardSettings.quantumTimingRandomness) {
           const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
           const sonnetConfig = {
             enabled: true,
-            aiAdaptiveQuality: stealthSettings.aiAdaptiveQuality,
-            behavioralMimicry: stealthSettings.behavioralMimicry,
+            aiAdaptiveQuality: standardSettings.aiAdaptiveQuality,
+            behavioralMimicry: standardSettings.behavioralMimicry,
             neuralStyleTransfer: false,
-            predictiveFrameOptimization: stealthSettings.predictiveFrameOptimization,
-            quantumTimingRandomness: stealthSettings.quantumTimingRandomness,
+            predictiveFrameOptimization: standardSettings.predictiveFrameOptimization,
+            quantumTimingRandomness: standardSettings.quantumTimingRandomness,
             biometricSimulation: true,
             realTimeProfiler: true,
             adaptiveStealth: true,
             performanceTarget: 'balanced' as const,
-            stealthIntensity: stealthSettings.stealthIntensity,
+            stealthIntensity: standardSettings.stealthIntensity,
             learningMode: true,
           };
           mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);

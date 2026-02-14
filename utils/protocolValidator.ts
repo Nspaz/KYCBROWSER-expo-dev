@@ -575,6 +575,7 @@ export function getProtocolCapabilities(protocolId: ProtocolId): ProtocolCapabil
         performanceImpact: 'medium',
       };
     case 'shield':
+      // Audio supported via merged harness capabilities (enableAudioPassthrough)
       return {
         supportsVideo: true,
         supportsAudio: true,
@@ -809,12 +810,13 @@ export function getRecommendedSettings(
 
     return {
       holographic: {
-        ...DEFAULT_PROTOCOL_SETTINGS.holographic,
+        ...(DEFAULT_PROTOCOL_SETTINGS.holographic ?? {}),
+        enabled: true,
         latencyMode,
         canvasResolution,
         frameRate,
         sdpMasquerade: privacyConcern !== 'low',
-      },
+      } as HolographicSettings,
     };
   }
 
