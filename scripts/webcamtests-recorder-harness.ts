@@ -194,7 +194,7 @@ async function main() {
       postLoadConfig: { ...postLoadConfigBase, protocolId: 'relay', protocolLabel: 'relay' },
     },
     {
-      name: 'Protocol 3: shield',
+      name: 'Protocol 3: Shield (Protected Mode)',
       id: 'shield',
       injectedBeforeLoad: createMediaInjectionScript(DEVICES as any, {
         protocolId: 'shield',
@@ -210,7 +210,7 @@ async function main() {
       postLoadConfig: { ...postLoadConfigBase, protocolId: 'shield', protocolLabel: 'shield' },
     },
     {
-      name: 'Protocol 4: shield',
+      name: 'Protocol 4: Shield (Harness Mode)',
       id: 'shield',
       injectedBeforeLoad: createMediaInjectionScript(DEVICES as any, {
         protocolId: 'shield',
