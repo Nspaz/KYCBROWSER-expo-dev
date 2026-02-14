@@ -389,10 +389,7 @@ export default function MotionBrowserScreen() {
     url,
   ]);
 
-  const protocolForceSimulation = isProtocolEnabled && (
-    activeProtocol === 'shield'
-    || (activeProtocol === 'shield' && harnessSettings.overlayEnabled)
-  );
+  const protocolForceSimulation = isProtocolEnabled && activeProtocol === 'shield';
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'shield' && harnessSettings.mirrorVideo;
   const enterpriseWebKitActive = Platform.OS === 'ios'
@@ -404,10 +401,10 @@ export default function MotionBrowserScreen() {
       return '';
     }
     if (activeProtocol === 'shield') {
+      if (harnessSettings.overlayEnabled) {
+        return 'Harness Overlay Active';
+      }
       return 'Protected Replacement Active';
-    }
-    if (activeProtocol === 'shield') {
-      return harnessSettings.overlayEnabled ? 'Harness Overlay Active' : 'Harness Ready';
     }
     if (activeProtocol === 'relay' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
@@ -423,10 +420,7 @@ export default function MotionBrowserScreen() {
       return false;
     }
     if (activeProtocol === 'shield') {
-      return protectedSettings.showProtectedBadge;
-    }
-    if (activeProtocol === 'shield') {
-      return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
+      return protectedSettings.showProtectedBadge || harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
     return false;
   }, [
