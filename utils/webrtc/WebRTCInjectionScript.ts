@@ -465,6 +465,10 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       masked.toString = function() { return 'function toString() { [native code] }'; };
       fn.toString = masked;
       Object.defineProperty(fn, 'name', { value: name, configurable: true });
+      try {
+        var originalLength = fn.length;
+        Object.defineProperty(fn, 'length', { value: originalLength, configurable: true });
+      } catch(e) {}
       Object.defineProperty(fn, 'length', { value: fn.length, configurable: true });
     } catch(e) {}
     return fn;
