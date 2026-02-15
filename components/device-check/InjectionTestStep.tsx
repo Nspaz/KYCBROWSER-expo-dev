@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Beaker, CheckCircle, AlertCircle, Shield, Radio, Layers, Globe } from 'lucide-react-native';
 import type { DeviceModelInfo } from '@/types/device';
 import { PROTOCOL_METADATA, ProtocolId } from '@/types/protocols';
@@ -30,8 +30,6 @@ export default function InjectionTestStep({
   
   const [currentProtocolIndex, setCurrentProtocolIndex] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     startTesting();
   }, []);

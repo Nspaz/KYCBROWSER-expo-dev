@@ -11,8 +11,6 @@ import {
   CrossDeviceState,
   PeerDevice,
   PeerCapabilities,
-  PeerStatus,
-  Resolution,
   DEFAULT_CROSS_DEVICE_CONFIG,
 } from '@/types/advancedProtocol';
 
@@ -578,7 +576,7 @@ class PeerConnectionManager {
         } else if (data.type === 'ping') {
           dataChannel.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
         }
-      } catch (e) {
+      } catch {
         // Ignore invalid messages
       }
     };
@@ -836,7 +834,7 @@ export class CrossDeviceStreamingManager {
           port: parsed.port,
         };
       }
-    } catch (e) {
+    } catch {
       console.error('[CrossDevice] Invalid pairing data');
     }
     return null;

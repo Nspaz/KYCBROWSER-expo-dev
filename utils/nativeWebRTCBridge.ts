@@ -3,32 +3,6 @@ import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
 import { isExpoGo, safeRequireWebRTC } from './expoGoCompat';
 
-type WebRTCOfferMessage = {
-  type: 'nativeWebRTCOffer';
-  payload: {
-    requestId: string;
-    sdp: string;
-    constraints?: any;
-  };
-};
-
-type WebRTCIceMessage = {
-  type: 'nativeWebRTCIceCandidate';
-  payload: {
-    requestId: string;
-    candidate: any;
-  };
-};
-
-type WebRTCCloseMessage = {
-  type: 'nativeWebRTCClose';
-  payload: {
-    requestId: string;
-  };
-};
-
-type WebViewSignalMessage = WebRTCOfferMessage | WebRTCIceMessage | WebRTCCloseMessage;
-
 type Session = {
   pc: any;
   stream?: any;
@@ -200,7 +174,7 @@ export class NativeWebRTCBridge {
     try {
       const candidate = new webrtc.RTCIceCandidate(payload.candidate);
       await session.pc.addIceCandidate(candidate);
-    } catch (err) {
+    } catch {
       // Ignore; candidate might arrive before remote description.
     }
   }
@@ -216,10 +190,10 @@ export class NativeWebRTCBridge {
     if (session.stream) {
       try {
         session.stream.getTracks().forEach((track: any) => track.stop());
-      } catch (e) {}
+      } catch {}
     }
     try {
       session.pc.close();
-    } catch (e) {}
+    } catch {}
   }
 }

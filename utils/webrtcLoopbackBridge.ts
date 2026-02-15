@@ -1,4 +1,4 @@
-import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';

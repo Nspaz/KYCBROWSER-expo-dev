@@ -13,7 +13,7 @@ import {
 import { Stack, router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
-import { ChevronLeft, Shield, Film, FlaskConical, Settings, Lock, Play, CheckCircle } from 'lucide-react-native';
+import { ChevronLeft, Shield, FlaskConical, Settings, Lock, Play, CheckCircle } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';

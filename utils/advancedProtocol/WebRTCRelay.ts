@@ -822,7 +822,7 @@ export class WebRTCRelay {
     this.peerConnections.forEach(wrapper => {
       try {
         wrapper.originalPC.close();
-      } catch (e) {
+      } catch {
         // Ignore errors during cleanup
       }
     });

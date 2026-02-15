@@ -58,13 +58,6 @@ interface WebRTCPattern {
   details: Record<string, unknown>;
 }
 
-interface FingerprintSignature {
-  canvasHash: string;
-  webglHash: string;
-  audioHash: string;
-  timingPattern: number[];
-}
-
 // ============================================================================
 // SITE ANALYZER
 // ============================================================================
@@ -203,7 +196,6 @@ class SiteAnalyzer {
   }
 
   private instrumentWebRTC(): void {
-    const analyzer = this;
     const OriginalPC = window.RTCPeerConnection;
     
     if (!OriginalPC) return;

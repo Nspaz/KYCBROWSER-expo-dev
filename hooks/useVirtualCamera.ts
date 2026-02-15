@@ -34,13 +34,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
 
 // Import the virtual camera module
 // This will use the mock implementation if native module is not available
 import VirtualCamera, { 
   VirtualCameraConfig, 
-  VirtualCameraState, 
   VirtualCameraEvent 
 } from '../modules/virtual-camera/src';
 

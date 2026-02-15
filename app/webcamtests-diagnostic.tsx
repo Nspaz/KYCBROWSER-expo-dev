@@ -5,7 +5,7 @@
  * to identify what works and what doesn't.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -373,8 +373,8 @@ true;
       } else if (data.type === 'console') {
         addLog(`[WebView] ${data.message}`);
       }
-    } catch (e) {
-      // Not JSON or not our message
+    } catch {
+      // Intentionally ignore non-JSON or non-protocol messages from the WebView.
     }
   }, [currentProtocol, addLog]);
   
