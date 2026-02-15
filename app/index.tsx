@@ -729,7 +729,7 @@ export default function MotionBrowserScreen() {
         loopVideo: standardSettings.loopVideo,
         mirrorVideo: protocolMirrorVideo,
         debugEnabled: developerModeEnabled,
-        permissionPromptEnabled: true,
+        permissionPromptEnabled: false,
       });
     }
     
