@@ -1996,8 +1996,20 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   
   // Store original constructors IMMEDIATELY
   var OriginalMediaStream = window.MediaStream;
-  var originalGetUserMedia = navigator.mediaDevices ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : null;
-  var originalEnumerateDevices = navigator.mediaDevices ? navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices) : null;
+  var originalGetUserMedia = null;
+  var originalEnumerateDevices = null;
+  if (navigator.mediaDevices) {
+    try {
+      if (typeof navigator.mediaDevices.getUserMedia === 'function') {
+        originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      }
+      if (typeof navigator.mediaDevices.enumerateDevices === 'function') {
+        originalEnumerateDevices = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+      }
+    } catch (e) {
+      console.warn('[Protocol1] Failed to bind original mediaDevices methods:', e);
+    }
+  }
   
   var injectedStream = null;
   var canvas = null;
