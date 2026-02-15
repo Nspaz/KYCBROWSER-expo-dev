@@ -233,23 +233,23 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
     enableParallelDecoding: true,
   },
   
-  // WebRTC Relay - maximum stealth
+  // WebRTC Relay - disabled by default for reliability
   webrtc: {
-    enabled: true,
-    virtualTurnEnabled: true,
-    sdpManipulationEnabled: true,
+    enabled: false,
+    virtualTurnEnabled: false,
+    sdpManipulationEnabled: false,
     stealthMode: true,
   },
   
-  // GPU Processing - balanced quality
+  // GPU Processing - disabled by default (unreliable on Android WebView)
   gpu: {
-    enabled: true,
+    enabled: false,
     qualityPreset: 'high',
-    noiseInjection: true,
+    noiseInjection: false,
     noiseIntensity: 0.02,
   },
   
-  // ASI - intelligent adaptation
+  // ASI - intelligent adaptation (reliable, canvas-only)
   asi: {
     enabled: true,
     siteFingerprinting: true,
@@ -258,19 +258,19 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
     storeHistory: true,
   },
   
-  // Cross-Device - ready for pairing
+  // Cross-Device - disabled by default
   crossDevice: {
-    enabled: true,
+    enabled: false,
     discoveryMethod: 'qr',
     targetLatencyMs: 100,
     autoReconnect: true,
   },
   
-  // Crypto - secure by default
+  // Crypto - disabled by default for reliability
   crypto: {
-    enabled: true,
-    frameSigning: true,
-    tamperDetection: true,
+    enabled: false,
+    frameSigning: false,
+    tamperDetection: false,
     keyRotationIntervalMs: 3600000, // 1 hour
   },
   

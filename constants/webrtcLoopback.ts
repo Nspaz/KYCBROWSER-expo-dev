@@ -379,19 +379,72 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     }, CONFIG.KEEPALIVE_INTERVAL_MS);
   }
 
+  // ============ CANVAS FALLBACK ============
+  // When native WebRTC bridge or RTCPeerConnection is unavailable, provide a
+  // canvas-based stream so getUserMedia callers always receive something.
+  function createCanvasFallbackStream() {
+    log('Creating canvas fallback stream (native bridge unavailable)');
+    var fallbackCanvas = document.createElement('canvas');
+    fallbackCanvas.width = CONFIG.TARGET_WIDTH || 1280;
+    fallbackCanvas.height = CONFIG.TARGET_HEIGHT || 720;
+    fallbackCanvas.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+    if (document.body) document.body.appendChild(fallbackCanvas);
+
+    var fCtx = fallbackCanvas.getContext('2d', { alpha: false });
+    var fFrame = 0;
+    function renderFallback() {
+      fFrame++;
+      var t = Date.now() / 1000;
+      if (fCtx) {
+        var g = fCtx.createLinearGradient(0, 0, 0, fallbackCanvas.height);
+        var b = Math.sin(t) * 20;
+        g.addColorStop(0, 'rgb(0,' + Math.max(0, Math.min(255, 200 + b)) + ',0)');
+        g.addColorStop(1, 'rgb(0,' + Math.max(0, Math.min(255, 255 + b)) + ',0)');
+        fCtx.fillStyle = g;
+        fCtx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+        fCtx.fillStyle = 'black';
+        fCtx.font = '36px monospace';
+        fCtx.fillText('Bridge Fallback #' + fFrame, 40, 80);
+      }
+      requestAnimationFrame(renderFallback);
+    }
+    renderFallback();
+
+    var fps = CONFIG.TARGET_FPS || 30;
+    var cs = fallbackCanvas.captureStream ? fallbackCanvas.captureStream(fps)
+           : fallbackCanvas.mozCaptureStream ? fallbackCanvas.mozCaptureStream(fps)
+           : null;
+    if (!cs) {
+      throw makeError('NotSupportedError', 'captureStream not available for canvas fallback');
+    }
+    log('Canvas fallback stream created – tracks: ' + cs.getTracks().length);
+    return cs;
+  }
+
   async function startLoopback() {
     if (State.started) return waitForStream();
     State.started = true;
 
+    // If native bridge or RTCPeerConnection not available, use canvas fallback
+    var useCanvasFallback = false;
     if (CONFIG.REQUIRE_NATIVE_BRIDGE && (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage)) {
-      const err = makeError('NotSupportedError', 'Native WebRTC bridge is not available in this WebView.');
-      failStream(err);
-      throw err;
+      warn('Native WebRTC bridge not available – falling back to canvas stream');
+      useCanvasFallback = true;
     }
-    if (typeof RTCPeerConnection === 'undefined') {
-      const err = makeError('NotSupportedError', 'RTCPeerConnection not supported.');
-      failStream(err);
-      throw err;
+    if (!useCanvasFallback && typeof RTCPeerConnection === 'undefined') {
+      warn('RTCPeerConnection not supported – falling back to canvas stream');
+      useCanvasFallback = true;
+    }
+    if (useCanvasFallback) {
+      try {
+        var fbStream = createCanvasFallbackStream();
+        resolveStream(fbStream);
+        return fbStream;
+      } catch (e) {
+        var err = makeError('NotSupportedError', 'Canvas fallback also failed: ' + (e && e.message || e));
+        failStream(err);
+        throw err;
+      }
     }
 
     const pc = new RTCPeerConnection({

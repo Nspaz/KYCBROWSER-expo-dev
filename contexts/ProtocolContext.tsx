@@ -313,7 +313,11 @@ const hashPin = async (pin: string): Promise<string> => {
 const DEFAULT_STEALTH_SETTINGS: StealthProtocolSettings = {
   autoInject: true,
   stealthByDefault: true,
-  respectSiteSettings: true,
+  // respectSiteSettings OFF by default so stealth injection is always active.
+  // With respectSiteSettings ON the effective stealth mode can be disabled for
+  // certain URLs, which would prevent getUserMedia override on sites like
+  // webcamtests.com where injection is essential.
+  respectSiteSettings: false,
   injectMotionData: true,
   loopVideo: true,
   sdpMasquerade: true,
@@ -321,10 +325,12 @@ const DEFAULT_STEALTH_SETTINGS: StealthProtocolSettings = {
   canvasResolution: '1080p',
   frameRate: 30,
   noiseInjectionLevel: 0.1,
-  aiAdaptiveQuality: true,
-  behavioralMimicry: true,
-  quantumTimingRandomness: true,
-  predictiveFrameOptimization: true,
+  // AI features disabled by default – Protocol0 (canvas-based injection) is more
+  // reliable for webcamtests.com and similar sites.  Enable individually when needed.
+  aiAdaptiveQuality: false,
+  behavioralMimicry: false,
+  quantumTimingRandomness: false,
+  predictiveFrameOptimization: false,
   stealthIntensity: 'moderate',
 };
 
@@ -342,15 +348,15 @@ const DEFAULT_RELAY_SETTINGS: RelayProtocolSettings = {
       enableParallelDecoding: true,
     },
     webrtc: {
-      enabled: true,
-      virtualTurnEnabled: true,
-      sdpManipulationEnabled: true,
+      enabled: false,
+      virtualTurnEnabled: false,
+      sdpManipulationEnabled: false,
       stealthMode: true,
     },
     gpu: {
-      enabled: true,
+      enabled: false,
       qualityPreset: 'high',
-      noiseInjection: true,
+      noiseInjection: false,
       noiseIntensity: 0.02,
     },
     asi: {
@@ -361,22 +367,22 @@ const DEFAULT_RELAY_SETTINGS: RelayProtocolSettings = {
       storeHistory: true,
     },
     crossDevice: {
-      enabled: true,
+      enabled: false,
       discoveryMethod: 'qr',
       targetLatencyMs: 100,
       autoReconnect: true,
       connectedDeviceId: null,
     },
     crypto: {
-      enabled: true,
-      frameSigning: true,
-      tamperDetection: true,
+      enabled: false,
+      frameSigning: false,
+      tamperDetection: false,
     },
   },
 };
 
 const DEFAULT_BRIDGE_SETTINGS: BridgeProtocolSettings = {
-  enabled: !IS_EXPO_GO,
+  enabled: true,
   preferNativeBridge: !IS_EXPO_GO,
   autoStart: true,
   signalingTimeoutMs: 12000,
@@ -504,7 +510,13 @@ const resolveActiveProtocol = (
   const firstEnabled = (Object.keys(nextProtocols) as ProtocolType[]).find(
     (protocolId) => nextProtocols[protocolId]?.enabled
   );
-  return firstEnabled ?? DEFAULT_ACTIVE_PROTOCOL;
+  if (firstEnabled) {
+    return firstEnabled;
+  }
+  // All protocols disabled – force-enable stealth as the most reliable fallback
+  // and return it so injection always has a working path.
+  nextProtocols.stealth = { ...nextProtocols.stealth, enabled: true };
+  return 'stealth';
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {

@@ -714,11 +714,36 @@ export function createAdvancedProtocol2Script(
           Logger.warn('Native bridge fallback failed:', e);
         }
       }
+      // Last-resort: try to create a canvas captureStream anyway (some
+      // environments lie about prototype support but still allow it on
+      // dynamically-created elements).
+      try {
+        var emergencyCanvas = document.createElement('canvas');
+        emergencyCanvas.width = CONFIG.TARGET_WIDTH || 1280;
+        emergencyCanvas.height = CONFIG.TARGET_HEIGHT || 720;
+        var eCtx = emergencyCanvas.getContext('2d');
+        if (eCtx) {
+          eCtx.fillStyle = 'green';
+          eCtx.fillRect(0, 0, emergencyCanvas.width, emergencyCanvas.height);
+        }
+        var emergencyStream = emergencyCanvas.captureStream(CONFIG.TARGET_FPS || 30);
+        if (emergencyStream && emergencyStream.getVideoTracks().length > 0) {
+          Logger.warn('Emergency canvas captureStream succeeded despite detection failure');
+          if (wantsAudio) addSilentAudio(emergencyStream);
+          spoofTrackMetadata(emergencyStream, constraints);
+          return emergencyStream;
+        }
+      } catch (ece) {
+        Logger.warn('Emergency canvas fallback also failed:', ece);
+      }
       notifyReactNative('unsupported', {
         reason: 'captureStream not supported in this WebView',
         protocol: 'advancedProtocol2',
       });
-      if (!CONFIG.STEALTH_MODE && originalGetUserMedia) {
+      // Last resort: delegate to the original getUserMedia regardless of
+      // stealth mode.  A real camera stream is better than an error when
+      // all injection methods have been exhausted.
+      if (originalGetUserMedia) {
         return originalGetUserMedia(constraints);
       }
       throw new DOMException('captureStream not supported', 'NotSupportedError');

@@ -259,9 +259,9 @@ export default function MotionBrowserScreen() {
       return;
     }
     const fallback =
-      enabledProtocolOptions[0]?.id ?? (IS_EXPO_GO ? 'websocket' : 'standard');
+      enabledProtocolOptions[0]?.id ?? (IS_EXPO_GO ? 'bridge' : 'stealth');
     if (fallback && fallback !== activeProtocol) {
-      setActiveProtocol(fallback);
+      setActiveProtocol(fallback as ProtocolType);
     }
   }, [activeProtocol, enabledProtocolOptions, protocols, setActiveProtocol]);
 
@@ -729,7 +729,7 @@ export default function MotionBrowserScreen() {
         loopVideo: standardSettings.loopVideo,
         mirrorVideo: protocolMirrorVideo,
         debugEnabled: developerModeEnabled,
-        permissionPromptEnabled: true,
+        permissionPromptEnabled: false,
       });
     }
     
@@ -1364,6 +1364,8 @@ export default function MotionBrowserScreen() {
         console.log('[App] Devices:', devices.length);
       } else {
         // Shield protocol: use media injection for body detection + harness overlay
+        // Disable permission prompt – forceSimulation is already true for shield, so
+        // there is no need to ask the user.  This eliminates a 30s timeout risk.
         const injectionOptions = {
           stealthMode: effectiveStealthMode,
           fallbackVideoUri,
@@ -1374,7 +1376,7 @@ export default function MotionBrowserScreen() {
           loopVideo: standardSettings.loopVideo,
           mirrorVideo: protocolMirrorVideo,
           debugEnabled: developerModeEnabled,
-          permissionPromptEnabled: true,
+          permissionPromptEnabled: false,
         };
         mediaInjectionScript = createMediaInjectionScript(devices, injectionOptions);
         injectionType = 'LEGACY';
