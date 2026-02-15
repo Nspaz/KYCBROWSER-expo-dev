@@ -221,6 +221,7 @@ export default function ProtocolTesterScreen() {
         console.log(`[WebView ${data.level}]`, data.message);
       }
     } catch {
+      // Intentionally ignore non-JSON or unrelated messages from the WebView.
     }
   }, [updateTestStatus]);
   

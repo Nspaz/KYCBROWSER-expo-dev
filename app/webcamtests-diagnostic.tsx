@@ -374,6 +374,7 @@ true;
         addLog(`[WebView] ${data.message}`);
       }
     } catch {
+      // Intentionally ignore non-JSON or non-protocol messages from the WebView.
     }
   }, [currentProtocol, addLog]);
   
