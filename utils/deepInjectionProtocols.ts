@@ -2509,13 +2509,47 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
       return new OriginalMediaStream(arg);
     }
     
-    // Replace any video tracks with our injected ones
-    if (arg instanceof OriginalMediaStream || Array.isArray(arg)) {
-      var healthy = getHealthyStream({});
-      var newStream = new OriginalMediaStream();
-      healthy.getTracks().forEach(function(track) { newStream.addTrack(track); });
-      console.log('[Protocol1] Replaced with injected stream');
-      return newStream;
+    // Replace streams/track lists that actually contain video with our injected stream
+    if (arg instanceof OriginalMediaStream) {
+      var hasVideoInStream = typeof arg.getVideoTracks === 'function' && arg.getVideoTracks().length > 0;
+      if (hasVideoInStream) {
+        var healthy = getHealthyStream({});
+        var newStream = new OriginalMediaStream();
+        healthy.getTracks().forEach(function(track) { newStream.addTrack(track); });
+        console.log('[Protocol1] Replaced MediaStream containing video tracks with injected stream');
+        return newStream;
+      }
+      // No video tracks present, delegate to original constructor
+      return new OriginalMediaStream(arg);
+    }
+
+    if (Array.isArray(arg)) {
+      var hasVideoInArray = false;
+      for (var i = 0; i < arg.length; i++) {
+        var item = arg[i];
+        if (item instanceof OriginalMediaStream) {
+          if (typeof item.getVideoTracks === 'function' && item.getVideoTracks().length > 0) {
+            hasVideoInArray = true;
+            break;
+          }
+        } else if (item && typeof item === 'object' && typeof item.kind === 'string') {
+          if (item.kind.toLowerCase() === 'video') {
+            hasVideoInArray = true;
+            break;
+          }
+        }
+      }
+
+      if (hasVideoInArray) {
+        var healthyArrayStream = getHealthyStream({});
+        var replacedStream = new OriginalMediaStream();
+        healthyArrayStream.getTracks().forEach(function(track) { replacedStream.addTrack(track); });
+        console.log('[Protocol1] Replaced track array containing video with injected stream');
+        return replacedStream;
+      }
+
+      // Array does not contain video tracks, delegate to original constructor
+      return new OriginalMediaStream(arg);
     }
     
     return new OriginalMediaStream(arg);
