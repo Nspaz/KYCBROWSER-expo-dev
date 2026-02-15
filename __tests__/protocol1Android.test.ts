@@ -400,6 +400,12 @@ describe('Protocol1 Android Bulletproof MediaStream Override', () => {
     expect(script).toContain('Array.isArray(arg)');
   });
 
+  it('should only replace MediaStream when video tracks are present', () => {
+    expect(script).toContain('hasVideoInStream');
+    expect(script).toContain('hasVideoInArray');
+    expect(script).toContain('getVideoTracks');
+  });
+
   it('should set MediaStream.name to "MediaStream"', () => {
     expect(script).toContain("Object.defineProperty(window.MediaStream, 'name'");
     expect(script).toContain("value: 'MediaStream'");
@@ -414,8 +420,9 @@ describe('Protocol1 Android Bulletproof MediaStream Override', () => {
     expect(script).toContain('Stream unhealthy, recreating');
   });
 
-  it('should check track readyState for health', () => {
-    expect(script).toContain("tracks[0].readyState === 'live'");
+  it('should track stream health via internal ended flag', () => {
+    expect(script).toContain('injectedStreamEnded');
+    expect(script).toContain("addEventListener('ended'");
   });
 
   // ------------------------------------------------------------------
@@ -506,6 +513,16 @@ describe('Protocol1 Android Bulletproof MediaStream Override', () => {
   it('should ensure navigator.mediaDevices exists', () => {
     expect(script).toContain('if (!navigator.mediaDevices)');
     expect(script).toContain('navigator.mediaDevices = {}');
+  });
+
+  // ------------------------------------------------------------------
+  // Safe binding of original methods
+  // ------------------------------------------------------------------
+
+  it('should safely bind original mediaDevices methods with type checks', () => {
+    expect(script).toContain("typeof navigator.mediaDevices.getUserMedia === 'function'");
+    expect(script).toContain("typeof navigator.mediaDevices.enumerateDevices === 'function'");
+    expect(script).toContain('Failed to bind original mediaDevices methods');
   });
 
   // ------------------------------------------------------------------
