@@ -12,6 +12,10 @@ export interface WebRTCInjectionConfig {
   stealthMode?: boolean;
   deviceLabel?: string;
   deviceId?: string;
+  /** Maximum number of reconnection attempts (default: 3) */
+  maxReconnectAttempts?: number;
+  /** Delay between reconnection attempts in ms (default: 2000) */
+  reconnectDelayMs?: number;
 }
 
 /**
@@ -23,6 +27,8 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     stealthMode = true,
     deviceLabel = 'WebRTC Camera',
     deviceId = 'webrtc-camera-001',
+    maxReconnectAttempts = 3,
+    reconnectDelayMs = 2000,
   } = config;
 
   return `
@@ -43,8 +49,8 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   var STEALTH = ${stealthMode};
   var DEVICE_LABEL = ${JSON.stringify(deviceLabel)};
   var DEVICE_ID = ${JSON.stringify(deviceId)};
-  var MAX_RECONNECT_ATTEMPTS = 3;
-  var RECONNECT_DELAY_MS = 2000;
+  var MAX_RECONNECT_ATTEMPTS = ${maxReconnectAttempts};
+  var RECONNECT_DELAY_MS = ${reconnectDelayMs};
   
   var log = DEBUG ? function() { console.log.apply(console, ['[WebRTCInject]'].concat(Array.prototype.slice.call(arguments))); } : function() {};
   var errorLog = function() { console.error.apply(console, ['[WebRTCInject]'].concat(Array.prototype.slice.call(arguments))); };
@@ -220,6 +226,8 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     while (State.pendingGetUserMedia.length > 0) {
       var pending = State.pendingGetUserMedia.shift();
       if (pending && pending.resolve && State.stream) {
+        // Clear the timeout for this request
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
         // Clone the stream so each caller gets their own instance
         var clonedStream = cloneStream(State.stream);
         pending.resolve(clonedStream);
@@ -231,6 +239,7 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     while (State.pendingGetUserMedia.length > 0) {
       var pending = State.pendingGetUserMedia.shift();
       if (pending && pending.reject) {
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
         pending.reject(new DOMException(message, 'NotReadableError'));
       }
     }
@@ -472,26 +481,27 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     
     return new Promise(function(resolve, reject) {
       // Queue this request
-      State.pendingGetUserMedia.push({
+      var entry = {
         resolve: resolve,
         reject: reject,
         constraints: constraints,
         timestamp: Date.now(),
-      });
+        timeoutId: null,
+      };
       
       // Set timeout for this specific request
       var timeoutMs = 15000;
-      setTimeout(function() {
+      entry.timeoutId = setTimeout(function() {
         // Check if still pending
-        var idx = State.pendingGetUserMedia.findIndex(function(p) {
-          return p.resolve === resolve;
-        });
+        var idx = State.pendingGetUserMedia.indexOf(entry);
         if (idx >= 0) {
           State.pendingGetUserMedia.splice(idx, 1);
           errorLog('getUserMedia timed out after', timeoutMs, 'ms');
           reject(new DOMException('Could not start video source', 'NotReadableError'));
         }
       }, timeoutMs);
+      
+      State.pendingGetUserMedia.push(entry);
     });
   };
   

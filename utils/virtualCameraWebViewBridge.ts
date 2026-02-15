@@ -176,13 +176,15 @@ export class VirtualCameraWebViewBridge {
 
       // Deliver the frame to the WebView injection script
       // The injection script will draw it to the canvas
+      // Use JSON.stringify for safe embedding of the base64 string
+      const safeBase64 = JSON.stringify(base64Frame);
       webView.injectJavaScript(`
         (function() {
           try {
             if (window.__wsBridgeReceiveFrame) {
               window.__wsBridgeReceiveFrame({
                 frame: {
-                  data: ${JSON.stringify(base64Frame)},
+                  data: ${safeBase64},
                   width: ${this.config.width},
                   height: ${this.config.height},
                   timestamp: ${Date.now()},

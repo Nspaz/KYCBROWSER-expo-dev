@@ -251,11 +251,13 @@ export function useWebRTCInjection(
       const webView = webViewRef.current;
       if (webView && webView.injectJavaScript) {
         const serialized = JSON.stringify(message);
+        // Double-stringify to safely embed JSON as a string literal in JS
+        const escaped = JSON.stringify(serialized);
         webView.injectJavaScript(`
           (function() {
             try {
               if (window.__webrtcHandleMessage) {
-                window.__webrtcHandleMessage(${serialized});
+                window.__webrtcHandleMessage(JSON.parse(${escaped}));
               }
             } catch(e) { console.error('[WebRTCBridge] Message handling error:', e); }
           })();

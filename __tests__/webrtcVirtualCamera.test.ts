@@ -75,6 +75,21 @@ describe('WebRTC Injection Script', () => {
       expect(script).toContain('cloneStream');
     });
 
+    it('should allow configuring reconnect parameters', () => {
+      const script = createWebRTCInjectionScript({
+        maxReconnectAttempts: 5,
+        reconnectDelayMs: 3000,
+      });
+      expect(script).toContain('MAX_RECONNECT_ATTEMPTS = 5');
+      expect(script).toContain('RECONNECT_DELAY_MS = 3000');
+    });
+
+    it('should include timeout cleanup in pending getUserMedia', () => {
+      const script = createWebRTCInjectionScript();
+      expect(script).toContain('timeoutId');
+      expect(script).toContain('clearTimeout');
+    });
+
     it('should include ICE restart support', () => {
       const script = createWebRTCInjectionScript();
       expect(script).toContain('restartIce');
