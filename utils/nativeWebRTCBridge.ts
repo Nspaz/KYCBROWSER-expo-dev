@@ -112,8 +112,17 @@ export class NativeWebRTCBridge {
 
   private sendToWebView(message: { type: string; requestId: string; sdp?: string; candidate?: any; message?: string }) {
     const payload = JSON.stringify(message);
+    // Use proper escaping for the injected script - the JSON string is
+    // passed as a parsed object, not as a string literal, so we parse it inside.
     this.webViewRef.current?.injectJavaScript(`
-      window.__nativeWebRTCBridgeHandleMessage && window.__nativeWebRTCBridgeHandleMessage(${payload});
+      (function() {
+        try {
+          var msg = JSON.parse(${JSON.stringify(payload)});
+          if (window.__nativeWebRTCBridgeHandleMessage) {
+            window.__nativeWebRTCBridgeHandleMessage(msg);
+          }
+        } catch(e) { console.error('[NativeBridge] Message error:', e); }
+      })();
       true;
     `);
   }

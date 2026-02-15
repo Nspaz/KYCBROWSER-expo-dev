@@ -12,6 +12,8 @@ export interface VirtualCameraModuleType {
     width: number;
     height: number;
     error: string | null;
+    framesDelivered: number;
+    lastDeliveryTimeMs: number;
   }>;
 
   enable(config: {
@@ -58,6 +60,8 @@ try {
         width: 0,
         height: 0,
         error: 'Native module not available - this feature requires a native build',
+        framesDelivered: 0,
+        lastDeliveryTimeMs: 0,
       };
     },
     async enable() {

@@ -145,7 +145,11 @@ export class WebRtcLoopbackBridge {
 
   private sendToWebView(script: string) {
     if (!this.webViewRef?.current) return;
-    this.webViewRef.current.injectJavaScript(`${script} true;`);
+    // Wrap in try-catch and append `true;` for WebView compatibility
+    this.webViewRef.current.injectJavaScript(`
+      (function() { try { ${script} } catch(e) { console.error('[LoopbackBridge]', e); } })();
+      true;
+    `);
   }
 
   private ensureNativeAvailable(requireNative: boolean): boolean {
