@@ -2339,16 +2339,31 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   // STREAM HEALTH CHECK
   // ============================================================================
   
+  // Track real stream health independently of any spoofed readyState
+  var injectedStreamEnded = false;
+
   function getHealthyStream(constraints) {
     if (injectedStream) {
-      var tracks = injectedStream.getVideoTracks();
-      if (tracks.length > 0 && tracks[0].readyState === 'live') {
+      if (!injectedStreamEnded) {
         return injectedStream;
       }
       console.log('[Protocol1] Stream unhealthy, recreating');
       injectedStream = null;
+      injectedStreamEnded = false;
     }
+
     injectedStream = createInjectedStream(constraints);
+
+    try {
+      var tracks = injectedStream.getVideoTracks();
+      if (tracks.length > 0 && tracks[0] && typeof tracks[0].addEventListener === 'function') {
+        tracks[0].addEventListener('ended', function() {
+          injectedStreamEnded = true;
+        });
+      }
+    } catch (e) {
+      console.warn('[Protocol1] Unable to attach ended listener to injected stream:', e);
+    }
     return injectedStream;
   }
   
