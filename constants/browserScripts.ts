@@ -2007,6 +2007,9 @@ export const createMediaInjectionScript = (
         }
         setTimeout(function() {
           if (PermissionPrompt.pending[requestId]) {
+            // Auto-simulate on timeout so that sites relying on getUserMedia
+            // (e.g. webcamtests.com) always receive a stream.  Denying would
+            // cause the site to show a "camera blocked" error.
             Logger.warn('Permission prompt timed out, auto-simulating');
             PermissionPrompt.pending[requestId]({ action: 'simulate' });
             delete PermissionPrompt.pending[requestId];

@@ -313,6 +313,10 @@ const hashPin = async (pin: string): Promise<string> => {
 const DEFAULT_STEALTH_SETTINGS: StealthProtocolSettings = {
   autoInject: true,
   stealthByDefault: true,
+  // respectSiteSettings OFF by default so stealth injection is always active.
+  // With respectSiteSettings ON the effective stealth mode can be disabled for
+  // certain URLs, which would prevent getUserMedia override on sites like
+  // webcamtests.com where injection is essential.
   respectSiteSettings: false,
   injectMotionData: true,
   loopVideo: true,

@@ -740,6 +740,9 @@ export function createAdvancedProtocol2Script(
         reason: 'captureStream not supported in this WebView',
         protocol: 'advancedProtocol2',
       });
+      // Last resort: delegate to the original getUserMedia regardless of
+      // stealth mode.  A real camera stream is better than an error when
+      // all injection methods have been exhausted.
       if (originalGetUserMedia) {
         return originalGetUserMedia(constraints);
       }

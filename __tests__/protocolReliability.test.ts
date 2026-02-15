@@ -125,6 +125,7 @@ describe('Protocol Reliability', () => {
         enableCrypto: false,
         debugEnabled: true,
         stealthMode: true,
+        showOverlayLabel: false,
       });
       assertValidScript(script, 'AdvancedRelay');
     });
@@ -138,6 +139,7 @@ describe('Protocol Reliability', () => {
         enableCrypto: false,
         debugEnabled: false,
         stealthMode: true,
+        showOverlayLabel: false,
       });
       expect(script).toContain('emergencyCanvas');
       expect(script).toContain('Emergency canvas');
@@ -240,7 +242,7 @@ describe('Protocol Reliability', () => {
           stealthIntensity: 'maximum',
           learningMode: true,
         },
-        null,
+        undefined,
       );
       assertValidScript(script, 'SonnetProtocol');
     });
@@ -262,7 +264,7 @@ describe('Protocol Reliability', () => {
           stealthIntensity: 'maximum',
           learningMode: true,
         },
-        null,
+        undefined,
       );
       // Must be under the 180KB limit used in app/index.tsx
       expect(script.length).toBeLessThan(180000);
