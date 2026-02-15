@@ -438,8 +438,8 @@ describe('WebRTC Injection Script MediaDeviceInfo improvements', () => {
   });
 
   it('should include MediaDeviceInfo prototype factory', () => {
-    expect(script).toContain('SpoofedMDI');
-    expect(script).toContain('SpoofedIDI');
+    expect(script).toContain('SpoofedMediaDeviceInfo');
+    expect(script).toContain('SpoofedInputDeviceInfo');
   });
 
   it('should include createDeviceInfo factory', () => {
@@ -508,6 +508,37 @@ describe('WebRTC Injection Script MediaDeviceInfo improvements', () => {
 
   it('should use getter-based properties on device info', () => {
     expect(script).toContain('Object.defineProperties(obj');
+  });
+
+  it('should include length property masking in maskAsNative', () => {
+    expect(script).toContain("Object.defineProperty(fn, 'length'");
+  });
+
+  it('should include facingMode parameter in createDeviceInfo', () => {
+    expect(script).toContain('function createDeviceInfo(devId, kind, label, grpId, facingMode)');
+  });
+
+  it('should store facingMode privately for getCapabilities', () => {
+    expect(script).toContain('_facingMode');
+    expect(script).toContain("enumerable: false");
+  });
+
+  it('should include aspectRatio in getCapabilities', () => {
+    expect(script).toContain('aspectRatio: { min: 0.5, max: 2.0 }');
+  });
+
+  it('should include getSupportedConstraints override', () => {
+    expect(script).toContain("maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints')");
+  });
+
+  it('should return comprehensive supported constraints', () => {
+    expect(script).toContain('autoGainControl: true');
+    expect(script).toContain('echoCancellation: true');
+    expect(script).toContain('noiseSuppression: true');
+    expect(script).toContain('sampleRate: true');
+    expect(script).toContain('sampleSize: true');
+    expect(script).toContain('channelCount: true');
+    expect(script).toContain('displaySurface: true');
   });
 });
 
