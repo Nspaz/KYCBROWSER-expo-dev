@@ -1951,9 +1951,26 @@ true;
 }
 
 /**
- * PROTOCOL 1: MediaStream Constructor Override
- * Intercepts at the MediaStream level
- * Works for sites that construct MediaStream objects
+ * PROTOCOL 1: MediaStream Constructor Override (Bulletproof Android)
+ * 
+ * Intercepts at the MediaStream constructor level AND getUserMedia.
+ * Works for sites that construct MediaStream objects directly.
+ * 
+ * Features:
+ * - MediaStream constructor override with proper prototype chain
+ * - getUserMedia interception with canvas-based video stream
+ * - Bulletproof MediaDeviceInfo spoofing with toJSON, Symbol.hasInstance
+ * - Native function toString masking to avoid detection
+ * - navigator.permissions.query override (camera/microphone granted)
+ * - getSupportedConstraints completeness
+ * - Track metadata spoofing (id, label, readyState, muted, enabled)
+ * - Track getCapabilities/getConstraints/applyConstraints
+ * - Silent audio track injection when audio is requested
+ * - ondevicechange event support
+ * - Stream health check (auto-recreate on ended tracks)
+ * - React Native WebView notification
+ * 
+ * EXPO GO COMPATIBLE: 100% WebView-based, no native modules required.
  */
 export function createProtocol1MediaStreamOverride(config: Partial<InjectionConfig> = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
@@ -1963,7 +1980,7 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   'use strict';
   
   // ============================================================================
-  // PROTOCOL 1: MEDIASTREAM CONSTRUCTOR OVERRIDE
+  // PROTOCOL 1: MEDIASTREAM CONSTRUCTOR OVERRIDE (BULLETPROOF)
   // ============================================================================
   
   if (window.__protocol1Initialized) {
@@ -1973,44 +1990,187 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   window.__protocol1Initialized = true;
   
   console.log('[Protocol1] ===== MEDIASTREAM OVERRIDE =====');
+  console.log('[Protocol1] Target resolution: ${cfg.width}x${cfg.height} @ ${cfg.fps}fps');
   
-  const CONFIG = ${JSON.stringify(cfg)};
+  var CONFIG = ${JSON.stringify(cfg)};
   
-  // Store original constructors
-  const OriginalMediaStream = window.MediaStream;
-  const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+  // Store original constructors IMMEDIATELY
+  var OriginalMediaStream = window.MediaStream;
+  var originalGetUserMedia = null;
+  var originalEnumerateDevices = null;
+  if (navigator.mediaDevices) {
+    try {
+      if (typeof navigator.mediaDevices.getUserMedia === 'function') {
+        originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      }
+      if (typeof navigator.mediaDevices.enumerateDevices === 'function') {
+        originalEnumerateDevices = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+      }
+    } catch (e) {
+      console.warn('[Protocol1] Failed to bind original mediaDevices methods:', e);
+    }
+  }
   
-  let injectedStream = null;
-  let canvas = null;
-  let ctx = null;
-  let isAnimating = false;
-  let frameCount = 0;
+  var injectedStream = null;
+  var canvas = null;
+  var ctx = null;
+  var animationFrameId = null;
+  var isAnimating = false;
+  var frameCount = 0;
+  var startTime = 0;
   
   // ============================================================================
-  // CANVAS & ANIMATION (Simplified)
+  // NATIVE FUNCTION MASKING
+  // ============================================================================
+  
+  function maskAsNative(fn, name) {
+    if (!fn) return;
+    var nativeStr = 'function ' + name + '() { [native code] }';
+    try {
+      fn.toString = function() { return nativeStr; };
+      if (fn.toString && fn.toString.toString) {
+        fn.toString.toString = function() { return 'function toString() { [native code] }'; };
+      }
+    } catch (e) {
+      // Ignore failures when redefining toString in restricted environments
+    }
+  
+    var originalLength = fn.length;
+    try {
+      Object.defineProperty(fn, 'length', {
+        value: typeof originalLength === 'number' ? originalLength : 0,
+        configurable: true
+      });
+    } catch (e) {
+      // Some engines do not allow redefining Function#length; fail silently
+    }
+  
+    try {
+      Object.defineProperty(fn, 'name', {
+        value: name,
+        configurable: true
+      });
+    } catch (e) {
+      // Some engines do not allow redefining Function#name; fail silently
+    }
+  }
+  
+  // ============================================================================
+  // MEDIADEVICEINFO SPOOFING
+  // ============================================================================
+  
+  var RealMediaDeviceInfo = window.MediaDeviceInfo || function MediaDeviceInfo() {};
+  var RealInputDeviceInfo = window.InputDeviceInfo || function InputDeviceInfo() {};
+  
+  function SpoofedMediaDeviceInfo() {}
+  SpoofedMediaDeviceInfo.prototype = Object.create(RealMediaDeviceInfo.prototype || Object.prototype);
+  SpoofedMediaDeviceInfo.prototype.constructor = SpoofedMediaDeviceInfo;
+  
+  SpoofedMediaDeviceInfo.prototype.toJSON = function() {
+    return {
+      deviceId: this.deviceId,
+      kind: this.kind,
+      label: this.label,
+      groupId: this.groupId
+    };
+  };
+  maskAsNative(SpoofedMediaDeviceInfo.prototype.toJSON, 'toJSON');
+  
+  function SpoofedInputDeviceInfo() {}
+  SpoofedInputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+  SpoofedInputDeviceInfo.prototype.constructor = SpoofedInputDeviceInfo;
+  
+  SpoofedInputDeviceInfo.prototype.getCapabilities = function() {
+    if (this.kind === 'videoinput') {
+      return {
+        width: { min: 1, max: CONFIG.width },
+        height: { min: 1, max: CONFIG.height },
+        frameRate: { min: 1, max: CONFIG.fps },
+        aspectRatio: { min: 0.5, max: 2.0 },
+        facingMode: ['user', 'environment'],
+        deviceId: this.deviceId,
+        resizeMode: ['none', 'crop-and-scale']
+      };
+    }
+    return {};
+  };
+  maskAsNative(SpoofedInputDeviceInfo.prototype.getCapabilities, 'getCapabilities');
+  
+  // Patch Symbol.hasInstance so spoofed objects pass instanceof checks
+  if (typeof Symbol !== 'undefined' && Symbol.hasInstance) {
+    try {
+      Object.defineProperty(RealMediaDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) {
+          return inst instanceof SpoofedMediaDeviceInfo || inst instanceof SpoofedInputDeviceInfo;
+        }
+      });
+      Object.defineProperty(RealInputDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) {
+          return inst instanceof SpoofedInputDeviceInfo;
+        }
+      });
+    } catch (e) {
+      console.warn('[Protocol1] Symbol.hasInstance patch failed:', e);
+    }
+  }
+  
+  function createDeviceInfo(deviceId, kind, label, groupId) {
+    var obj = (kind === 'videoinput') ? new SpoofedInputDeviceInfo() : new SpoofedMediaDeviceInfo();
+    Object.defineProperties(obj, {
+      deviceId: { get: function() { return deviceId; }, enumerable: true, configurable: true },
+      kind:     { get: function() { return kind; }, enumerable: true, configurable: true },
+      label:    { get: function() { return label; }, enumerable: true, configurable: true },
+      groupId:  { get: function() { return groupId; }, enumerable: true, configurable: true }
+    });
+    return obj;
+  }
+  
+  // Also patch the global prototypes
+  if (window.MediaDeviceInfo) {
+    MediaDeviceInfo.prototype.toJSON = function() {
+      return { deviceId: this.deviceId, kind: this.kind, label: this.label, groupId: this.groupId };
+    };
+    maskAsNative(MediaDeviceInfo.prototype.toJSON, 'toJSON');
+  }
+  if (window.InputDeviceInfo) {
+    InputDeviceInfo.prototype.getCapabilities = SpoofedInputDeviceInfo.prototype.getCapabilities;
+    maskAsNative(InputDeviceInfo.prototype.getCapabilities, 'getCapabilities');
+  }
+  
+  // ============================================================================
+  // CANVAS & ANIMATION
   // ============================================================================
   
   function initCanvas() {
-    if (canvas) return;
+    if (canvas) return canvas;
     
     canvas = document.createElement('canvas');
     canvas.width = CONFIG.width;
     canvas.height = CONFIG.height;
-    ctx = canvas.getContext('2d', { alpha: false });
+    ctx = canvas.getContext('2d', { 
+      alpha: false,
+      desynchronized: true,
+      willReadFrequently: false
+    });
     
-    console.log('[Protocol1] Canvas initialized');
+    console.log('[Protocol1] Canvas initialized:', CONFIG.width, 'x', CONFIG.height);
+    return canvas;
   }
   
   function animate() {
-    if (!isAnimating) return;
+    if (!isAnimating || !canvas || !ctx) return;
     
-    const t = performance.now() / 1000;
-    const w = CONFIG.width;
-    const h = CONFIG.height;
+    var t = performance.now() / 1000;
+    var w = CONFIG.width;
+    var h = CONFIG.height;
     
-    // Simple animated gradient
-    const hue = (t * 50) % 360;
-    ctx.fillStyle = 'hsl(' + hue + ', 50%, 30%)';
+    // Animated gradient
+    var hue = (t * 50) % 360;
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'hsl(' + hue + ', 60%, 30%)');
+    grad.addColorStop(0.5, 'hsl(' + ((hue + 120) % 360) + ', 60%, 20%)');
+    grad.addColorStop(1, 'hsl(' + ((hue + 240) % 360) + ', 60%, 30%)');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
     
     // Center circle
@@ -2025,42 +2185,161 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
     ctx.textAlign = 'center';
     ctx.fillText('PROTOCOL 1', w/2, h/2 + 15);
     
+    // Debug overlay
+    if (CONFIG.showDebugOverlay) {
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(10, h - 100, 400, 90);
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 24px monospace';
+      ctx.fillText('PROTOCOL 1 ACTIVE', 20, h - 70);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '16px monospace';
+      ctx.fillText('Frame: ' + frameCount, 20, h - 45);
+      ctx.fillText('Time: ' + t.toFixed(2) + 's', 20, h - 20);
+    }
+    
     frameCount++;
-    requestAnimationFrame(animate);
+    animationFrameId = requestAnimationFrame(animate);
   }
   
   function startAnimation() {
     if (isAnimating) return;
     initCanvas();
     isAnimating = true;
+    startTime = performance.now();
+    frameCount = 0;
     animate();
     console.log('[Protocol1] Animation started');
   }
   
-  function createInjectedStream() {
+  function stopAnimation() {
+    isAnimating = false;
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+    console.log('[Protocol1] Animation stopped');
+  }
+  
+  // ============================================================================
+  // STREAM CREATION
+  // ============================================================================
+  
+  function createInjectedStream(constraints) {
     startAnimation();
     
     try {
-      const stream = canvas.captureStream(CONFIG.fps);
-      const track = stream.getVideoTracks()[0];
+      var stream = canvas.captureStream(CONFIG.fps);
       
-      // Spoof track metadata
-      track.getSettings = function() {
+      if (!stream || stream.getVideoTracks().length === 0) {
+        throw new Error('Failed to create stream from canvas');
+      }
+      
+      var videoTrack = stream.getVideoTracks()[0];
+      
+      // Spoof track id
+      Object.defineProperty(videoTrack, 'id', {
+        get: function() { return 'track_' + CONFIG.deviceId; },
+        configurable: true
+      });
+      
+      // Spoof track label
+      Object.defineProperty(videoTrack, 'label', {
+        get: function() { return CONFIG.deviceLabel; },
+        configurable: true
+      });
+      
+      // Spoof track readyState
+      Object.defineProperty(videoTrack, 'readyState', {
+        get: function() { return 'live'; },
+        configurable: true
+      });
+      
+      // Spoof track muted
+      Object.defineProperty(videoTrack, 'muted', {
+        get: function() { return false; },
+        configurable: true
+      });
+      
+      // Spoof track enabled
+      Object.defineProperty(videoTrack, 'enabled', {
+        get: function() { return true; },
+        set: function() {},
+        configurable: true
+      });
+      
+      // Spoof track kind
+      Object.defineProperty(videoTrack, 'kind', {
+        get: function() { return 'video'; },
+        configurable: true
+      });
+      
+      // Spoof getSettings
+      videoTrack.getSettings = function() {
         return {
           width: CONFIG.width,
           height: CONFIG.height,
           frameRate: CONFIG.fps,
-          facingMode: 'user',
-          deviceId: CONFIG.deviceId
+          aspectRatio: CONFIG.width / CONFIG.height,
+          facingMode: (constraints && constraints.video && constraints.video.facingMode) || 'user',
+          deviceId: CONFIG.deviceId,
+          groupId: 'group_' + CONFIG.deviceId,
+          resizeMode: 'none'
         };
       };
       
-      Object.defineProperty(track, 'label', {
-        get: () => CONFIG.deviceLabel,
-        configurable: true
-      });
+      // Spoof getCapabilities
+      videoTrack.getCapabilities = function() {
+        return {
+          width: { min: 1, max: CONFIG.width },
+          height: { min: 1, max: CONFIG.height },
+          frameRate: { min: 1, max: CONFIG.fps },
+          aspectRatio: { min: 0.5, max: 2.0 },
+          facingMode: ['user', 'environment'],
+          deviceId: CONFIG.deviceId,
+          resizeMode: ['none', 'crop-and-scale']
+        };
+      };
+      
+      // Spoof getConstraints
+      videoTrack.getConstraints = function() {
+        return (constraints && constraints.video) ? constraints.video : {};
+      };
+      
+      // Spoof applyConstraints
+      videoTrack.applyConstraints = function() {
+        return Promise.resolve();
+      };
+      
+      // Add silent audio if requested
+      if (constraints && constraints.audio) {
+        try {
+          var AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            var audioCtx = new AudioContext();
+            var oscillator = audioCtx.createOscillator();
+            var gainNode = audioCtx.createGain();
+            var destination = audioCtx.createMediaStreamDestination();
+            
+            gainNode.gain.value = 0;
+            oscillator.connect(gainNode);
+            gainNode.connect(destination);
+            oscillator.start();
+            
+            destination.stream.getAudioTracks().forEach(function(track) {
+              stream.addTrack(track);
+            });
+            
+            console.log('[Protocol1] Added silent audio track');
+          }
+        } catch (e) {
+          console.warn('[Protocol1] Failed to add audio:', e);
+        }
+      }
       
       console.log('[Protocol1] Injected stream created');
+      console.log('[Protocol1]   - Video tracks:', stream.getVideoTracks().length);
+      console.log('[Protocol1]   - Audio tracks:', stream.getAudioTracks().length);
       return stream;
     } catch (e) {
       console.error('[Protocol1] Stream creation failed:', e);
@@ -2069,81 +2348,264 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   }
   
   // ============================================================================
+  // STREAM HEALTH CHECK
+  // ============================================================================
+  
+  // Track real stream health independently of any spoofed readyState
+  var injectedStreamEnded = false;
+
+  function getHealthyStream(constraints) {
+    if (injectedStream) {
+      if (!injectedStreamEnded) {
+        return injectedStream;
+      }
+      console.log('[Protocol1] Stream unhealthy, recreating');
+      injectedStream = null;
+      injectedStreamEnded = false;
+    }
+
+    injectedStream = createInjectedStream(constraints);
+
+    try {
+      var tracks = injectedStream.getVideoTracks();
+      if (tracks.length > 0 && tracks[0] && typeof tracks[0].addEventListener === 'function') {
+        tracks[0].addEventListener('ended', function() {
+          injectedStreamEnded = true;
+        });
+      }
+    } catch (e) {
+      console.warn('[Protocol1] Unable to attach ended listener to injected stream:', e);
+    }
+    return injectedStream;
+  }
+  
+  // ============================================================================
   // API OVERRIDES
   // ============================================================================
   
+  // Ensure navigator.mediaDevices exists
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {};
+  }
+  
   // Override getUserMedia
-  if (navigator.mediaDevices) {
-    navigator.mediaDevices.getUserMedia = async function(constraints) {
-      console.log('[Protocol1] getUserMedia intercepted:', constraints);
-      
-      if (constraints?.video) {
-        try {
-          if (!injectedStream) {
-            injectedStream = createInjectedStream();
-          }
-          return Promise.resolve(injectedStream);
-        } catch (e) {
-          console.error('[Protocol1] Failed:', e);
-          if (originalGetUserMedia) {
-            return originalGetUserMedia(constraints);
-          }
-          throw e;
-        }
-      }
-      
-      if (originalGetUserMedia) {
-        return originalGetUserMedia(constraints);
-      }
-      throw new Error('getUserMedia not available');
-    };
+  navigator.mediaDevices.getUserMedia = async function(constraints) {
+    console.log('[Protocol1] getUserMedia INTERCEPTED');
     
-    navigator.mediaDevices.enumerateDevices = async function() {
-      return [{
-        deviceId: CONFIG.deviceId,
-        groupId: 'group1',
-        kind: 'videoinput',
-        label: CONFIG.deviceLabel
-      }];
+    if (constraints && constraints.video) {
+      try {
+        var stream = getHealthyStream(constraints);
+        return Promise.resolve(stream);
+      } catch (e) {
+        console.error('[Protocol1] Injection failed:', e);
+        if (originalGetUserMedia) {
+          return originalGetUserMedia(constraints);
+        }
+        throw e;
+      }
+    }
+    
+    // Audio-only or no constraints - use original
+    if (originalGetUserMedia) {
+      return originalGetUserMedia(constraints);
+    }
+    throw new DOMException('Requested device not found', 'NotFoundError');
+  };
+  maskAsNative(navigator.mediaDevices.getUserMedia, 'getUserMedia');
+  
+  // Override enumerateDevices
+  navigator.mediaDevices.enumerateDevices = async function() {
+    console.log('[Protocol1] enumerateDevices intercepted');
+    
+    var devices = [
+      createDeviceInfo(CONFIG.deviceId, 'videoinput', CONFIG.deviceLabel, 'group_' + CONFIG.deviceId),
+      createDeviceInfo('mic-' + CONFIG.deviceId, 'audioinput', 'Microphone', 'group_' + CONFIG.deviceId),
+      createDeviceInfo('speaker-default', 'audiooutput', 'Speaker', 'group_speaker')
+    ];
+    
+    console.log('[Protocol1] Returning', devices.length, 'devices');
+    return Promise.resolve(devices);
+  };
+  maskAsNative(navigator.mediaDevices.enumerateDevices, 'enumerateDevices');
+  
+  // Override getSupportedConstraints
+  navigator.mediaDevices.getSupportedConstraints = function() {
+    return {
+      width: true,
+      height: true,
+      aspectRatio: true,
+      frameRate: true,
+      facingMode: true,
+      resizeMode: true,
+      deviceId: true,
+      groupId: true,
+      autoGainControl: true,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: true,
+      sampleSize: true,
+      channelCount: true,
+      latency: true,
+      volume: true,
+      displaySurface: true,
+      cursor: true,
+      logicalSurface: true
+    };
+  };
+  maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  
+  // ============================================================================
+  // ONDEVICECHANGE EVENT SUPPORT
+  // ============================================================================
+  
+  var deviceChangeHandler = null;
+  Object.defineProperty(navigator.mediaDevices, 'ondevicechange', {
+    get: function() { return deviceChangeHandler; },
+    set: function(fn) { deviceChangeHandler = fn; },
+    configurable: true,
+    enumerable: true
+  });
+  
+  if (!navigator.mediaDevices.addEventListener) {
+    var eventHandlers = {};
+    navigator.mediaDevices.addEventListener = function(type, handler) {
+      if (!eventHandlers[type]) eventHandlers[type] = [];
+      eventHandlers[type].push(handler);
+    };
+    navigator.mediaDevices.removeEventListener = function(type, handler) {
+      if (!eventHandlers[type]) return;
+      eventHandlers[type] = eventHandlers[type].filter(function(h) { return h !== handler; });
+    };
+    navigator.mediaDevices.dispatchEvent = function(event) {
+      var handlers = eventHandlers[event.type] || [];
+      handlers.forEach(function(h) { h(event); });
+      return true;
     };
   }
   
-  // Override MediaStream constructor
-  window.MediaStream = function(arg) {
-    console.log('[Protocol1] MediaStream constructor called:', arg);
+  // ============================================================================
+  // PERMISSIONS API OVERRIDE
+  // ============================================================================
+  
+  if (navigator.permissions) {
+    var originalQuery = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = function(desc) {
+      if (desc && (desc.name === 'camera' || desc.name === 'microphone')) {
+        return Promise.resolve({
+          state: 'granted',
+          onchange: null,
+          addEventListener: function() {},
+          removeEventListener: function() {},
+          dispatchEvent: function() { return true; }
+        });
+      }
+      return originalQuery(desc);
+    };
+    maskAsNative(navigator.permissions.query, 'query');
+  }
+  
+  // ============================================================================
+  // MEDIASTREAM CONSTRUCTOR OVERRIDE
+  // ============================================================================
+  
+  window.MediaStream = function MediaStream(arg) {
+    console.log('[Protocol1] MediaStream constructor called');
     
-    // If called with injected stream, return it
-    if (arg && injectedStream && arg === injectedStream) {
+    // Called without arguments - return empty stream
+    if (arg === undefined || arg === null) {
+      return new OriginalMediaStream();
+    }
+    
+    // If called with our injected stream, pass through
+    if (arg === injectedStream) {
       return new OriginalMediaStream(arg);
     }
     
-    // Replace any video track with our injected one
-    if (arg && (arg instanceof OriginalMediaStream || Array.isArray(arg))) {
-      if (!injectedStream) {
-        injectedStream = createInjectedStream();
+    // Replace streams/track lists that actually contain video with our injected stream
+    if (arg instanceof OriginalMediaStream) {
+      var hasVideoInStream = typeof arg.getVideoTracks === 'function' && arg.getVideoTracks().length > 0;
+      if (hasVideoInStream) {
+        var healthy = getHealthyStream({});
+        var newStream = new OriginalMediaStream();
+        healthy.getTracks().forEach(function(track) { newStream.addTrack(track); });
+        console.log('[Protocol1] Replaced MediaStream containing video tracks with injected stream');
+        return newStream;
       }
-      
-      const newStream = new OriginalMediaStream();
-      injectedStream.getTracks().forEach(track => newStream.addTrack(track));
-      
-      console.log('[Protocol1] Replaced with injected stream');
-      return newStream;
+      // No video tracks present, delegate to original constructor
+      return new OriginalMediaStream(arg);
+    }
+
+    if (Array.isArray(arg)) {
+      var hasVideoInArray = false;
+      for (var i = 0; i < arg.length; i++) {
+        var item = arg[i];
+        if (item instanceof OriginalMediaStream) {
+          if (typeof item.getVideoTracks === 'function' && item.getVideoTracks().length > 0) {
+            hasVideoInArray = true;
+            break;
+          }
+        } else if (item && typeof item === 'object' && typeof item.kind === 'string') {
+          if (item.kind.toLowerCase() === 'video') {
+            hasVideoInArray = true;
+            break;
+          }
+        }
+      }
+
+      if (hasVideoInArray) {
+        var healthyArrayStream = getHealthyStream({});
+        var replacedStream = new OriginalMediaStream();
+        healthyArrayStream.getTracks().forEach(function(track) { replacedStream.addTrack(track); });
+        console.log('[Protocol1] Replaced track array containing video with injected stream');
+        return replacedStream;
+      }
+
+      // Array does not contain video tracks, delegate to original constructor
+      return new OriginalMediaStream(arg);
     }
     
     return new OriginalMediaStream(arg);
   };
   
   window.MediaStream.prototype = OriginalMediaStream.prototype;
+  Object.defineProperty(window.MediaStream, 'name', { value: 'MediaStream', configurable: true });
+  
+  // ============================================================================
+  // PUBLIC API
+  // ============================================================================
   
   window.__protocol1 = {
-    getStatus: () => ({
-      initialized: true,
-      hasStream: !!injectedStream,
-      frameCount: frameCount
-    })
+    getStatus: function() {
+      return {
+        initialized: true,
+        animating: isAnimating,
+        hasStream: !!injectedStream,
+        frameCount: frameCount,
+        canvas: { width: CONFIG.width, height: CONFIG.height },
+        fps: CONFIG.fps
+      };
+    },
+    restart: function() {
+      stopAnimation();
+      injectedStream = null;
+      frameCount = 0;
+      startAnimation();
+    },
+    getFrameCount: function() { return frameCount; },
+    stopAnimation: stopAnimation,
+    startAnimation: startAnimation
   };
   
   console.log('[Protocol1] ===== INJECTION COMPLETE =====');
+  console.log('[Protocol1] Ready to intercept getUserMedia + MediaStream');
+  
+  // Notify React Native if in WebView
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'protocol1Ready',
+      config: CONFIG
+    }));
+  }
   
   return true;
 })();
