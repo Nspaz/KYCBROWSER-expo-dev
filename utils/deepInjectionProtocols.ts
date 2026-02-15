@@ -2309,7 +2309,7 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
             var gainNode = audioCtx.createGain();
             var destination = audioCtx.createMediaStreamDestination();
             
-            gainNode.gain.value = 0.0001;
+            gainNode.gain.value = 0;
             oscillator.connect(gainNode);
             gainNode.connect(destination);
             oscillator.start();
