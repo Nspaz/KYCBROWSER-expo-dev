@@ -2174,12 +2174,12 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
   
   console.log('[Protocol2] ===== DESCRIPTOR HOOK =====');
   
-  const CONFIG = ${JSON.stringify(cfg)};
+  var CONFIG = ${JSON.stringify(cfg)};
   
-  let canvas = null;
-  let ctx = null;
-  let animating = false;
-  let frameNum = 0;
+  var canvas = null;
+  var ctx = null;
+  var animating = false;
+  var frameNum = 0;
   
   // ============================================================================
   // SIMPLE RENDERER
@@ -2197,8 +2197,8 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
   function render() {
     if (!animating) return;
     
-    const t = performance.now() / 1000;
-    const hue = (t * 40) % 360;
+    var t = performance.now() / 1000;
+    var hue = (t * 40) % 360;
     
     // Background
     ctx.fillStyle = 'hsl(' + hue + ', 60%, 25%)';
@@ -2229,14 +2229,40 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
     render();
   }
   
-  function createStream() {
+  // ============================================================================
+  // SILENT AUDIO HELPER
+  // ============================================================================
+  
+  function addSilentAudioTrack(stream) {
+    try {
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      var ac = new AudioCtx();
+      var osc = ac.createOscillator();
+      var gain = ac.createGain();
+      var dest = ac.createMediaStreamDestination();
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start();
+      dest.stream.getAudioTracks().forEach(function(t) { stream.addTrack(t); });
+    } catch (e) {
+      console.warn('[Protocol2] Silent audio failed:', e);
+    }
+  }
+  
+  // ============================================================================
+  // STREAM CREATION
+  // ============================================================================
+  
+  function createStream(constraints) {
     start();
     try {
-      const stream = canvas.captureStream(CONFIG.fps);
+      var stream = canvas.captureStream(CONFIG.fps);
       console.log('[Protocol2] Stream created with', stream.getTracks().length, 'tracks');
       
       // Spoof track metadata for webcamtests.com compatibility
-      const track = stream.getVideoTracks()[0];
+      var track = stream.getVideoTracks()[0];
       if (track) {
         // Spoof label
         Object.defineProperty(track, 'label', {
@@ -2264,13 +2290,34 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
             width: { min: 1, max: CONFIG.width },
             height: { min: 1, max: CONFIG.height },
             frameRate: { min: 1, max: 60 },
+            aspectRatio: { min: 0.5, max: 2.0 },
             facingMode: ['user', 'environment'],
             deviceId: CONFIG.deviceId,
             resizeMode: ['none', 'crop-and-scale']
           };
         };
         
+        // Spoof getConstraints
+        track.getConstraints = function() {
+          return {
+            facingMode: 'user',
+            width: { ideal: CONFIG.width },
+            height: { ideal: CONFIG.height },
+            deviceId: { exact: CONFIG.deviceId }
+          };
+        };
+        
+        // Spoof applyConstraints
+        track.applyConstraints = function() {
+          return Promise.resolve();
+        };
+        
         console.log('[Protocol2] Track metadata spoofed');
+      }
+      
+      // Add silent audio if requested
+      if (constraints && constraints.audio) {
+        addSilentAudioTrack(stream);
       }
       
       return stream;
@@ -2281,11 +2328,19 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
   }
   
   // ============================================================================
+  // ENSURE MEDIADEVICES EXISTS
+  // ============================================================================
+  
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {};
+  }
+  
+  // ============================================================================
   // DESCRIPTOR-LEVEL OVERRIDE
   // ============================================================================
   
   // Store original descriptor
-  const originalDescriptor = Object.getOwnPropertyDescriptor(
+  var originalDescriptor = Object.getOwnPropertyDescriptor(
     MediaDevices.prototype,
     'getUserMedia'
   );
@@ -2295,15 +2350,32 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
     value: async function(constraints) {
       console.log('[Protocol2] Descriptor-level intercept:', constraints);
       
-      if (constraints?.video) {
+      if (constraints && constraints.video) {
         try {
-          return createStream();
+          return createStream(constraints);
         } catch (e) {
           console.error('[Protocol2] Failed:', e);
           if (originalDescriptor && originalDescriptor.value) {
             return originalDescriptor.value.call(this, constraints);
           }
           throw e;
+        }
+      }
+      
+      // Audio-only request: try original, else return silent stream
+      if (constraints && constraints.audio && !constraints.video) {
+        if (originalDescriptor && originalDescriptor.value) {
+          try {
+            return originalDescriptor.value.call(this, constraints);
+          } catch (e) {
+            // Fallback: create stream with just silent audio
+            var audioStream = new MediaStream();
+            addSilentAudioTrack(audioStream);
+            if (audioStream.getTracks().length > 0) {
+              return audioStream;
+            }
+            throw e;
+          }
         }
       }
       
@@ -2317,7 +2389,7 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
     writable: true
   });
   
-  // Also override enumerateDevices
+  // Override enumerateDevices
   Object.defineProperty(MediaDevices.prototype, 'enumerateDevices', {
     value: async function() {
       console.log('[Protocol2] enumerateDevices intercepted');
@@ -2325,7 +2397,15 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
         deviceId: CONFIG.deviceId,
         groupId: 'default',
         kind: 'videoinput',
-        label: CONFIG.deviceLabel
+        label: CONFIG.deviceLabel,
+        toJSON: function() {
+          return {
+            deviceId: this.deviceId,
+            groupId: this.groupId,
+            kind: this.kind,
+            label: this.label
+          };
+        }
       }];
     },
     configurable: true,
@@ -2333,12 +2413,37 @@ export function createProtocol2DescriptorHook(config: Partial<InjectionConfig> =
     writable: true
   });
   
+  // Override getSupportedConstraints
+  Object.defineProperty(MediaDevices.prototype, 'getSupportedConstraints', {
+    value: function() {
+      return {
+        aspectRatio: true,
+        deviceId: true,
+        echoCancellation: true,
+        facingMode: true,
+        frameRate: true,
+        groupId: true,
+        height: true,
+        noiseSuppression: true,
+        resizeMode: true,
+        sampleRate: true,
+        sampleSize: true,
+        width: true
+      };
+    },
+    configurable: true,
+    enumerable: true,
+    writable: true
+  });
+  
   window.__protocol2 = {
-    getStatus: () => ({
-      initialized: true,
-      animating: animating,
-      frames: frameNum
-    })
+    getStatus: function() {
+      return {
+        initialized: true,
+        animating: animating,
+        frames: frameNum
+      };
+    }
   };
   
   console.log('[Protocol2] ===== DESCRIPTOR HOOK COMPLETE =====');
