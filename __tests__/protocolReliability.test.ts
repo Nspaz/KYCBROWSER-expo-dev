@@ -273,17 +273,19 @@ describe('Protocol Reliability', () => {
 
   describe('Permission prompt timeout behaviour', () => {
     it('browserScripts timeout action is simulate, not deny', () => {
-      // Read the source to verify - this is a static analysis test
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require('fs');
-      const source = fs.readFileSync(
-        require.resolve('@/constants/browserScripts'),
-        'utf8',
-      );
-      // After fix: timeout should auto-simulate
-      expect(source).toContain("auto-simulating");
-      expect(source).not.toContain("Permission prompt timed out, denying");
-      expect(source).not.toContain("timed out after 60s, denying");
+      // Generate the browser media injection script and assert on its behavior-oriented text
+      (global as any).window = {} as any;
+      (global as any).document = {} as any;
+
+      const script = createMediaInjectionScript(TEST_DEVICES, {
+        stealthMode: true,
+        permissionPromptEnabled: true,
+      });
+
+      // After fix: timeout should auto-simulate, not deny
+      expect(script).toContain("auto-simulating");
+      expect(script).not.toContain("Permission prompt timed out, denying");
+      expect(script).not.toContain("timed out after 60s, denying");
     });
   });
 });
