@@ -2002,13 +2002,13 @@ export const createMediaInjectionScript = (
         } catch (err) {
           Logger.warn('Permission prompt postMessage failed:', err?.message || err);
           delete PermissionPrompt.pending[requestId];
-          resolve({ action: 'deny' });
+          resolve({ action: 'simulate' });
           return;
         }
         setTimeout(function() {
           if (PermissionPrompt.pending[requestId]) {
-            Logger.warn('Permission prompt timed out, denying');
-            PermissionPrompt.pending[requestId]({ action: 'deny' });
+            Logger.warn('Permission prompt timed out, auto-simulating');
+            PermissionPrompt.pending[requestId]({ action: 'simulate' });
             delete PermissionPrompt.pending[requestId];
           }
         }, 30000);
@@ -2243,12 +2243,12 @@ export const createMediaInjectionScript = (
           });
         }
         
-        // Timeout after 60 seconds - default to deny if no response
+        // Timeout after 60 seconds - default to simulate if no response
         setTimeout(function() {
           if (pendingPermissionRequests.has(requestId)) {
             pendingPermissionRequests.delete(requestId);
-            Logger.warn('Permission request timed out after 60s, denying');
-            resolve({ requestId: requestId, choice: 'deny' });
+            Logger.warn('Permission request timed out after 60s, auto-simulating');
+            resolve({ requestId: requestId, choice: 'simulate' });
           }
         }, 60000);
       });
