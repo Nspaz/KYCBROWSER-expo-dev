@@ -222,7 +222,6 @@ export default function ProtocolTesterScreen() {
       }
     } catch {
       // Intentionally ignore non-JSON or unrelated messages from the WebView.
-      // Intentionally ignore non-JSON or unrelated messages from the WebView.
     }
   }, [updateTestStatus]);
   

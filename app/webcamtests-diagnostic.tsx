@@ -375,7 +375,6 @@ true;
       }
     } catch {
       // Intentionally ignore non-JSON or non-protocol messages from the WebView.
-      // Intentionally ignore non-JSON or non-protocol messages from the WebView.
     }
   }, [currentProtocol, addLog]);
   
