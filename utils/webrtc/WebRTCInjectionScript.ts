@@ -615,6 +615,30 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   };
   maskAsNative(navigator.mediaDevices.enumerateDevices, 'enumerateDevices');
   
+  // Override getSupportedConstraints to align with spoofed MediaDevices behavior
+  try {
+    var originalGetSupportedConstraints = null;
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getSupportedConstraints === 'function') {
+      originalGetSupportedConstraints = navigator.mediaDevices.getSupportedConstraints.bind(navigator.mediaDevices);
+    }
+    
+    navigator.mediaDevices.getSupportedConstraints = function() {
+      var base = originalGetSupportedConstraints ? originalGetSupportedConstraints() : {};
+      
+      // Ensure commonly-checked audio/video constraints appear supported
+      base.autoGainControl = true;
+      base.echoCancellation = true;
+      base.noiseSuppression = true;
+      base.sampleRate = true;
+      base.sampleSize = true;
+      base.channelCount = true;
+      base.displaySurface = true;
+      
+      return base;
+    };
+    maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  } catch(e) {}
+  
   // Override getSupportedConstraints
   navigator.mediaDevices.getSupportedConstraints = function() {
     return {
