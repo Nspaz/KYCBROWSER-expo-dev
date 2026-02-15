@@ -1119,6 +1119,136 @@ export function createProtocol0Script(options: Protocol0Options): string {
     navigator.mediaDevices = {};
   }
   
+  // ============================================================================
+  // NATIVE FUNCTION MASKING
+  // ============================================================================
+  
+  // Make overridden functions appear as native code to defeat toString() checks
+  function maskAsNative(fn, name) {
+    try {
+      var maskedToString = function() { return 'function ' + name + '() { [native code] }'; };
+      // Also mask the toString itself
+      maskedToString.toString = function() { return 'function toString() { [native code] }'; };
+      fn.toString = maskedToString;
+      // Mask the name property
+      Object.defineProperty(fn, 'name', { value: name, configurable: true });
+      // Mask the length property to match native
+      Object.defineProperty(fn, 'length', { value: fn.length, configurable: true });
+    } catch(e) {}
+    return fn;
+  }
+  
+  // ============================================================================
+  // MEDIADEVICEINFO PROTOTYPE FACTORY
+  // ============================================================================
+  
+  // Build a proper MediaDeviceInfo prototype so objects pass instanceof checks
+  // and strict prototype-chain inspection used by advanced detection scripts
+  var RealMediaDeviceInfo = window.MediaDeviceInfo || null;
+  var RealInputDeviceInfo = window.InputDeviceInfo || null;
+  
+  // Create a spec-compliant MediaDeviceInfo constructor/prototype
+  var SpoofedMediaDeviceInfo = (function() {
+    function MediaDeviceInfo() {}
+    // Copy prototype from the real one if available
+    if (RealMediaDeviceInfo) {
+      try {
+        MediaDeviceInfo.prototype = Object.create(RealMediaDeviceInfo.prototype);
+        MediaDeviceInfo.prototype.constructor = RealMediaDeviceInfo;
+      } catch(e) {}
+    }
+    // Ensure toJSON exists on the prototype (spec requirement)
+    MediaDeviceInfo.prototype.toJSON = function() {
+      return {
+        deviceId: this.deviceId,
+        kind: this.kind,
+        label: this.label,
+        groupId: this.groupId
+      };
+    };
+    maskAsNative(MediaDeviceInfo.prototype.toJSON, 'toJSON');
+    return MediaDeviceInfo;
+  })();
+  
+  // Create InputDeviceInfo subclass for videoinput devices (has getCapabilities)
+  var SpoofedInputDeviceInfo = (function() {
+    function InputDeviceInfo() {}
+    if (RealInputDeviceInfo) {
+      try {
+        InputDeviceInfo.prototype = Object.create(RealInputDeviceInfo.prototype);
+        InputDeviceInfo.prototype.constructor = RealInputDeviceInfo;
+      } catch(e) {
+        InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+      }
+    } else {
+      InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+    }
+    // InputDeviceInfo has getCapabilities() per the spec
+    InputDeviceInfo.prototype.getCapabilities = function() {
+      return {
+        deviceId: this.deviceId,
+        groupId: this.groupId,
+        width: { min: 1, max: CONFIG.width },
+        height: { min: 1, max: CONFIG.height },
+        aspectRatio: { min: 0.5, max: 2.0 },
+        frameRate: { min: 1, max: 60 },
+        facingMode: [this._facingMode || 'user'],
+        resizeMode: ['none', 'crop-and-scale']
+      };
+    };
+    maskAsNative(InputDeviceInfo.prototype.getCapabilities, 'getCapabilities');
+    InputDeviceInfo.prototype.toJSON = SpoofedMediaDeviceInfo.prototype.toJSON;
+    return InputDeviceInfo;
+  })();
+  
+  // Factory to create a MediaDeviceInfo-like object with proper prototype
+  function createDeviceInfo(deviceId, kind, label, groupId, facingMode) {
+    var isInput = (kind === 'videoinput' || kind === 'audioinput');
+    var Constructor = isInput ? SpoofedInputDeviceInfo : SpoofedMediaDeviceInfo;
+    var obj = new Constructor();
+    
+    // Define properties as non-writable getters to match native behavior
+    Object.defineProperties(obj, {
+      deviceId: { get: function() { return deviceId; }, enumerable: true, configurable: true },
+      kind:     { get: function() { return kind; },     enumerable: true, configurable: true },
+      label:    { get: function() { return label; },    enumerable: true, configurable: true },
+      groupId:  { get: function() { return groupId; },  enumerable: true, configurable: true }
+    });
+    
+    // Store facingMode privately for getCapabilities
+    if (facingMode) {
+      Object.defineProperty(obj, '_facingMode', { value: facingMode, enumerable: false });
+    }
+    
+    return obj;
+  }
+  
+  // Replace global constructors so instanceof checks pass
+  try {
+    if (RealMediaDeviceInfo) {
+      // Ensure our spoofed objects pass: device instanceof MediaDeviceInfo
+      var origSymbol = RealMediaDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealMediaDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) {
+          return inst instanceof SpoofedMediaDeviceInfo || 
+                 inst instanceof SpoofedInputDeviceInfo ||
+                 (origSymbol ? origSymbol.call(this, inst) : false);
+        },
+        configurable: true
+      });
+    }
+    if (RealInputDeviceInfo) {
+      var origInputSymbol = RealInputDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealInputDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) {
+          return inst instanceof SpoofedInputDeviceInfo ||
+                 (origInputSymbol ? origInputSymbol.call(this, inst) : false);
+        },
+        configurable: true
+      });
+    }
+  } catch(e) {}
+  
   // Override getUserMedia
   navigator.mediaDevices.getUserMedia = function(constraints) {
     console.log('[Protocol0] ★ getUserMedia INTERCEPTED ★');
@@ -1144,6 +1274,7 @@ export function createProtocol0Script(options: Protocol0Options): string {
     
     return Promise.reject(new DOMException('Requested device not found', 'NotFoundError'));
   };
+  maskAsNative(navigator.mediaDevices.getUserMedia, 'getUserMedia');
   
   // Override enumerateDevices
   navigator.mediaDevices.enumerateDevices = function() {
@@ -1154,42 +1285,100 @@ export function createProtocol0Script(options: Protocol0Options): string {
     for (var i = 0; i < DEVICES.length; i++) {
       var d = DEVICES[i];
       if (d.type === 'camera') {
-        devices.push({
-          deviceId: d.nativeDeviceId || d.id,
-          groupId: d.groupId || 'default',
-          kind: 'videoinput',
-          label: d.name || 'Camera',
-          toJSON: function() { return this; }
-        });
+        var facingMode = d.facing === 'back' ? 'environment' : 'user';
+        devices.push(createDeviceInfo(
+          d.nativeDeviceId || d.id,
+          'videoinput',
+          d.name || 'Camera',
+          d.groupId || 'default',
+          facingMode
+        ));
       }
     }
     
     // Add a microphone
-    devices.push({
-      deviceId: 'microphone-default',
-      groupId: 'default',
-      kind: 'audioinput',
-      label: 'Microphone',
-      toJSON: function() { return this; }
-    });
+    devices.push(createDeviceInfo(
+      'microphone-default',
+      'audioinput',
+      'Microphone',
+      'default',
+      null
+    ));
+    
+    // Add audio output
+    devices.push(createDeviceInfo(
+      'speaker-default',
+      'audiooutput',
+      '',
+      'default',
+      null
+    ));
     
     console.log('[Protocol0] Returning', devices.length, 'devices');
     return Promise.resolve(devices);
   };
+  maskAsNative(navigator.mediaDevices.enumerateDevices, 'enumerateDevices');
   
   // Override getSupportedConstraints
   navigator.mediaDevices.getSupportedConstraints = function() {
     return {
       aspectRatio: true,
+      autoGainControl: true,
+      channelCount: true,
       deviceId: true,
+      displaySurface: true,
+      echoCancellation: true,
       facingMode: true,
       frameRate: true,
       groupId: true,
       height: true,
+      noiseSuppression: true,
+      sampleRate: true,
+      sampleSize: true,
       width: true,
       resizeMode: true
     };
   };
+  maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  
+  // Override permissions API to always grant camera/microphone
+  try {
+    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+      var originalPermQuery = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = function(desc) {
+        if (desc && (desc.name === 'camera' || desc.name === 'microphone')) {
+          return Promise.resolve({
+            state: 'granted',
+            name: desc.name,
+            onchange: null,
+            addEventListener: function() {},
+            removeEventListener: function() {},
+            dispatchEvent: function() { return true; }
+          });
+        }
+        return originalPermQuery(desc);
+      };
+      maskAsNative(navigator.permissions.query, 'query');
+    }
+  } catch(e) {}
+  
+  // Support ondevicechange event handler
+  try {
+    if (!navigator.mediaDevices.ondevicechange) {
+      Object.defineProperty(navigator.mediaDevices, 'ondevicechange', {
+        get: function() { return null; },
+        set: function() {},
+        configurable: true,
+        enumerable: true
+      });
+    }
+    // Provide addEventListener/removeEventListener if missing
+    if (!navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener = function() {};
+      navigator.mediaDevices.removeEventListener = function() {};
+      navigator.mediaDevices.dispatchEvent = function() { return true; };
+    }
+  } catch(e) {}
   
   // ============================================================================
   // PUBLIC API

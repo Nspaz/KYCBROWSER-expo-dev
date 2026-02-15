@@ -457,6 +457,96 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     navigator.mediaDevices = {};
   }
   
+  // Make overridden functions appear as native code
+  function maskAsNative(fn, name) {
+    try {
+      var brand = 'function ' + name + '() { [native code] }';
+      var masked = function() { return brand; };
+      masked.toString = function() { return 'function toString() { [native code] }'; };
+      fn.toString = masked;
+      Object.defineProperty(fn, 'name', { value: name, configurable: true });
+      try {
+        var originalLength = fn.length;
+        Object.defineProperty(fn, 'length', { value: originalLength, configurable: true });
+      } catch(e) {}
+      Object.defineProperty(fn, 'length', { value: fn.length, configurable: true });
+    } catch(e) {}
+    return fn;
+  }
+  
+  // Build proper MediaDeviceInfo prototype for instanceof checks
+  var RealMediaDeviceInfo = window.MediaDeviceInfo || null;
+  var RealInputDeviceInfo = window.InputDeviceInfo || null;
+  
+  var SpoofedMediaDeviceInfo = (function() {
+    function MediaDeviceInfo() {}
+    if (RealMediaDeviceInfo) {
+      try {
+        MediaDeviceInfo.prototype = Object.create(RealMediaDeviceInfo.prototype);
+        MediaDeviceInfo.prototype.constructor = RealMediaDeviceInfo;
+      } catch(e) {}
+    }
+    MediaDeviceInfo.prototype.toJSON = function() {
+      return { deviceId: this.deviceId, kind: this.kind, label: this.label, groupId: this.groupId };
+    };
+    maskAsNative(MediaDeviceInfo.prototype.toJSON, 'toJSON');
+    return MediaDeviceInfo;
+  })();
+  
+  var SpoofedInputDeviceInfo = (function() {
+    function InputDeviceInfo() {}
+    if (RealInputDeviceInfo) {
+      try {
+        InputDeviceInfo.prototype = Object.create(RealInputDeviceInfo.prototype);
+        InputDeviceInfo.prototype.constructor = RealInputDeviceInfo;
+      } catch(e) {
+        InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+      }
+    } else {
+      InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+    }
+    InputDeviceInfo.prototype.getCapabilities = function() {
+      return { deviceId: this.deviceId, groupId: this.groupId, width: { min: 1, max: 7680 }, height: { min: 1, max: 4320 }, aspectRatio: { min: 0.5, max: 2.0 }, frameRate: { min: 1, max: 60 }, facingMode: [this._facingMode || 'user'], resizeMode: ['none', 'crop-and-scale'] };
+    };
+    maskAsNative(InputDeviceInfo.prototype.getCapabilities, 'getCapabilities');
+    InputDeviceInfo.prototype.toJSON = SpoofedMediaDeviceInfo.prototype.toJSON;
+    return InputDeviceInfo;
+  })();
+  
+  function createDeviceInfo(devId, kind, label, grpId, facingMode) {
+    var isInput = (kind === 'videoinput' || kind === 'audioinput');
+    var Ctor = isInput ? SpoofedInputDeviceInfo : SpoofedMediaDeviceInfo;
+    var obj = new Ctor();
+    Object.defineProperties(obj, {
+      deviceId: { get: function() { return devId; }, enumerable: true, configurable: true },
+      kind:     { get: function() { return kind; },  enumerable: true, configurable: true },
+      label:    { get: function() { return label; }, enumerable: true, configurable: true },
+      groupId:  { get: function() { return grpId; }, enumerable: true, configurable: true }
+    });
+    if (facingMode) {
+      Object.defineProperty(obj, '_facingMode', { value: facingMode, enumerable: false });
+    }
+    return obj;
+  }
+  
+  // Patch instanceof checks on global constructors
+  try {
+    if (RealMediaDeviceInfo) {
+      var origHas = RealMediaDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealMediaDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) { return inst instanceof SpoofedMediaDeviceInfo || inst instanceof SpoofedInputDeviceInfo || (origHas ? origHas.call(this, inst) : false); },
+        configurable: true
+      });
+    }
+    if (RealInputDeviceInfo) {
+      var origInputHas = RealInputDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealInputDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) { return inst instanceof SpoofedInputDeviceInfo || (origInputHas ? origInputHas.call(this, inst) : false); },
+        configurable: true
+      });
+    }
+  } catch(e) {}
+  
   navigator.mediaDevices.getUserMedia = function(constraints) {
     log('getUserMedia called:', JSON.stringify(constraints));
     
@@ -504,18 +594,17 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       State.pendingGetUserMedia.push(entry);
     });
   };
+  maskAsNative(navigator.mediaDevices.getUserMedia, 'getUserMedia');
   
   navigator.mediaDevices.enumerateDevices = function() {
     log('enumerateDevices called');
     
     if (STEALTH) {
-      return Promise.resolve([{
-        deviceId: DEVICE_ID,
-        groupId: 'webrtc_group',
-        kind: 'videoinput',
-        label: DEVICE_LABEL,
-        toJSON: function() { return this; }
-      }]);
+      return Promise.resolve([
+        createDeviceInfo(DEVICE_ID, 'videoinput', DEVICE_LABEL, 'webrtc_group', 'user'),
+        createDeviceInfo('mic-' + DEVICE_ID, 'audioinput', 'Microphone', 'webrtc_group', null),
+        createDeviceInfo('speaker-default', 'audiooutput', '', 'default', null)
+      ]);
     }
     
     if (originalEnumerateDevices) {
@@ -524,6 +613,53 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     
     return Promise.resolve([]);
   };
+  maskAsNative(navigator.mediaDevices.enumerateDevices, 'enumerateDevices');
+  
+  // Override getSupportedConstraints to align with spoofed MediaDevices behavior
+  try {
+    var originalGetSupportedConstraints = null;
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getSupportedConstraints === 'function') {
+      originalGetSupportedConstraints = navigator.mediaDevices.getSupportedConstraints.bind(navigator.mediaDevices);
+    }
+    
+    navigator.mediaDevices.getSupportedConstraints = function() {
+      var base = originalGetSupportedConstraints ? originalGetSupportedConstraints() : {};
+      
+      // Ensure commonly-checked audio/video constraints appear supported
+      base.autoGainControl = true;
+      base.echoCancellation = true;
+      base.noiseSuppression = true;
+      base.sampleRate = true;
+      base.sampleSize = true;
+      base.channelCount = true;
+      base.displaySurface = true;
+      
+      return base;
+    };
+    maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  } catch(e) {}
+  
+  // Override getSupportedConstraints
+  navigator.mediaDevices.getSupportedConstraints = function() {
+    return {
+      aspectRatio: true,
+      autoGainControl: true,
+      channelCount: true,
+      deviceId: true,
+      displaySurface: true,
+      echoCancellation: true,
+      facingMode: true,
+      frameRate: true,
+      groupId: true,
+      height: true,
+      noiseSuppression: true,
+      sampleRate: true,
+      sampleSize: true,
+      width: true,
+      resizeMode: true
+    };
+  };
+  maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
   
   // Override permissions API to always grant camera permission
   try {
@@ -542,6 +678,24 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
         }
         return originalQuery(desc);
       };
+      maskAsNative(navigator.permissions.query, 'query');
+    }
+  } catch(e) {}
+  
+  // Support ondevicechange event handler
+  try {
+    if (!navigator.mediaDevices.ondevicechange) {
+      Object.defineProperty(navigator.mediaDevices, 'ondevicechange', {
+        get: function() { return null; },
+        set: function() {},
+        configurable: true,
+        enumerable: true
+      });
+    }
+    if (!navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener = function() {};
+      navigator.mediaDevices.removeEventListener = function() {};
+      navigator.mediaDevices.dispatchEvent = function() { return true; };
     }
   } catch(e) {}
   
