@@ -701,6 +701,24 @@ export function createProtocolErrorBoundaryHandler(
 }
 
 /**
+ * Map a protocol phase to the most appropriate error code.
+ */
+function phaseToErrorCode(phase: ProtocolErrorDetails['phase']): ErrorCode {
+  switch (phase) {
+    case 'init':
+      return ErrorCode.PROTOCOL_INIT_FAILED;
+    case 'streaming':
+      return ErrorCode.PROTOCOL_STREAM_ERROR;
+    case 'recovery':
+      return ErrorCode.PROTOCOL_RECOVERY_FAILED;
+    case 'injection':
+    case 'cleanup':
+    default:
+      return ErrorCode.PROTOCOL_INJECTION_FAILED;
+  }
+}
+
+/**
  * Wrap async protocol operation with error handling
  */
 export async function withProtocolErrorHandling<T>(
@@ -715,13 +733,14 @@ export async function withProtocolErrorHandling<T>(
 ): Promise<T> {
   const { fallback, maxRetries = 3, onError } = options || {};
   let lastError: ProtocolError | null = null;
+  const errorCode = phaseToErrorCode(phase);
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = createProtocolError(
-        ErrorCode.PROTOCOL_INJECTION_FAILED,
+        errorCode,
         getErrorMessage(error),
         {
           protocolId,
@@ -750,7 +769,7 @@ export async function withProtocolErrorHandling<T>(
   }
   
   throw lastError || createProtocolError(
-    ErrorCode.PROTOCOL_INJECTION_FAILED,
+    errorCode,
     'Operation failed after all retries',
     { protocolId, phase }
   );
@@ -770,15 +789,18 @@ export function shouldSwitchProtocol(error: ProtocolError): boolean {
 }
 
 /**
+ * Static fallback map – avoids allocating a new object on every call.
+ */
+const FALLBACK_PROTOCOL_MAP: Readonly<Record<string, string>> = {
+  stealth: 'shield', // Ultimate fallback
+  relay: 'stealth',
+  shield: 'stealth',
+  bridge: 'stealth',
+};
+
+/**
  * Get fallback protocol for a failed protocol
  */
 export function getFallbackProtocol(failedProtocolId: string): string {
-  const fallbackMap: Record<string, string> = {
-    stealth: 'shield', // Ultimate fallback
-    relay: 'stealth',
-    shield: 'stealth',
-    bridge: 'stealth',
-  };
-  
-  return fallbackMap[failedProtocolId] || 'stealth';
+  return FALLBACK_PROTOCOL_MAP[failedProtocolId] || 'stealth';
 }
