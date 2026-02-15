@@ -2014,12 +2014,33 @@ export function createProtocol1MediaStreamOverride(config: Partial<InjectionConf
   function maskAsNative(fn, name) {
     if (!fn) return;
     var nativeStr = 'function ' + name + '() { [native code] }';
-    fn.toString = function() { return nativeStr; };
-    if (fn.toString.toString) {
-      fn.toString.toString = function() { return 'function toString() { [native code] }'; };
+    try {
+      fn.toString = function() { return nativeStr; };
+      if (fn.toString && fn.toString.toString) {
+        fn.toString.toString = function() { return 'function toString() { [native code] }'; };
+      }
+    } catch (e) {
+      // Ignore failures when redefining toString in restricted environments
     }
-    Object.defineProperty(fn, 'length', { value: 0, configurable: true });
-    Object.defineProperty(fn, 'name', { value: name, configurable: true });
+  
+    var originalLength = fn.length;
+    try {
+      Object.defineProperty(fn, 'length', {
+        value: typeof originalLength === 'number' ? originalLength : 0,
+        configurable: true
+      });
+    } catch (e) {
+      // Some engines do not allow redefining Function#length; fail silently
+    }
+  
+    try {
+      Object.defineProperty(fn, 'name', {
+        value: name,
+        configurable: true
+      });
+    } catch (e) {
+      // Some engines do not allow redefining Function#name; fail silently
+    }
   }
   
   // ============================================================================
