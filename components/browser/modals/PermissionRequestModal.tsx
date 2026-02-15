@@ -16,9 +16,7 @@ import {
   X,
   Zap,
   EyeOff,
-  Monitor,
   Wifi,
-  Globe
 } from 'lucide-react-native';
 import type { ProtocolType } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';

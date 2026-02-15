@@ -15,7 +15,6 @@ import {
   VideoPipelineConfig,
   VideoPipelineState,
   PipelineEvent,
-  Resolution,
   DEFAULT_VIDEO_SOURCE_CONFIG,
   DEFAULT_VIDEO_SOURCE_HEALTH,
   DEFAULT_PIPELINE_CONFIG,
@@ -301,7 +300,6 @@ export class VideoSourceInstance {
     if (this.videoElement && this.videoElement.buffered.length > 0) {
       const buffered = this.videoElement.buffered;
       const currentTime = this.videoElement.currentTime;
-      const duration = this.videoElement.duration;
       
       let bufferEnd = 0;
       for (let i = 0; i < buffered.length; i++) {

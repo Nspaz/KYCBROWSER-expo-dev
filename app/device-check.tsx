@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, ArrowRight, Save, Activity } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, ArrowRight, Save } from 'lucide-react-native';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useDeviceEnumeration } from '@/hooks/useDeviceEnumeration';
 import type { CheckStep } from '@/types/browser';

@@ -35,7 +35,7 @@ export default function ProtocolTesterScreen() {
   
   const [currentTest, setCurrentTest] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [diagnosticResults, setDiagnosticResults] = useState<any>(null);
+  const [, setDiagnosticResults] = useState<any>(null);
   
   const [tests, setTests] = useState<ProtocolTest[]>([
     {
@@ -220,8 +220,7 @@ export default function ProtocolTesterScreen() {
       } else if (data.type === 'console') {
         console.log(`[WebView ${data.level}]`, data.message);
       }
-    } catch (e) {
-      // Not JSON or not our message
+    } catch {
     }
   }, [updateTestStatus]);
   

@@ -50,7 +50,7 @@ const getWebRTCModule = (): WebRTCModule | null => {
   }
   
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     webrtcModule = require('react-native-webrtc');
   } catch {
     webrtcModule = null;

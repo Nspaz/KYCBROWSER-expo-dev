@@ -29,7 +29,6 @@ import {
   Wifi,
   Video,
   Activity,
-  ZapOff,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';

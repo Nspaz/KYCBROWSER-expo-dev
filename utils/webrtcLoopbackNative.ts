@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { isExpoGo, safeRequireNativeModule } from './expoGoCompat';
 
 // Only load native module if not in Expo Go
