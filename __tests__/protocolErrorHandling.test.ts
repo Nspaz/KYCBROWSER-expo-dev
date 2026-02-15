@@ -24,7 +24,7 @@ describe('Protocol Error Handling', () => {
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Injection failed',
         {
-          protocolId: 'claude',
+          protocolId: 'stealth',
           phase: 'injection',
           component: 'MediaSimulator',
         }
@@ -32,7 +32,7 @@ describe('Protocol Error Handling', () => {
 
       expect(error.code).toBe(ErrorCode.PROTOCOL_INJECTION_FAILED);
       expect(error.message).toBe('Injection failed');
-      expect(error.protocolDetails?.protocolId).toBe('claude');
+      expect(error.protocolDetails?.protocolId).toBe('stealth');
       expect(error.protocolDetails?.phase).toBe('injection');
       expect(error.protocolDetails?.timestamp).toBeDefined();
     });
@@ -42,7 +42,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_STREAM_ERROR,
         'Stream error',
-        { protocolId: 'standard', phase: 'streaming' },
+        { protocolId: 'stealth', phase: 'streaming' },
         originalError
       );
 
@@ -54,7 +54,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INIT_FAILED,
         'Init failed',
-        { protocolId: 'harness', phase: 'init' }
+        { protocolId: 'shield', phase: 'init' }
       );
       const after = Date.now();
 
@@ -68,7 +68,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Test',
-        { protocolId: 'claude', phase: 'injection' }
+        { protocolId: 'stealth', phase: 'injection' }
       );
 
       expect(isProtocolError(error)).toBe(true);
@@ -93,7 +93,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INIT_FAILED,
         'Init failed',
-        { protocolId: 'claude', phase: 'init' }
+        { protocolId: 'stealth', phase: 'init' }
       );
 
       const { strategy, canAutoRecover } = getProtocolRecoveryStrategy(error);
@@ -106,7 +106,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Injection failed',
-        { protocolId: 'claude', phase: 'injection' }
+        { protocolId: 'stealth', phase: 'injection' }
       );
 
       const { strategy } = getProtocolRecoveryStrategy(error);
@@ -118,7 +118,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_STREAM_ERROR,
         'Stream error',
-        { protocolId: 'standard', phase: 'streaming', recoveryAttempts: 1 }
+        { protocolId: 'stealth', phase: 'streaming', recoveryAttempts: 1 }
       );
 
       const { strategy } = getProtocolRecoveryStrategy(error);
@@ -130,7 +130,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_STREAM_ERROR,
         'Stream error',
-        { protocolId: 'standard', phase: 'streaming', recoveryAttempts: 5 }
+        { protocolId: 'stealth', phase: 'streaming', recoveryAttempts: 5 }
       );
 
       const { strategy } = getProtocolRecoveryStrategy(error);
@@ -142,7 +142,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_STEALTH_COMPROMISED,
         'Stealth compromised',
-        { protocolId: 'claude', phase: 'streaming' }
+        { protocolId: 'stealth', phase: 'streaming' }
       );
 
       const { strategy, canAutoRecover } = getProtocolRecoveryStrategy(error);
@@ -155,7 +155,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_RECOVERY_FAILED,
         'Recovery failed',
-        { protocolId: 'claude', phase: 'recovery' }
+        { protocolId: 'stealth', phase: 'recovery' }
       );
 
       const { strategy } = getProtocolRecoveryStrategy(error);
@@ -167,7 +167,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.ALLOWLIST_BLOCKED,
         'Domain not allowed',
-        { protocolId: 'allowlist', phase: 'init' }
+        { protocolId: 'relay', phase: 'init' }
       );
 
       const { strategy, canAutoRecover } = getProtocolRecoveryStrategy(error);
@@ -182,12 +182,12 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Injection failed',
-        { protocolId: 'claude', phase: 'injection' }
+        { protocolId: 'stealth', phase: 'injection' }
       );
 
       const formatted = formatProtocolError(error);
 
-      expect(formatted).toContain('[CLAUDE]');
+      expect(formatted).toContain('[STEALTH]');
       expect(formatted).toContain('(injection)');
       expect(formatted).toContain('Injection failed');
     });
@@ -210,7 +210,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_RECOVERY_FAILED,
         'Recovery failed',
-        { protocolId: 'claude', phase: 'recovery' }
+        { protocolId: 'stealth', phase: 'recovery' }
       );
 
       expect(shouldSwitchProtocol(error)).toBe(true);
@@ -220,7 +220,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_STEALTH_COMPROMISED,
         'Stealth compromised',
-        { protocolId: 'claude', phase: 'streaming' }
+        { protocolId: 'stealth', phase: 'streaming' }
       );
 
       expect(shouldSwitchProtocol(error)).toBe(true);
@@ -230,7 +230,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.CLAUDE_PROTOCOL_ERROR,
         'Claude error',
-        { protocolId: 'claude', phase: 'streaming' }
+        { protocolId: 'stealth', phase: 'streaming' }
       );
 
       expect(shouldSwitchProtocol(error)).toBe(true);
@@ -240,7 +240,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Failed again',
-        { protocolId: 'claude', phase: 'injection', recoveryAttempts: 6 }
+        { protocolId: 'stealth', phase: 'injection', recoveryAttempts: 6 }
       );
 
       expect(shouldSwitchProtocol(error)).toBe(true);
@@ -250,7 +250,7 @@ describe('Protocol Error Handling', () => {
       const error = createProtocolError(
         ErrorCode.PROTOCOL_INJECTION_FAILED,
         'Failed once',
-        { protocolId: 'claude', phase: 'injection', recoveryAttempts: 1 }
+        { protocolId: 'stealth', phase: 'injection', recoveryAttempts: 1 }
       );
 
       expect(shouldSwitchProtocol(error)).toBe(false);
@@ -258,31 +258,31 @@ describe('Protocol Error Handling', () => {
   });
 
   describe('getFallbackProtocol', () => {
-    it('should return standard for claude', () => {
-      expect(getFallbackProtocol('claude')).toBe('standard');
+    it('should return shield for stealth', () => {
+      expect(getFallbackProtocol('stealth')).toBe('shield');
     });
 
-    it('should return standard for protected', () => {
-      expect(getFallbackProtocol('protected')).toBe('standard');
+    it('should return stealth for shield', () => {
+      expect(getFallbackProtocol('shield')).toBe('stealth');
     });
 
-    it('should return standard for harness', () => {
-      expect(getFallbackProtocol('harness')).toBe('standard');
+    it('should return stealth for relay', () => {
+      expect(getFallbackProtocol('relay')).toBe('stealth');
     });
 
-    it('should return harness for standard (ultimate fallback)', () => {
-      expect(getFallbackProtocol('standard')).toBe('harness');
+    it('should return stealth for bridge', () => {
+      expect(getFallbackProtocol('bridge')).toBe('stealth');
     });
 
-    it('should return standard for unknown protocol', () => {
-      expect(getFallbackProtocol('unknown')).toBe('standard');
+    it('should return stealth for unknown protocol', () => {
+      expect(getFallbackProtocol('unknown')).toBe('stealth');
     });
   });
 
   describe('withProtocolErrorHandling', () => {
     it('should return result on success', async () => {
       const result = await withProtocolErrorHandling(
-        'claude',
+        'stealth',
         'injection',
         async () => 'success'
       );
@@ -296,7 +296,7 @@ describe('Protocol Error Handling', () => {
     
     it('should use fallback immediately on failure with maxRetries=1', async () => {
       const result = await withProtocolErrorHandling(
-        'claude',
+        'stealth',
         'injection',
         async () => {
           throw new Error('Always fails');

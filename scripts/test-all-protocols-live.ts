@@ -298,7 +298,7 @@ async function main() {
     // TEST 1: Standard Protocol (Protocol 1)
     // ========================================================================
     const standardScript = createMediaInjectionScript(devices, {
-      protocolId: 'standard',
+      protocolId: 'stealth',
       stealthMode: true,
       forceSimulation: true,
       permissionPromptEnabled: false,
@@ -311,7 +311,7 @@ async function main() {
     results.push(await testProtocol(
       browser,
       'Protocol 1: Standard Injection',
-      'standard',
+      'stealth',
       standardScript
     ));
 
@@ -319,7 +319,7 @@ async function main() {
     // TEST 2: Advanced Relay Protocol (Protocol 2)
     // ========================================================================
     const advancedRelayScript = createMediaInjectionScript(devices, {
-      protocolId: 'allowlist',
+      protocolId: 'relay',
       stealthMode: true,
       forceSimulation: true,
       permissionPromptEnabled: false,
@@ -332,7 +332,7 @@ async function main() {
     results.push(await testProtocol(
       browser,
       'Protocol 2: Advanced Relay',
-      'allowlist',
+      'relay',
       advancedRelayScript
     ));
 
@@ -340,7 +340,7 @@ async function main() {
     // TEST 3: Protected Preview Protocol (Protocol 3)
     // ========================================================================
     const protectedScript = createMediaInjectionScript(devices, {
-      protocolId: 'protected',
+      protocolId: 'shield',
       stealthMode: true,
       forceSimulation: true,
       permissionPromptEnabled: false,
@@ -353,7 +353,7 @@ async function main() {
     results.push(await testProtocol(
       browser,
       'Protocol 3: Protected Preview',
-      'protected',
+      'shield',
       protectedScript
     ));
 
@@ -361,7 +361,7 @@ async function main() {
     // TEST 4: Test Harness Protocol (Protocol 4)
     // ========================================================================
     const harnessScript = createMediaInjectionScript(devices, {
-      protocolId: 'harness',
+      protocolId: 'shield',
       stealthMode: true,
       forceSimulation: true,
       permissionPromptEnabled: false,
@@ -374,7 +374,7 @@ async function main() {
     results.push(await testProtocol(
       browser,
       'Protocol 4: Test Harness',
-      'harness',
+      'shield',
       harnessScript
     ));
 
@@ -382,7 +382,7 @@ async function main() {
     // TEST 5: Holographic Protocol (Protocol 5)
     // ========================================================================
     const holographicScript = createMediaInjectionScript(devices, {
-      protocolId: 'holographic',
+      protocolId: 'stealth',
       stealthMode: true,
       forceSimulation: true,
       permissionPromptEnabled: false,
@@ -395,7 +395,7 @@ async function main() {
     results.push(await testProtocol(
       browser,
       'Protocol 5: Holographic Stream Injection',
-      'holographic',
+      'stealth',
       holographicScript
     ));
 

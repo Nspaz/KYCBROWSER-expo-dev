@@ -37,7 +37,7 @@ function buildDevices(): CaptureDevice[] {
 }
 
 describeLive('webcamtests.com/recorder - protocol smoke', () => {
-  const protocols: ProtocolId[] = ['standard', 'allowlist', 'protected', 'harness', 'holographic'];
+  const protocols: ProtocolId[] = ['stealth', 'relay', 'shield', 'bridge'];
 
   // Playwright + navigation can take time in CI/VMs.
   jest.setTimeout(120_000);

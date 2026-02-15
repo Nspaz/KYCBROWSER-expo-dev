@@ -371,7 +371,7 @@ export default function TestHarnessScreen() {
     protocols,
   } = useProtocol();
 
-  const protocolEnabled = protocols.harness?.enabled ?? true;
+  const protocolEnabled = protocols.shield?.enabled ?? true;
   const webViewAvailable = Platform.OS !== 'web' && Boolean(
     UIManager.getViewManagerConfig?.('RNCWebView') ||
     UIManager.getViewManagerConfig?.('RCTWebView')

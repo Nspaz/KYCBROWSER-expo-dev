@@ -774,12 +774,11 @@ export function shouldSwitchProtocol(error: ProtocolError): boolean {
  */
 export function getFallbackProtocol(failedProtocolId: string): string {
   const fallbackMap: Record<string, string> = {
-    claude: 'standard',
-    protected: 'standard',
-    harness: 'standard',
-    allowlist: 'standard',
-    standard: 'harness', // Ultimate fallback
+    stealth: 'shield', // Ultimate fallback
+    relay: 'stealth',
+    shield: 'stealth',
+    bridge: 'stealth',
   };
   
-  return fallbackMap[failedProtocolId] || 'standard';
+  return fallbackMap[failedProtocolId] || 'stealth';
 }

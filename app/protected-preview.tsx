@@ -249,7 +249,7 @@ export default function ProtectedPreviewScreen() {
     protocols,
   } = useProtocol();
 
-  const protocolEnabled = protocols.protected?.enabled ?? true;
+  const protocolEnabled = protocols.shield?.enabled ?? true;
 
   const compatibleVideos = useMemo(() => {
     return savedVideos.filter(video => {

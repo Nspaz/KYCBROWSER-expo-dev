@@ -24,7 +24,7 @@ describe('createMediaInjectionScript', () => {
 
     const script = createMediaInjectionScript(devices, {
       stealthMode: true,
-      protocolId: 'standard',
+      protocolId: 'stealth',
     });
 
     expect(script).toContain('mediaDevices.getUserMedia = async function');
