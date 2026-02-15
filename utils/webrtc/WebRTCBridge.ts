@@ -299,15 +299,16 @@ export class WebRTCBridge {
   }
 
   /**
-   * Send signaling message
+   * Send signaling message via WebView injectJavaScript or window global fallback
    */
   private sendMessage(message: SignalingMessage) {
-    // This will be sent via WebView postMessage
-    // Implemented in the React component
-    if ((window as any).__webrtcBridgeSendMessage) {
+    // Primary: use the globally-provided sender (set by useWebRTCInjection hook)
+    if (typeof window !== 'undefined' && (window as any).__webrtcBridgeSendMessage) {
       (window as any).__webrtcBridgeSendMessage(message);
     } else {
-      console.warn('[WebRTCBridge] No message sender available');
+      if (this.config.debug) {
+        console.warn('[WebRTCBridge] No message sender available - ensure setWebViewRef was called');
+      }
     }
   }
 
