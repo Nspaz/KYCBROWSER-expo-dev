@@ -824,7 +824,24 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, [stealthSettings]);
 
   const updateRelaySettings = useCallback(async (settings: Partial<RelayProtocolSettings>) => {
-    const newSettings = { ...relaySettings, ...settings };
+    // Deep-merge advancedRelay so callers can update a single sub-key without
+    // wiping sibling sub-objects (pipeline, webrtc, gpu, asi, crossDevice, crypto).
+    const mergedAdvancedRelay = settings.advancedRelay
+      ? {
+          pipeline: { ...relaySettings.advancedRelay.pipeline, ...settings.advancedRelay.pipeline },
+          webrtc: { ...relaySettings.advancedRelay.webrtc, ...settings.advancedRelay.webrtc },
+          gpu: { ...relaySettings.advancedRelay.gpu, ...settings.advancedRelay.gpu },
+          asi: { ...relaySettings.advancedRelay.asi, ...settings.advancedRelay.asi },
+          crossDevice: { ...relaySettings.advancedRelay.crossDevice, ...settings.advancedRelay.crossDevice },
+          crypto: { ...relaySettings.advancedRelay.crypto, ...settings.advancedRelay.crypto },
+        }
+      : relaySettings.advancedRelay;
+
+    const newSettings: RelayProtocolSettings = {
+      ...relaySettings,
+      ...settings,
+      advancedRelay: mergedAdvancedRelay,
+    };
     setRelaySettings(newSettings);
     await AsyncStorage.setItem(STORAGE_KEYS.RELAY_SETTINGS, JSON.stringify(newSettings));
   }, [relaySettings]);
