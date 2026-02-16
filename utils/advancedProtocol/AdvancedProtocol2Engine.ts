@@ -14,15 +14,12 @@
 import {
   AdvancedProtocol2Config,
   AdvancedProtocol2State,
-  VideoSourceType,
   VideoSourceConfig,
   DEFAULT_ADVANCED_PROTOCOL2_CONFIG,
   DEFAULT_VIDEO_SOURCE_CONFIG,
-  DEFAULT_VIDEO_SOURCE_HEALTH,
-  Resolution,
 } from '@/types/advancedProtocol';
 
-import { VideoSourcePipeline, VideoSourceInstance, createVideoSource } from './VideoSourcePipeline';
+import { VideoSourcePipeline, createVideoSource } from './VideoSourcePipeline';
 import { WebRTCRelay } from './WebRTCRelay';
 import { GPUProcessor } from './GPUProcessor';
 import { AdaptiveStreamIntelligence } from './AdaptiveStreamIntelligence';
@@ -39,15 +36,6 @@ interface EngineCallbacks {
   onStreamReady?: (stream: MediaStream) => void;
   onThreatDetected?: (threat: unknown) => void;
   onMetricsUpdate?: (metrics: AdvancedProtocol2State['metrics']) => void;
-}
-
-interface StreamConfiguration {
-  resolution: Resolution;
-  frameRate: number;
-  enableGpu: boolean;
-  enableWebRTC: boolean;
-  enableASI: boolean;
-  enableCrypto: boolean;
 }
 
 // ============================================================================

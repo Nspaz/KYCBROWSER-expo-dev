@@ -7,14 +7,12 @@ import type { CaptureDevice } from '../types/device';
 import { createAdvancedProtocol2Script } from '../utils/advancedProtocol/browserScript';
 
 type ProtocolId =
-  | 'standard'
-  | 'allowlist'
-  | 'protected'
-  | 'harness'
-  | 'holographic'
+  | 'stealth'
+  | 'relay'
+  | 'shield'
+  | 'bridge'
   | 'working'
-  | 'advanced2'
-  | 'sonnet';
+  | 'advanced2';
 
 type CheckResult = {
   protocolId: ProtocolId;
@@ -30,15 +28,12 @@ type CheckResult = {
 const TARGET_URL = 'https://webcamtests.com/recorder';
 
 const protocols: ProtocolId[] = [
-  'standard',
-  'allowlist',
-  'protected',
-  'harness',
-  'holographic',
+  'stealth',
+  'relay',
+  'shield',
   // These mirror the actual WebView injection paths used in-app.
   'working',
   'advanced2',
-  'sonnet',
 ];
 
 const devices: CaptureDevice[] = [
@@ -108,7 +103,7 @@ async function runCheck(protocolId: ProtocolId): Promise<CheckResult> {
         protocolLabel: 'Protocol 2: Advanced Relay',
         showOverlayLabel: false,
       });
-    } else if (protocolId === 'sonnet') {
+    } else if (protocolId === 'stealth') {
       const sonnetConfig: SonnetProtocolConfig = {
         enabled: true,
         aiAdaptiveQuality: true,

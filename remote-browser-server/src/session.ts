@@ -135,7 +135,7 @@ export class RemoteBrowserSession {
           height: Math.max(200, Math.min(2000, msg.height)),
           deviceScaleFactor: msg.deviceScaleFactor ?? this.viewport.deviceScaleFactor,
         };
-        await ctx.setViewportSize({ width: this.viewport.width, height: this.viewport.height });
+        await page.setViewportSize({ width: this.viewport.width, height: this.viewport.height });
         this.broadcast({ type: 'meta', viewport: this.viewport });
         return;
       }

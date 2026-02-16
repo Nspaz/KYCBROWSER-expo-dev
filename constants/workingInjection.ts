@@ -379,7 +379,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     stealthMode: CONFIG.STEALTH,
     fallbackVideoUri: CONFIG.VIDEO_URI,
     debugEnabled: CONFIG.DEBUG,
-    protocolId: 'standard',
+    protocolId: 'stealth',
     useFrameGenerator: CONFIG.USE_FRAME_GENERATOR,
   });
   

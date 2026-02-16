@@ -611,7 +611,7 @@ export async function createOptimizedVideoElement(
       reject(new Error('Video element failed to load'));
     };
     
-    video.src = result.objectUrl;
+    video.src = result.objectUrl!;
   });
 }
 

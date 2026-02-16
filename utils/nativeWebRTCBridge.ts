@@ -3,32 +3,6 @@ import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
 import { isExpoGo, safeRequireWebRTC } from './expoGoCompat';
 
-type WebRTCOfferMessage = {
-  type: 'nativeWebRTCOffer';
-  payload: {
-    requestId: string;
-    sdp: string;
-    constraints?: any;
-  };
-};
-
-type WebRTCIceMessage = {
-  type: 'nativeWebRTCIceCandidate';
-  payload: {
-    requestId: string;
-    candidate: any;
-  };
-};
-
-type WebRTCCloseMessage = {
-  type: 'nativeWebRTCClose';
-  payload: {
-    requestId: string;
-  };
-};
-
-type WebViewSignalMessage = WebRTCOfferMessage | WebRTCIceMessage | WebRTCCloseMessage;
-
 type Session = {
   pc: any;
   stream?: any;
@@ -42,12 +16,12 @@ type Session = {
  * WebView-based injection (Protocol 0) instead.
  */
 export class NativeWebRTCBridge {
-  private webViewRef: RefObject<WebView>;
+  private webViewRef: RefObject<WebView | null>;
   private sessions = new Map<string, Session>();
   private webrtcModule: any | null | undefined = undefined;
   private isExpoGoEnv: boolean;
 
-  constructor(webViewRef: RefObject<WebView>) {
+  constructor(webViewRef: RefObject<WebView | null>) {
     this.webViewRef = webViewRef;
     this.isExpoGoEnv = isExpoGo();
     
@@ -112,8 +86,17 @@ export class NativeWebRTCBridge {
 
   private sendToWebView(message: { type: string; requestId: string; sdp?: string; candidate?: any; message?: string }) {
     const payload = JSON.stringify(message);
+    // Use proper escaping for the injected script - the JSON string is
+    // passed as a parsed object, not as a string literal, so we parse it inside.
     this.webViewRef.current?.injectJavaScript(`
-      window.__nativeWebRTCBridgeHandleMessage && window.__nativeWebRTCBridgeHandleMessage(${payload});
+      (function() {
+        try {
+          var msg = JSON.parse(${JSON.stringify(payload)});
+          if (window.__nativeWebRTCBridgeHandleMessage) {
+            window.__nativeWebRTCBridgeHandleMessage(msg);
+          }
+        } catch(e) { console.error('[NativeBridge] Message error:', e); }
+      })();
       true;
     `);
   }
@@ -191,7 +174,7 @@ export class NativeWebRTCBridge {
     try {
       const candidate = new webrtc.RTCIceCandidate(payload.candidate);
       await session.pc.addIceCandidate(candidate);
-    } catch (err) {
+    } catch {
       // Ignore; candidate might arrive before remote description.
     }
   }
@@ -207,10 +190,10 @@ export class NativeWebRTCBridge {
     if (session.stream) {
       try {
         session.stream.getTracks().forEach((track: any) => track.stop());
-      } catch (e) {}
+      } catch {}
     }
     try {
       session.pc.close();
-    } catch (e) {}
+    } catch {}
   }
 }

@@ -5,7 +5,7 @@
  * to identify what works and what doesn't.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -48,9 +48,9 @@ const PROTOCOLS: Array<{ key: ProtocolKey; name: string; description: string }> 
   { key: 'none', name: 'No Protocol (Baseline)', description: 'Test without any injection - should fail' },
   { key: 'minimal', name: 'Minimal Injection', description: 'Absolute simplest possible injection - if this fails, env is broken' },
   { key: 'working', name: 'Working Injection', description: 'Bulletproof canvas-based injection' },
-  { key: 'protocol1', name: 'Protocol 1 (Standard)', description: 'Standard media injection with stealth mode' },
-  { key: 'protocol2', name: 'Protocol 2 (Advanced)', description: 'Advanced with WebRTC relay and ASI' },
-  { key: 'sonnet', name: 'Sonnet Protocol', description: 'AI-powered adaptive injection' },
+  { key: 'protocol1', name: 'Stealth Protocol', description: 'Standard media injection with stealth mode' },
+  { key: 'protocol2', name: 'Relay Protocol', description: 'Advanced with WebRTC relay and ASI' },
+  { key: 'sonnet', name: 'Stealth (AI-Enhanced)', description: 'AI-powered adaptive injection' },
 ];
 
 export default function WebcamTestsDiagnosticScreen() {
@@ -80,14 +80,16 @@ export default function WebcamTestsDiagnosticScreen() {
         name: 'Test Camera',
         type: 'camera',
         facing: 'front',
+        lensType: 'wide',
         isDefault: true,
         isPrimary: true,
         groupId: 'default',
+        tested: false,
         simulationEnabled: true,
         capabilities: {
           videoResolutions: [
-            { width: 1920, height: 1080, fps: 30 },
-            { width: 1280, height: 720, fps: 30 },
+            { width: 1920, height: 1080, maxFps: 30, label: '1080p' },
+            { width: 1280, height: 720, maxFps: 30, label: '720p' },
           ],
         },
       },
@@ -371,8 +373,8 @@ true;
       } else if (data.type === 'console') {
         addLog(`[WebView] ${data.message}`);
       }
-    } catch (e) {
-      // Not JSON or not our message
+    } catch {
+      // Intentionally ignore non-JSON or non-protocol messages from the WebView.
     }
   }, [currentProtocol, addLog]);
   

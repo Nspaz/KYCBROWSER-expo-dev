@@ -37,7 +37,7 @@ function buildDevices(): CaptureDevice[] {
 }
 
 describeLive('webcamtests.com/recorder - protocol smoke', () => {
-  const protocols: ProtocolId[] = ['standard', 'allowlist', 'protected', 'harness', 'holographic'];
+  const protocols: ProtocolId[] = ['stealth', 'relay', 'shield', 'bridge'];
 
   // Playwright + navigation can take time in CI/VMs.
   jest.setTimeout(120_000);
@@ -107,7 +107,7 @@ describeLive('webcamtests.com/recorder - protocol smoke', () => {
 
           const recordedPromise = new Promise((resolve, reject) => {
             try {
-              const chunks = [];
+              const chunks: Blob[] = [];
               const recorder = new MediaRecorder(stream);
               recorder.ondataavailable = (e) => {
                 if (e && e.data && e.data.size > 0) chunks.push(e.data);

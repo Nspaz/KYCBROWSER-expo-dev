@@ -50,12 +50,12 @@ const getWebRTCModule = (): WebRTCModule | null => {
   }
   
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     webrtcModule = require('react-native-webrtc');
   } catch {
     webrtcModule = null;
   }
-  return webrtcModule;
+  return webrtcModule ?? null;
 };
 
 let nativeBridge: {
@@ -196,7 +196,7 @@ export async function handleNativeGumOffer(
     const stream = await webrtc.mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
     sessions.set(requestId, { pc, stream });
 
-    stream.getTracks().forEach((track) => {
+    stream.getTracks().forEach((track: any) => {
       pc.addTrack(track, stream);
     });
 
@@ -254,7 +254,7 @@ export function closeNativeGumSession(payload: NativeGumCancelPayload): void {
   if (!session) return;
 
   try {
-    session.stream?.getTracks().forEach((track) => track.stop());
+    session.stream?.getTracks().forEach((track: any) => track.stop());
   } catch {}
 
   try {

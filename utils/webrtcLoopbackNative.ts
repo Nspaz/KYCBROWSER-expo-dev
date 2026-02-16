@@ -1,10 +1,10 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { isExpoGo, safeRequireNativeModule } from './expoGoCompat';
 
 // Only load native module if not in Expo Go
 const LoopbackModule = isExpoGo() 
   ? null 
-  : safeRequireNativeModule('WebRtcLoopback', null);
+  : safeRequireNativeModule<{ exportRingBufferToPhotos?: () => Promise<void> } | null>('WebRtcLoopback', null);
 
 /**
  * Check if the native WebRTC loopback module is available

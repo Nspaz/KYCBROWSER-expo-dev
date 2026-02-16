@@ -136,7 +136,7 @@ export function createWebcamTestsLiveDiagnostic(testDevices: CaptureDevice[]): s
         result.steps.injectionLoaded = true;
       } else if (protocolId === 'protocol2' && state.hasAdvancedProtocol2) {
         result.steps.injectionLoaded = true;
-      } else if (protocolId === 'sonnet' && state.hasSonnetProtocol) {
+      } else if (protocolId === 'stealth' && state.hasSonnetProtocol) {
         result.steps.injectionLoaded = true;
       }
       
@@ -325,7 +325,7 @@ export function createWebcamTestsLiveDiagnostic(testDevices: CaptureDevice[]): s
     const state = checkCurrentState();
     
     if (state.hasSonnetProtocol) {
-      return { name: 'Sonnet Protocol', id: 'sonnet' };
+      return { name: 'Sonnet Protocol', id: 'stealth' };
     } else if (state.hasAdvancedProtocol2) {
       return { name: 'Advanced Protocol 2', id: 'protocol2' };
     } else if (state.hasWorkingInjection) {

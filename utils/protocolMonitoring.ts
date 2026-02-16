@@ -352,7 +352,7 @@ export const monitoringHelpers = {
   getRecommendedProtocol(): string {
     const comparison = protocolMonitor.getProtocolComparison();
     
-    let bestProtocol = 'standard';
+    let bestProtocol = 'stealth';
     let bestScore = 0;
 
     Object.entries(comparison).forEach(([protocolId, stats]) => {

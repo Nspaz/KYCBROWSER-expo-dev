@@ -4,8 +4,21 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
-// Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+// ─── Protocol Types (consolidated from 10 → 4) ─────────────────────────────
+export type ProtocolType = 'stealth' | 'relay' | 'bridge' | 'shield';
+
+/** @deprecated Use ProtocolType – old 10-protocol union kept for downstream compat */
+export type LegacyProtocolType =
+  | 'standard'
+  | 'allowlist'
+  | 'protected'
+  | 'harness'
+  | 'holographic'
+  | 'websocket'
+  | 'webrtc-loopback'
+  | 'claude-sonnet'
+  | 'claude'
+  | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -15,51 +28,77 @@ export interface ProtocolConfig {
   settings: Record<string, unknown>;
 }
 
-export interface StandardProtocolSettings {
+// ─── Migration helper: old protocol IDs → new ──────────────────────────────
+const migrateProtocolType = (oldType: string): ProtocolType | null => {
+  const migration: Record<string, ProtocolType> = {
+    // stealth
+    'standard': 'stealth',
+    'holographic': 'stealth',
+    'claude-sonnet': 'stealth',
+    'claude': 'stealth',
+    'sonnet': 'stealth',
+    // relay
+    'allowlist': 'relay',
+    // bridge
+    'websocket': 'bridge',
+    'webrtc-loopback': 'bridge',
+    // shield
+    'protected': 'shield',
+    'harness': 'shield',
+  };
+  return migration[oldType] ?? null;
+};
+
+// ─── New settings interfaces ────────────────────────────────────────────────
+
+/** Stealth – merges Standard + Holographic + Sonnet/AI features */
+export interface StealthProtocolSettings {
+  // From Standard
   autoInject: boolean;
   stealthByDefault: boolean;
   respectSiteSettings: boolean;
   injectMotionData: boolean;
   loopVideo: boolean;
+  // From Holographic
+  sdpMasquerade: boolean;
+  emulatedDevice: 'iphone-front' | 'webcam-c920' | 'obs-virtual';
+  canvasResolution: '720p' | '1080p' | '4k';
+  frameRate: 30 | 60;
+  noiseInjectionLevel: number;
+  // From Sonnet/AI
+  aiAdaptiveQuality: boolean;
+  behavioralMimicry: boolean;
+  quantumTimingRandomness: boolean;
+  predictiveFrameOptimization: boolean;
+  stealthIntensity: 'minimal' | 'moderate' | 'maximum';
 }
 
-const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = IS_EXPO_GO ? 'websocket' : 'standard';
-
-// Advanced Relay Protocol Settings (Protocol 2)
-// The most technically advanced video injection system
-export interface AllowlistProtocolSettings {
+/** Relay – keeps AllowlistProtocolSettings shape (already comprehensive) */
+export interface RelayProtocolSettings {
   enabled: boolean;
   domains: string[];
   blockUnlisted: boolean;
   showBlockedIndicator: boolean;
   autoAddCurrentSite: boolean;
-  
-  // Advanced Protocol 2 Settings
+
   advancedRelay: {
-    // Video Pipeline
     pipeline: {
       hotSwitchThresholdMs: number;
       minAcceptableFps: number;
       enableParallelDecoding: boolean;
     };
-    
-    // WebRTC Relay
     webrtc: {
       enabled: boolean;
       virtualTurnEnabled: boolean;
       sdpManipulationEnabled: boolean;
       stealthMode: boolean;
     };
-    
-    // GPU Processing
     gpu: {
       enabled: boolean;
       qualityPreset: 'ultra' | 'high' | 'medium' | 'low' | 'potato';
       noiseInjection: boolean;
       noiseIntensity: number;
     };
-    
-    // Adaptive Stream Intelligence
     asi: {
       enabled: boolean;
       siteFingerprinting: boolean;
@@ -67,8 +106,6 @@ export interface AllowlistProtocolSettings {
       antiDetectionMeasures: boolean;
       storeHistory: boolean;
     };
-    
-    // Cross-Device Streaming
     crossDevice: {
       enabled: boolean;
       discoveryMethod: 'manual' | 'mdns' | 'qr';
@@ -76,8 +113,6 @@ export interface AllowlistProtocolSettings {
       autoReconnect: boolean;
       connectedDeviceId: string | null;
     };
-    
-    // Cryptographic Validation
     crypto: {
       enabled: boolean;
       frameSigning: boolean;
@@ -86,39 +121,12 @@ export interface AllowlistProtocolSettings {
   };
 }
 
-export interface HolographicProtocolSettings {
+/** Bridge – merges WebRTC loopback + WebSocket/postMessage bridge */
+export interface BridgeProtocolSettings {
   enabled: boolean;
-  useWebSocketBridge: boolean;
-  bridgePort: number;
-  latencyMode: 'ultra-low' | 'balanced' | 'quality';
-  canvasResolution: '720p' | '1080p' | '4k';
-  frameRate: 30 | 60;
-  noiseInjectionLevel: number;
-  sdpMasquerade: boolean;
-  emulatedDevice: 'iphone-front' | 'webcam-c920' | 'obs-virtual';
-}
-
-export interface ProtectedProtocolSettings {
-  bodyDetectionEnabled: boolean;
-  sensitivityLevel: 'low' | 'medium' | 'high';
-  replacementVideoId: string | null;
-  showProtectedBadge: boolean;
-  autoTriggerOnFace: boolean;
-  blurFallback: boolean;
-}
-
-export interface HarnessProtocolSettings {
-  overlayEnabled: boolean;
-  showDebugInfo: boolean;
-  captureFrameRate: number;
-  enableAudioPassthrough: boolean;
-  mirrorVideo: boolean;
-  testPatternOnNoVideo: boolean;
-}
-
-export interface WebRtcLoopbackProtocolSettings {
-  enabled: boolean;
+  preferNativeBridge: boolean;
   autoStart: boolean;
+  // Native WebRTC settings
   signalingTimeoutMs: number;
   requireNativeBridge: boolean;
   iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
@@ -139,7 +147,44 @@ export interface WebRtcLoopbackProtocolSettings {
   cacheRemoteVideos: boolean;
   cacheTTLHours: number;
   cacheMaxSizeMB: number;
+  // PostMessage bridge settings (field names match WebSocketBridgeSettings)
+  resolution: '720p' | '1080p' | '4k';
+  frameRate: 24 | 30 | 60;
+  quality: number;
+  useSyntheticFallback: boolean;
 }
+
+/** Shield – merges Protected + Harness */
+export interface ShieldProtocolSettings {
+  // From Protected
+  bodyDetectionEnabled: boolean;
+  sensitivityLevel: 'low' | 'medium' | 'high';
+  replacementVideoId: string | null;
+  showProtectedBadge: boolean;
+  autoTriggerOnFace: boolean;
+  blurFallback: boolean;
+  // From Harness
+  overlayEnabled: boolean;
+  showDebugInfo: boolean;
+  captureFrameRate: number;
+  enableAudioPassthrough: boolean;
+  mirrorVideo: boolean;
+  testPatternOnNoVideo: boolean;
+}
+
+// ─── Backward-compatible type aliases (deprecated) ──────────────────────────
+/** @deprecated Use StealthProtocolSettings */
+export type StandardProtocolSettings = StealthProtocolSettings;
+/** @deprecated Use RelayProtocolSettings */
+export type AllowlistProtocolSettings = RelayProtocolSettings;
+/** @deprecated Use StealthProtocolSettings */
+export type HolographicProtocolSettings = StealthProtocolSettings;
+/** @deprecated Use ShieldProtocolSettings */
+export type ProtectedProtocolSettings = ShieldProtocolSettings;
+/** @deprecated Use ShieldProtocolSettings */
+export type HarnessProtocolSettings = ShieldProtocolSettings;
+/** @deprecated Use BridgeProtocolSettings */
+export type WebRtcLoopbackProtocolSettings = BridgeProtocolSettings;
 
 export interface ProtocolContextValue {
   // Developer Mode
@@ -148,57 +193,79 @@ export interface ProtocolContextValue {
   setDeveloperModeWithPin: (pin: string) => Promise<boolean>;
   developerPin: string | null;
   setDeveloperPin: (pin: string) => Promise<void>;
-  
+
   // Presentation Mode
   presentationMode: boolean;
   togglePresentationMode: () => void;
   showTestingWatermark: boolean;
   setShowTestingWatermark: (show: boolean) => void;
-  
+
   // Active Protocol
   activeProtocol: ProtocolType;
   setActiveProtocol: (protocol: ProtocolType) => Promise<void>;
-  
+
   // Protocol Configs
   protocols: Record<ProtocolType, ProtocolConfig>;
   updateProtocolConfig: <T extends ProtocolType>(
-    protocol: T, 
+    protocol: T,
     settings: Partial<ProtocolConfig>
   ) => Promise<void>;
-  
-  // Protocol-specific settings
-  standardSettings: StandardProtocolSettings;
-  allowlistSettings: AllowlistProtocolSettings;
-  protectedSettings: ProtectedProtocolSettings;
-  harnessSettings: HarnessProtocolSettings;
-  holographicSettings: HolographicProtocolSettings;
-  webrtcLoopbackSettings: WebRtcLoopbackProtocolSettings;
 
-  // Settings Updaters
-  updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
-  updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
-  updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
-  updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
-  updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
-  updateWebRtcLoopbackSettings: (settings: Partial<WebRtcLoopbackProtocolSettings>) => Promise<void>;
-  
-  // Allowlist helpers
+  // ── New consolidated settings ──
+  stealthSettings: StealthProtocolSettings;
+  relaySettings: RelayProtocolSettings;
+  bridgeSettings: BridgeProtocolSettings;
+  shieldSettings: ShieldProtocolSettings;
+
+  updateStealthSettings: (settings: Partial<StealthProtocolSettings>) => Promise<void>;
+  updateRelaySettings: (settings: Partial<RelayProtocolSettings>) => Promise<void>;
+  updateBridgeSettings: (settings: Partial<BridgeProtocolSettings>) => Promise<void>;
+  updateShieldSettings: (settings: Partial<ShieldProtocolSettings>) => Promise<void>;
+
+  // ── Backward-compatible aliases (deprecated – point to new settings) ──
+  /** @deprecated Use stealthSettings */
+  standardSettings: StealthProtocolSettings;
+  /** @deprecated Use relaySettings */
+  allowlistSettings: RelayProtocolSettings;
+  /** @deprecated Use shieldSettings */
+  protectedSettings: ShieldProtocolSettings;
+  /** @deprecated Use shieldSettings */
+  harnessSettings: ShieldProtocolSettings;
+  /** @deprecated Use stealthSettings */
+  holographicSettings: StealthProtocolSettings;
+  /** @deprecated Use bridgeSettings */
+  webrtcLoopbackSettings: BridgeProtocolSettings;
+
+  /** @deprecated Use updateStealthSettings */
+  updateStandardSettings: (settings: Partial<StealthProtocolSettings>) => Promise<void>;
+  /** @deprecated Use updateRelaySettings */
+  updateAllowlistSettings: (settings: Partial<RelayProtocolSettings>) => Promise<void>;
+  /** @deprecated Use updateShieldSettings */
+  updateProtectedSettings: (settings: Partial<ShieldProtocolSettings>) => Promise<void>;
+  /** @deprecated Use updateShieldSettings */
+  updateHarnessSettings: (settings: Partial<ShieldProtocolSettings>) => Promise<void>;
+  /** @deprecated Use updateStealthSettings */
+  updateHolographicSettings: (settings: Partial<StealthProtocolSettings>) => Promise<void>;
+  /** @deprecated Use updateBridgeSettings */
+  updateWebRtcLoopbackSettings: (settings: Partial<BridgeProtocolSettings>) => Promise<void>;
+
+  // Allowlist helpers (kept for relay domain filtering)
   addAllowlistDomain: (domain: string) => Promise<void>;
   removeAllowlistDomain: (domain: string) => Promise<void>;
   isAllowlisted: (hostname: string) => boolean;
-  
+
   // HTTPS enforcement
   httpsEnforced: boolean;
   setHttpsEnforced: (enforced: boolean) => Promise<void>;
-  
+
   // ML Safety Mode (placeholder for future)
   mlSafetyEnabled: boolean;
   setMlSafetyEnabled: (enabled: boolean) => Promise<void>;
-  
+
   // Enterprise iOS WebKit (private flags)
   enterpriseWebKitEnabled: boolean;
   setEnterpriseWebKitEnabled: (enabled: boolean) => Promise<void>;
-  
+
   // Loading states
   isLoading: boolean;
 }
@@ -210,6 +277,11 @@ const STORAGE_KEYS = {
   PRESENTATION_MODE: '@protocol_presentation_mode',
   ACTIVE_PROTOCOL: '@protocol_active',
   PROTOCOLS_CONFIG: '@protocols_config',
+  STEALTH_SETTINGS: '@protocol_stealth_settings',
+  RELAY_SETTINGS: '@protocol_allowlist_settings', // reuse old key for backward compat
+  BRIDGE_SETTINGS: '@protocol_bridge_settings',
+  SHIELD_SETTINGS: '@protocol_shield_settings',
+  // Legacy keys – read during migration only
   STANDARD_SETTINGS: '@protocol_standard_settings',
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
@@ -238,47 +310,55 @@ const hashPin = async (pin: string): Promise<string> => {
 };
 
 // Default Settings
-const DEFAULT_STANDARD_SETTINGS: StandardProtocolSettings = {
+const DEFAULT_STEALTH_SETTINGS: StealthProtocolSettings = {
   autoInject: true,
   stealthByDefault: true,
-  respectSiteSettings: true,
+  // respectSiteSettings OFF by default so stealth injection is always active.
+  // With respectSiteSettings ON the effective stealth mode can be disabled for
+  // certain URLs, which would prevent getUserMedia override on sites like
+  // webcamtests.com where injection is essential.
+  respectSiteSettings: false,
   injectMotionData: true,
   loopVideo: true,
+  sdpMasquerade: true,
+  emulatedDevice: 'iphone-front',
+  canvasResolution: '1080p',
+  frameRate: 30,
+  noiseInjectionLevel: 0.1,
+  // AI features disabled by default – Protocol0 (canvas-based injection) is more
+  // reliable for webcamtests.com and similar sites.  Enable individually when needed.
+  aiAdaptiveQuality: false,
+  behavioralMimicry: false,
+  quantumTimingRandomness: false,
+  predictiveFrameOptimization: false,
+  stealthIntensity: 'moderate',
 };
 
-const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
-  enabled: true, // Now enabled by default with Advanced Relay
+const DEFAULT_RELAY_SETTINGS: RelayProtocolSettings = {
+  enabled: true,
   domains: [],
-  blockUnlisted: false, // Less restrictive with Advanced Relay
+  blockUnlisted: false,
   showBlockedIndicator: false,
   autoAddCurrentSite: false,
-  
-  // Advanced Protocol 2 Settings
+
   advancedRelay: {
-    // Video Pipeline - optimized for quality
     pipeline: {
       hotSwitchThresholdMs: 50,
       minAcceptableFps: 15,
       enableParallelDecoding: true,
     },
-    
-    // WebRTC Relay - maximum stealth
     webrtc: {
-      enabled: true,
-      virtualTurnEnabled: true,
-      sdpManipulationEnabled: true,
+      enabled: false,
+      virtualTurnEnabled: false,
+      sdpManipulationEnabled: false,
       stealthMode: true,
     },
-    
-    // GPU Processing - balanced quality
     gpu: {
-      enabled: true,
+      enabled: false,
       qualityPreset: 'high',
-      noiseInjection: true,
+      noiseInjection: false,
       noiseIntensity: 0.02,
     },
-    
-    // ASI - intelligent adaptation
     asi: {
       enabled: true,
       siteFingerprinting: true,
@@ -286,57 +366,24 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
       antiDetectionMeasures: true,
       storeHistory: true,
     },
-    
-    // Cross-Device - ready for pairing
     crossDevice: {
-      enabled: true,
+      enabled: false,
       discoveryMethod: 'qr',
       targetLatencyMs: 100,
       autoReconnect: true,
       connectedDeviceId: null,
     },
-    
-    // Crypto - secure by default
     crypto: {
-      enabled: true,
-      frameSigning: true,
-      tamperDetection: true,
+      enabled: false,
+      frameSigning: false,
+      tamperDetection: false,
     },
   },
 };
 
-const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicProtocolSettings = {
+const DEFAULT_BRIDGE_SETTINGS: BridgeProtocolSettings = {
   enabled: true,
-  useWebSocketBridge: true,
-  bridgePort: 8080,
-  latencyMode: 'balanced',
-  canvasResolution: '1080p',
-  frameRate: 30,
-  noiseInjectionLevel: 0.1,
-  sdpMasquerade: true,
-  emulatedDevice: 'iphone-front',
-};
-
-const DEFAULT_PROTECTED_SETTINGS: ProtectedProtocolSettings = {
-  bodyDetectionEnabled: true,
-  sensitivityLevel: 'medium',
-  replacementVideoId: null,
-  showProtectedBadge: true,
-  autoTriggerOnFace: true,
-  blurFallback: true,
-};
-
-const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
-  overlayEnabled: true,
-  showDebugInfo: true,
-  captureFrameRate: 30,
-  enableAudioPassthrough: false,
-  mirrorVideo: false,
-  testPatternOnNoVideo: true,
-};
-
-const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
-  enabled: !IS_EXPO_GO,
+  preferNativeBridge: !IS_EXPO_GO,
   autoStart: true,
   signalingTimeoutMs: 12000,
   requireNativeBridge: !IS_EXPO_GO,
@@ -358,62 +405,62 @@ const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
   cacheRemoteVideos: true,
   cacheTTLHours: 24,
   cacheMaxSizeMB: 1024,
+  resolution: '1080p',
+  frameRate: 30,
+  quality: 0.85,
+  useSyntheticFallback: true,
 };
+
+const DEFAULT_SHIELD_SETTINGS: ShieldProtocolSettings = {
+  bodyDetectionEnabled: true,
+  sensitivityLevel: 'medium',
+  replacementVideoId: null,
+  showProtectedBadge: true,
+  autoTriggerOnFace: true,
+  blurFallback: true,
+  overlayEnabled: true,
+  showDebugInfo: true,
+  captureFrameRate: 30,
+  enableAudioPassthrough: false,
+  mirrorVideo: false,
+  testPatternOnNoVideo: true,
+};
+
+const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = IS_EXPO_GO ? 'bridge' : 'stealth';
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
-  standard: {
-    id: 'standard',
-    name: 'Protocol 1: Standard Injection',
-    description: 'Uses the current media injection flow inside this app. Default for internal testing.',
+  stealth: {
+    id: 'stealth',
+    name: 'Quantum Stealth Engine',
+    description: 'Canvas-based getUserMedia override, SDP masquerade, AI behavioral mimicry, quantum timing randomness, and GPU noise injection.',
     enabled: true,
     settings: {},
   },
-  allowlist: {
-    id: 'allowlist',
-    name: 'Protocol 2: Advanced Relay',
-    description: 'The most technically advanced video injection system with WebRTC relay, GPU processing, AI-powered site adaptation, cross-device streaming, and cryptographic validation.',
+  relay: {
+    id: 'relay',
+    name: 'Advanced Relay',
+    description: 'WebRTC relay, GPU processing, ASI, cross-device streaming, cryptographic validation, and domain filtering.',
     enabled: true,
     settings: {},
   },
-  protected: {
-    id: 'protected',
-    name: 'Protocol 3: Protected Preview',
-    description: 'Consent-based local preview with body detection and safe video replacement.',
+  bridge: {
+    id: 'bridge',
+    name: 'Native Bridge',
+    description: 'Native WebRTC when available (iOS dev builds), postMessage bridge fallback for Android/Expo Go.',
     enabled: true,
     settings: {},
   },
-  harness: {
-    id: 'harness',
-    name: 'Protocol 4: Local Test Harness',
-    description: 'Local sandbox page for safe overlay testing without third-party sites.',
+  shield: {
+    id: 'shield',
+    name: 'Stealth Shield',
+    description: 'Body/face detection, safe video replacement, debug overlay, and test patterns.',
     enabled: true,
-    settings: {},
-  },
-  holographic: {
-    id: 'holographic',
-    name: 'Protocol 5: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
-    enabled: true,
-    settings: {},
-  },
-  websocket: {
-    id: 'websocket',
-    name: 'Protocol 6: WebSocket Bridge',
-    description: 'Uses React Native postMessage bridge to stream frames directly to WebView for maximum compatibility.',
-    enabled: true,
-    settings: {},
-  },
-  'webrtc-loopback': {
-    id: 'webrtc-loopback',
-    name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: !IS_EXPO_GO,
     settings: {},
   },
 };
 
-const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness' || value === 'holographic' || value === 'websocket' || value === 'webrtc-loopback';
+export const isProtocolType = (value: string): value is ProtocolType => {
+  return value === 'stealth' || value === 'relay' || value === 'bridge' || value === 'shield';
 };
 
 const clampProtocolsForExpoGo = (
@@ -422,25 +469,34 @@ const clampProtocolsForExpoGo = (
   if (!IS_EXPO_GO) {
     return nextProtocols;
   }
-  return {
-    ...nextProtocols,
-    'webrtc-loopback': {
-      ...nextProtocols['webrtc-loopback'],
-      enabled: false,
-    },
-  };
+  // In Expo Go, bridge still works but native-only features are limited
+  return nextProtocols;
 };
 
-const clampWebRtcLoopbackSettings = (
-  settings: WebRtcLoopbackProtocolSettings
-): WebRtcLoopbackProtocolSettings => {
+export const mergeProtocolsWithDefaults = (
+  storedProtocols?: Record<string, ProtocolConfig>
+): Record<ProtocolType, ProtocolConfig> => {
+  const merged = { ...DEFAULT_PROTOCOLS };
+  if (storedProtocols) {
+    Object.entries(storedProtocols).forEach(([key, value]) => {
+      if (isProtocolType(key)) {
+        merged[key] = { ...merged[key], ...value };
+      }
+    });
+  }
+  return clampProtocolsForExpoGo(merged);
+};
+
+const clampBridgeSettings = (
+  settings: BridgeProtocolSettings
+): BridgeProtocolSettings => {
   if (!IS_EXPO_GO) {
     return settings;
   }
   return {
     ...settings,
-    enabled: false,
     requireNativeBridge: false,
+    preferNativeBridge: false,
   };
 };
 
@@ -454,7 +510,13 @@ const resolveActiveProtocol = (
   const firstEnabled = (Object.keys(nextProtocols) as ProtocolType[]).find(
     (protocolId) => nextProtocols[protocolId]?.enabled
   );
-  return firstEnabled ?? DEFAULT_ACTIVE_PROTOCOL;
+  if (firstEnabled) {
+    return firstEnabled;
+  }
+  // All protocols disabled – force-enable stealth as the most reliable fallback
+  // and return it so injection always has a working path.
+  nextProtocols.stealth = { ...nextProtocols.stealth, enabled: true };
+  return 'stealth';
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -468,16 +530,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
   const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!IS_EXPO_GO);
-  
-  // Protocol-specific settings
-  const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
-  const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
-  const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
-  const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
-  const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
-  const [webrtcLoopbackSettings, setWebrtcLoopbackSettings] = useState<WebRtcLoopbackProtocolSettings>(
-    DEFAULT_WEBRTC_LOOPBACK_SETTINGS
-  );
+
+  // Consolidated protocol settings (4 total)
+  const [stealthSettings, setStealthSettings] = useState<StealthProtocolSettings>(DEFAULT_STEALTH_SETTINGS);
+  const [relaySettings, setRelaySettings] = useState<RelayProtocolSettings>(DEFAULT_RELAY_SETTINGS);
+  const [bridgeSettings, setBridgeSettings] = useState<BridgeProtocolSettings>(DEFAULT_BRIDGE_SETTINGS);
+  const [shieldSettings, setShieldSettings] = useState<ShieldProtocolSettings>(DEFAULT_SHIELD_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -490,12 +548,16 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           watermark,
           activeProto,
           protocolsConfig,
-          standard,
-          allowlist,
-          protected_,
-          harness,
-          holographic,
-          webrtcLoopback,
+          stealthStored,
+          relayStored,
+          bridgeStored,
+          shieldStored,
+          // Legacy keys for migration
+          legacyStandard,
+          legacyHolographic,
+          legacyProtected,
+          legacyHarness,
+          legacyWebrtcLoopback,
           https,
           mlSafety,
           enterpriseWebKit,
@@ -506,11 +568,15 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.TESTING_WATERMARK),
           AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_PROTOCOL),
           AsyncStorage.getItem(STORAGE_KEYS.PROTOCOLS_CONFIG),
+          AsyncStorage.getItem(STORAGE_KEYS.STEALTH_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.RELAY_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.BRIDGE_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.SHIELD_SETTINGS),
+          // Legacy keys
           AsyncStorage.getItem(STORAGE_KEYS.STANDARD_SETTINGS),
-          AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
-          AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
@@ -531,27 +597,31 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        let nextProtocols = { ...DEFAULT_PROTOCOLS };
+
+        let nextProtocols = mergeProtocolsWithDefaults();
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
-            nextProtocols = { ...DEFAULT_PROTOCOLS, ...parsed };
+            nextProtocols = mergeProtocolsWithDefaults(parsed);
           } catch (e) {
             console.warn('[Protocol] Failed to parse protocols config:', e);
           }
         }
-        nextProtocols = clampProtocolsForExpoGo(nextProtocols);
         setProtocols(nextProtocols);
-        if (IS_EXPO_GO && protocolsConfig) {
-          await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(nextProtocols));
-        }
 
+        // ── Migrate active protocol from old ID → new ──
         let requestedProtocol: ProtocolType | null = null;
         if (activeProto) {
           if (isProtocolType(activeProto)) {
             requestedProtocol = activeProto;
           } else {
-            console.warn('[Protocol] Invalid active protocol found:', activeProto);
+            const migrated = migrateProtocolType(activeProto);
+            if (migrated) {
+              requestedProtocol = migrated;
+              console.log(`[Protocol] Migrated active protocol: ${activeProto} → ${migrated}`);
+            } else {
+              console.warn('[Protocol] Invalid active protocol found:', activeProto);
+            }
           }
         }
         const resolvedProtocol = resolveActiveProtocol(requestedProtocol, nextProtocols);
@@ -559,58 +629,83 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (activeProto !== resolvedProtocol) {
           await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, resolvedProtocol);
         }
-        if (standard) {
+
+        // ── Stealth settings (merge from legacy standard/holographic if no new key) ──
+        if (stealthStored) {
           try {
-            setStandardSettings({ ...DEFAULT_STANDARD_SETTINGS, ...JSON.parse(standard) });
+            setStealthSettings({ ...DEFAULT_STEALTH_SETTINGS, ...JSON.parse(stealthStored) });
           } catch (e) {
-            console.warn('[Protocol] Failed to parse standard settings:', e);
+            console.warn('[Protocol] Failed to parse stealth settings:', e);
+          }
+        } else if (legacyStandard || legacyHolographic) {
+          try {
+            const base = { ...DEFAULT_STEALTH_SETTINGS };
+            if (legacyStandard) Object.assign(base, JSON.parse(legacyStandard));
+            if (legacyHolographic) Object.assign(base, JSON.parse(legacyHolographic));
+            setStealthSettings(base);
+            await AsyncStorage.setItem(STORAGE_KEYS.STEALTH_SETTINGS, JSON.stringify(base));
+            // Remove legacy keys after successful migration
+            await AsyncStorage.multiRemove([STORAGE_KEYS.STANDARD_SETTINGS, STORAGE_KEYS.HOLOGRAPHIC_SETTINGS]);
+            console.log('[Protocol] Migrated legacy standard/holographic → stealth settings');
+          } catch (e) {
+            console.warn('[Protocol] Failed to migrate stealth settings:', e);
           }
         }
-        if (allowlist) {
+
+        // ── Relay settings (same storage key as allowlist) ──
+        if (relayStored) {
           try {
-            setAllowlistSettings({ ...DEFAULT_ALLOWLIST_SETTINGS, ...JSON.parse(allowlist) });
+            setRelaySettings({ ...DEFAULT_RELAY_SETTINGS, ...JSON.parse(relayStored) });
           } catch (e) {
-            console.warn('[Protocol] Failed to parse allowlist settings:', e);
+            console.warn('[Protocol] Failed to parse relay settings:', e);
           }
         }
-        if (protected_) {
+
+        // ── Bridge settings (merge from legacy webrtc-loopback if no new key) ──
+        if (bridgeStored) {
           try {
-            setProtectedSettings({ ...DEFAULT_PROTECTED_SETTINGS, ...JSON.parse(protected_) });
+            const parsed = { ...DEFAULT_BRIDGE_SETTINGS, ...JSON.parse(bridgeStored) };
+            const sanitized = clampBridgeSettings(parsed);
+            setBridgeSettings(sanitized);
           } catch (e) {
-            console.warn('[Protocol] Failed to parse protected settings:', e);
+            console.warn('[Protocol] Failed to parse bridge settings:', e);
           }
-        }
-        if (harness) {
+        } else if (legacyWebrtcLoopback) {
           try {
-            setHarnessSettings({ ...DEFAULT_HARNESS_SETTINGS, ...JSON.parse(harness) });
+            const base = { ...DEFAULT_BRIDGE_SETTINGS, ...JSON.parse(legacyWebrtcLoopback) };
+            const sanitized = clampBridgeSettings(base);
+            setBridgeSettings(sanitized);
+            await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(sanitized));
+            await AsyncStorage.removeItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS);
+            console.log('[Protocol] Migrated legacy webrtc-loopback → bridge settings');
           } catch (e) {
-            console.warn('[Protocol] Failed to parse harness settings:', e);
-          }
-        }
-        if (holographic) {
-          try {
-            setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
-          } catch (e) {
-            console.warn('[Protocol] Failed to parse holographic settings:', e);
-          }
-        }
-        if (webrtcLoopback) {
-          try {
-            const parsed = { ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS, ...JSON.parse(webrtcLoopback) };
-            const sanitized = clampWebRtcLoopbackSettings(parsed);
-            setWebrtcLoopbackSettings(sanitized);
-            if (IS_EXPO_GO) {
-              await AsyncStorage.setItem(
-                STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS,
-                JSON.stringify(sanitized)
-              );
-            }
-          } catch (e) {
-            console.warn('[Protocol] Failed to parse WebRTC loopback settings:', e);
+            console.warn('[Protocol] Failed to migrate bridge settings:', e);
           }
         } else if (IS_EXPO_GO) {
-          setWebrtcLoopbackSettings(clampWebRtcLoopbackSettings(DEFAULT_WEBRTC_LOOPBACK_SETTINGS));
+          setBridgeSettings(clampBridgeSettings(DEFAULT_BRIDGE_SETTINGS));
         }
+
+        // ── Shield settings (merge from legacy protected/harness if no new key) ──
+        if (shieldStored) {
+          try {
+            setShieldSettings({ ...DEFAULT_SHIELD_SETTINGS, ...JSON.parse(shieldStored) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse shield settings:', e);
+          }
+        } else if (legacyProtected || legacyHarness) {
+          try {
+            const base = { ...DEFAULT_SHIELD_SETTINGS };
+            if (legacyProtected) Object.assign(base, JSON.parse(legacyProtected));
+            if (legacyHarness) Object.assign(base, JSON.parse(legacyHarness));
+            setShieldSettings(base);
+            await AsyncStorage.setItem(STORAGE_KEYS.SHIELD_SETTINGS, JSON.stringify(base));
+            await AsyncStorage.multiRemove([STORAGE_KEYS.PROTECTED_SETTINGS, STORAGE_KEYS.HARNESS_SETTINGS]);
+            console.log('[Protocol] Migrated legacy protected/harness → shield settings');
+          } catch (e) {
+            console.warn('[Protocol] Failed to migrate shield settings:', e);
+          }
+        }
+
         if (https !== null) setHttpsEnforcedState(https === 'true');
         if (mlSafety !== null) setMlSafetyEnabledState(mlSafety === 'true');
         if (enterpriseWebKit !== null) {
@@ -651,7 +746,6 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     }
 
     if (!developerPin) {
-      // First time setup - set the pin
       const hashedPin = await hashPin(normalizedPin);
       setDeveloperPinState(hashedPin);
       await AsyncStorage.setItem(STORAGE_KEYS.DEVELOPER_PIN, hashedPin);
@@ -721,63 +815,70 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     }
   }, [activeProtocol, protocols]);
 
-  const updateStandardSettings = useCallback(async (settings: Partial<StandardProtocolSettings>) => {
-    const newSettings = { ...standardSettings, ...settings };
-    setStandardSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.STANDARD_SETTINGS, JSON.stringify(newSettings));
-  }, [standardSettings]);
+  // ── Settings updaters ──
 
-  const updateAllowlistSettings = useCallback(async (settings: Partial<AllowlistProtocolSettings>) => {
-    const newSettings = { ...allowlistSettings, ...settings };
-    setAllowlistSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.ALLOWLIST_SETTINGS, JSON.stringify(newSettings));
-  }, [allowlistSettings]);
+  const updateStealthSettings = useCallback(async (settings: Partial<StealthProtocolSettings>) => {
+    const newSettings = { ...stealthSettings, ...settings };
+    setStealthSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.STEALTH_SETTINGS, JSON.stringify(newSettings));
+  }, [stealthSettings]);
 
-  const updateProtectedSettings = useCallback(async (settings: Partial<ProtectedProtocolSettings>) => {
-    const newSettings = { ...protectedSettings, ...settings };
-    setProtectedSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.PROTECTED_SETTINGS, JSON.stringify(newSettings));
-  }, [protectedSettings]);
+  const updateRelaySettings = useCallback(async (settings: Partial<RelayProtocolSettings>) => {
+    // Deep-merge advancedRelay so callers can update a single sub-key without
+    // wiping sibling sub-objects (pipeline, webrtc, gpu, asi, crossDevice, crypto).
+    const mergedAdvancedRelay = settings.advancedRelay
+      ? {
+          pipeline: { ...relaySettings.advancedRelay.pipeline, ...settings.advancedRelay.pipeline },
+          webrtc: { ...relaySettings.advancedRelay.webrtc, ...settings.advancedRelay.webrtc },
+          gpu: { ...relaySettings.advancedRelay.gpu, ...settings.advancedRelay.gpu },
+          asi: { ...relaySettings.advancedRelay.asi, ...settings.advancedRelay.asi },
+          crossDevice: { ...relaySettings.advancedRelay.crossDevice, ...settings.advancedRelay.crossDevice },
+          crypto: { ...relaySettings.advancedRelay.crypto, ...settings.advancedRelay.crypto },
+        }
+      : relaySettings.advancedRelay;
 
-  const updateHarnessSettings = useCallback(async (settings: Partial<HarnessProtocolSettings>) => {
-    const newSettings = { ...harnessSettings, ...settings };
-    setHarnessSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
-  }, [harnessSettings]);
+    const newSettings: RelayProtocolSettings = {
+      ...relaySettings,
+      ...settings,
+      advancedRelay: mergedAdvancedRelay,
+    };
+    setRelaySettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.RELAY_SETTINGS, JSON.stringify(newSettings));
+  }, [relaySettings]);
 
-  const updateHolographicSettings = useCallback(async (settings: Partial<HolographicProtocolSettings>) => {
-    const newSettings = { ...holographicSettings, ...settings };
-    setHolographicSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS, JSON.stringify(newSettings));
-  }, [holographicSettings]);
+  const updateBridgeSettings = useCallback(async (settings: Partial<BridgeProtocolSettings>) => {
+    const newSettings = clampBridgeSettings({ ...bridgeSettings, ...settings });
+    setBridgeSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(newSettings));
+  }, [bridgeSettings]);
 
-  const updateWebRtcLoopbackSettings = useCallback(async (settings: Partial<WebRtcLoopbackProtocolSettings>) => {
-    const newSettings = clampWebRtcLoopbackSettings({ ...webrtcLoopbackSettings, ...settings });
-    setWebrtcLoopbackSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS, JSON.stringify(newSettings));
-  }, [webrtcLoopbackSettings]);
+  const updateShieldSettings = useCallback(async (settings: Partial<ShieldProtocolSettings>) => {
+    const newSettings = { ...shieldSettings, ...settings };
+    setShieldSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.SHIELD_SETTINGS, JSON.stringify(newSettings));
+  }, [shieldSettings]);
 
-  // Allowlist helpers
+  // Allowlist helpers (operate on relaySettings)
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
-    if (!normalized || allowlistSettings.domains.includes(normalized)) return;
-    
-    const newDomains = [...allowlistSettings.domains, normalized];
-    await updateAllowlistSettings({ domains: newDomains });
-  }, [allowlistSettings.domains, updateAllowlistSettings]);
+    if (!normalized || relaySettings.domains.includes(normalized)) return;
+
+    const newDomains = [...relaySettings.domains, normalized];
+    await updateRelaySettings({ domains: newDomains });
+  }, [relaySettings.domains, updateRelaySettings]);
 
   const removeAllowlistDomain = useCallback(async (domain: string) => {
-    const newDomains = allowlistSettings.domains.filter(d => d !== domain);
-    await updateAllowlistSettings({ domains: newDomains });
-  }, [allowlistSettings.domains, updateAllowlistSettings]);
+    const newDomains = relaySettings.domains.filter(d => d !== domain);
+    await updateRelaySettings({ domains: newDomains });
+  }, [relaySettings.domains, updateRelaySettings]);
 
   const isAllowlisted = useCallback((hostname: string): boolean => {
-    if (!allowlistSettings.enabled) return true;
+    if (!relaySettings.enabled) return true;
     const normalizedHostname = hostname.toLowerCase().replace(/^www\./, '');
-    return allowlistSettings.domains.some(domain =>
+    return relaySettings.domains.some(domain =>
       normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
     );
-  }, [allowlistSettings.enabled, allowlistSettings.domains]);
+  }, [relaySettings.enabled, relaySettings.domains]);
 
   const setHttpsEnforced = useCallback(async (enforced: boolean) => {
     setHttpsEnforcedState(enforced);
@@ -788,7 +889,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setMlSafetyEnabledState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.ML_SAFETY, String(enabled));
   }, []);
-  
+
   const setEnterpriseWebKitEnabled = useCallback(async (enabled: boolean) => {
     if (IS_EXPO_GO) {
       setEnterpriseWebKitEnabledState(false);
@@ -813,19 +914,32 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setActiveProtocol,
     protocols,
     updateProtocolConfig,
-    standardSettings,
-    allowlistSettings,
-    protectedSettings,
-    harnessSettings,
-    holographicSettings,
-    webrtcLoopbackSettings,
-    updateStandardSettings,
-    updateAllowlistSettings,
-    updateProtectedSettings,
-    updateHarnessSettings,
-    updateHolographicSettings,
-    updateWebRtcLoopbackSettings,
-    // allowlist helpers
+
+    // New consolidated settings
+    stealthSettings,
+    relaySettings,
+    bridgeSettings,
+    shieldSettings,
+    updateStealthSettings,
+    updateRelaySettings,
+    updateBridgeSettings,
+    updateShieldSettings,
+
+    // Backward-compatible aliases
+    standardSettings: stealthSettings,
+    allowlistSettings: relaySettings,
+    protectedSettings: shieldSettings,
+    harnessSettings: shieldSettings,
+    holographicSettings: stealthSettings,
+    webrtcLoopbackSettings: bridgeSettings,
+    updateStandardSettings: updateStealthSettings,
+    updateAllowlistSettings: updateRelaySettings,
+    updateProtectedSettings: updateShieldSettings,
+    updateHarnessSettings: updateShieldSettings,
+    updateHolographicSettings: updateStealthSettings,
+    updateWebRtcLoopbackSettings: updateBridgeSettings,
+
+    // Allowlist helpers
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,

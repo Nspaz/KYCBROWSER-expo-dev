@@ -42,9 +42,9 @@ export interface PhotoResolution {
 }
 
 export interface CameraCapabilities {
-  photoResolutions: PhotoResolution[];
-  videoResolutions: VideoResolution[];
-  supportedModes: CameraMode[];
+  photoResolutions?: PhotoResolution[];
+  videoResolutions?: VideoResolution[];
+  supportedModes?: CameraMode[];
   maxOpticalZoom?: number;
   maxDigitalZoom?: number;
   aperture?: string;

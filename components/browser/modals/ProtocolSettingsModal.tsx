@@ -29,7 +29,6 @@ import {
   Wifi,
   Video,
   Activity,
-  ZapOff,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
@@ -181,12 +180,12 @@ export default function ProtocolSettingsModal({
   };
 
   const renderProtocolSettings = (protocol: ProtocolType) => {
-    if (protocol === 'webrtc-loopback' && IS_EXPO_GO) {
+    if (protocol === 'bridge' && IS_EXPO_GO) {
       return (
         <View style={styles.infoNotice}>
           <AlertTriangle size={14} color="#ffcc00" />
           <Text style={styles.infoNoticeText}>
-            WebRTC loopback requires a custom dev build with native modules. It is disabled in Expo Go.
+            Native WebRTC features in bridge mode require a custom dev build with native modules. They are unavailable in Expo Go.
           </Text>
         </View>
       );
@@ -204,7 +203,7 @@ export default function ProtocolSettingsModal({
     }
 
     switch (protocol) {
-      case 'standard':
+      case 'stealth':
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -255,17 +254,80 @@ export default function ProtocolSettingsModal({
                 thumbColor={standardSettings.loopVideo ? '#ffffff' : '#888'}
               />
             </View>
+
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Native WebRTC Bridge</Text>
-                <Text style={styles.settingHint}>Forced ON (native dev client required)</Text>
+                <View style={styles.settingLabelRow}>
+                  <Video size={12} color="#b388ff" />
+                  <Text style={styles.settingLabel}>Canvas Resolution</Text>
+                </View>
+                <Text style={styles.settingHint}>Target injection quality</Text>
               </View>
-              <Text style={styles.settingValue}>FORCED</Text>
+              <View style={styles.sensitivityButtons}>
+                {(['720p', '1080p', '4k'] as const).map((res) => (
+                  <TouchableOpacity
+                    key={res}
+                    style={[
+                      styles.sensitivityBtn,
+                      holographicSettings.canvasResolution === res && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateHolographicSettings({ canvasResolution: res })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      holographicSettings.canvasResolution === res && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {res}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Cpu size={12} color="#ff6b35" />
+                  <Text style={styles.settingLabel}>SDP Masquerade</Text>
+                </View>
+                <Text style={styles.settingHint}>Rewrite WebRTC SDP to mock hardware</Text>
+              </View>
+              <Switch
+                value={holographicSettings.sdpMasquerade}
+                onValueChange={(v) => updateHolographicSettings({ sdpMasquerade: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={holographicSettings.sdpMasquerade ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#ffcc00" />
+                  <Text style={styles.settingLabel}>Noise Injection</Text>
+                </View>
+                <Text style={styles.settingHint}>Add sensor noise to bypass detection</Text>
+              </View>
+               <View style={styles.sliderContainer}>
+                  <Text style={styles.sliderValue}>{(holographicSettings.noiseInjectionLevel * 100).toFixed(0)}%</Text>
+                  <View style={styles.miniBarContainer}>
+                     {[0.1, 0.2, 0.5, 0.8].map((level) => (
+                        <TouchableOpacity 
+                           key={level}
+                           style={[
+                             styles.miniBar, 
+                             holographicSettings.noiseInjectionLevel >= level && styles.miniBarActive
+                           ]}
+                           onPress={() => updateHolographicSettings({ noiseInjectionLevel: level })}
+                        />
+                     ))}
+                  </View>
+               </View>
             </View>
           </View>
         );
 
-      case 'allowlist':
+      case 'relay':
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -359,105 +421,7 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
-      case 'holographic':
-        return (
-          <View style={styles.settingsGroup}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <View style={styles.settingLabelRow}>
-                  <Wifi size={12} color="#00aaff" />
-                  <Text style={styles.settingLabel}>WebSocket Bridge</Text>
-                </View>
-                <Text style={styles.settingHint}>Local socket server for binary streaming</Text>
-              </View>
-              <Switch
-                value={holographicSettings.useWebSocketBridge}
-                onValueChange={(v) => updateHolographicSettings({ useWebSocketBridge: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={holographicSettings.useWebSocketBridge ? '#ffffff' : '#888'}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <View style={styles.settingLabelRow}>
-                  <Video size={12} color="#b388ff" />
-                  <Text style={styles.settingLabel}>Canvas Resolution</Text>
-                </View>
-                <Text style={styles.settingHint}>Target injection quality</Text>
-              </View>
-              <View style={styles.sensitivityButtons}>
-                {(['720p', '1080p', '4k'] as const).map((res) => (
-                  <TouchableOpacity
-                    key={res}
-                    style={[
-                      styles.sensitivityBtn,
-                      holographicSettings.canvasResolution === res && styles.sensitivityBtnActive,
-                    ]}
-                    onPress={() => updateHolographicSettings({ canvasResolution: res })}
-                  >
-                    <Text style={[
-                      styles.sensitivityBtnText,
-                      holographicSettings.canvasResolution === res && styles.sensitivityBtnTextActive,
-                    ]}>
-                      {res}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <View style={styles.settingLabelRow}>
-                  <Cpu size={12} color="#ff6b35" />
-                  <Text style={styles.settingLabel}>SDP Masquerade</Text>
-                </View>
-                <Text style={styles.settingHint}>Rewrite WebRTC SDP to mock hardware</Text>
-              </View>
-              <Switch
-                value={holographicSettings.sdpMasquerade}
-                onValueChange={(v) => updateHolographicSettings({ sdpMasquerade: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-                thumbColor={holographicSettings.sdpMasquerade ? '#ffffff' : '#888'}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <View style={styles.settingLabelRow}>
-                  <Activity size={12} color="#ffcc00" />
-                  <Text style={styles.settingLabel}>Noise Injection</Text>
-                </View>
-                <Text style={styles.settingHint}>Add sensor noise to bypass detection</Text>
-              </View>
-               <View style={styles.sliderContainer}>
-                  <Text style={styles.sliderValue}>{(holographicSettings.noiseInjectionLevel * 100).toFixed(0)}%</Text>
-                  <View style={styles.miniBarContainer}>
-                     {[0.1, 0.2, 0.5, 0.8].map((level) => (
-                        <TouchableOpacity 
-                           key={level}
-                           style={[
-                             styles.miniBar, 
-                             holographicSettings.noiseInjectionLevel >= level && styles.miniBarActive
-                           ]}
-                           onPress={() => updateHolographicSettings({ noiseInjectionLevel: level })}
-                        />
-                     ))}
-                  </View>
-               </View>
-            </View>
-            
-            <View style={styles.mlNotice}>
-                <ZapOff size={14} color="#00aaff" />
-                <Text style={styles.mlNoticeText}>
-                  Holographic mode bypasses standard browser security checks.
-                </Text>
-             </View>
-          </View>
-        );
-
-      case 'webrtc-loopback':
+      case 'bridge':
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -868,7 +832,7 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
-      case 'protected':
+      case 'shield':
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -940,12 +904,7 @@ export default function ProtocolSettingsModal({
               <Text style={styles.actionButtonText}>Open Protected Preview</Text>
               <ChevronRight size={16} color="rgba(255,255,255,0.4)" />
             </TouchableOpacity>
-          </View>
-        );
 
-      case 'harness':
-        return (
-          <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Overlay Enabled</Text>
@@ -1012,13 +971,10 @@ export default function ProtocolSettingsModal({
   };
 
   const protocolIcons: Record<ProtocolType, React.ReactNode> = {
-    standard: <Zap size={18} color="#00ff88" />,
-    allowlist: <Shield size={18} color="#00aaff" />,
-    protected: <EyeOff size={18} color="#ff6b35" />,
-    harness: <Monitor size={18} color="#b388ff" />,
-    holographic: <ZapOff size={18} color="#00ff88" />,
-    websocket: <Globe size={18} color="#00aaff" />,
-    'webrtc-loopback': <Wifi size={18} color="#00aaff" />,
+    stealth: <Zap size={18} color="#00ff88" />,
+    relay: <Shield size={18} color="#00aaff" />,
+    bridge: <Wifi size={18} color="#00aaff" />,
+    shield: <EyeOff size={18} color="#ff6b35" />,
   };
 
   return (
@@ -1205,7 +1161,7 @@ export default function ProtocolSettingsModal({
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
                 const isDisabled = !protocol.enabled;
-                const disabledReason = protocolId === 'webrtc-loopback' && IS_EXPO_GO
+                const disabledReason = protocolId === 'bridge' && IS_EXPO_GO
                   ? 'Requires a custom dev build with native WebRTC modules.'
                   : null;
 

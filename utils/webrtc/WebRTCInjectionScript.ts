@@ -12,6 +12,10 @@ export interface WebRTCInjectionConfig {
   stealthMode?: boolean;
   deviceLabel?: string;
   deviceId?: string;
+  /** Maximum number of reconnection attempts (default: 3) */
+  maxReconnectAttempts?: number;
+  /** Delay between reconnection attempts in ms (default: 2000) */
+  reconnectDelayMs?: number;
 }
 
 /**
@@ -23,6 +27,8 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     stealthMode = true,
     deviceLabel = 'WebRTC Camera',
     deviceId = 'webrtc-camera-001',
+    maxReconnectAttempts = 3,
+    reconnectDelayMs = 2000,
   } = config;
 
   return `
@@ -39,13 +45,15 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   }
   window.__webrtcInjectionActive = true;
   
-  const DEBUG = ${debug};
-  const STEALTH = ${stealthMode};
-  const DEVICE_LABEL = ${JSON.stringify(deviceLabel)};
-  const DEVICE_ID = ${JSON.stringify(deviceId)};
+  var DEBUG = ${debug};
+  var STEALTH = ${stealthMode};
+  var DEVICE_LABEL = ${JSON.stringify(deviceLabel)};
+  var DEVICE_ID = ${JSON.stringify(deviceId)};
+  var MAX_RECONNECT_ATTEMPTS = ${maxReconnectAttempts};
+  var RECONNECT_DELAY_MS = ${reconnectDelayMs};
   
-  const log = DEBUG ? (...args) => console.log('[WebRTCInject]', ...args) : () => {};
-  const error = (...args) => console.error('[WebRTCInject]', ...args);
+  var log = DEBUG ? function() { console.log.apply(console, ['[WebRTCInject]'].concat(Array.prototype.slice.call(arguments))); } : function() {};
+  var errorLog = function() { console.error.apply(console, ['[WebRTCInject]'].concat(Array.prototype.slice.call(arguments))); };
   
   log('========================================');
   log('WEBRTC INJECTION - INITIALIZING');
@@ -57,12 +65,14 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   // STATE
   // ============================================================================
   
-  const State = {
+  var State = {
     pc: null,
     stream: null,
     ready: false,
     connecting: false,
     iceCandidates: [],
+    reconnectAttempts: 0,
+    pendingGetUserMedia: [],
   };
   
   // ============================================================================
@@ -70,7 +80,7 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   // ============================================================================
   
   function sendMessage(type, payload) {
-    const message = {
+    var message = {
       type: type,
       payload: payload,
       timestamp: Date.now(),
@@ -84,7 +94,7 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       }));
       log('Sent message:', type);
     } else {
-      error('ReactNativeWebView not available');
+      errorLog('ReactNativeWebView not available');
     }
   }
   
@@ -116,25 +126,28 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   // WEBRTC CONNECTION
   // ============================================================================
   
-  async function initializePeerConnection() {
+  function initializePeerConnection() {
     if (State.pc) {
-      log('Peer connection already exists');
-      return;
+      log('Closing existing peer connection for re-init');
+      try { State.pc.close(); } catch(e) {}
+      State.pc = null;
     }
     
     log('Creating peer connection...');
     
-    const config = {
+    var config = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
       ],
+      // Enable unified plan for better track management
+      sdpSemantics: 'unified-plan',
     };
     
     State.pc = new RTCPeerConnection(config);
     
     // Setup event handlers
-    State.pc.onicecandidate = (event) => {
+    State.pc.onicecandidate = function(event) {
       if (event.candidate) {
         log('ICE candidate:', event.candidate.candidate);
         sendMessage('ice-candidate', {
@@ -143,81 +156,160 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       }
     };
     
-    State.pc.ontrack = (event) => {
+    State.pc.ontrack = function(event) {
       log('Received track:', event.track.kind, event.track.label);
       
       if (event.streams && event.streams[0]) {
         State.stream = event.streams[0];
-        log('Stream received:', State.stream.id);
+        log('Stream received:', State.stream.id, 'tracks:', State.stream.getTracks().length);
         
         // Mark as ready
         State.ready = true;
+        State.connecting = false;
+        State.reconnectAttempts = 0;
         sendMessage('ready', { streamId: State.stream.id });
         
         // Spoof track metadata
         spoofStreamMetadata(State.stream);
+        
+        // Resolve any pending getUserMedia calls
+        resolvePendingGetUserMedia();
       }
     };
     
-    State.pc.onconnectionstatechange = () => {
+    State.pc.onconnectionstatechange = function() {
+      if (!State.pc) return;
       log('Connection state:', State.pc.connectionState);
+      
+      if (State.pc.connectionState === 'failed' || State.pc.connectionState === 'disconnected') {
+        handleConnectionFailure();
+      }
     };
     
-    State.pc.oniceconnectionstatechange = () => {
+    State.pc.oniceconnectionstatechange = function() {
+      if (!State.pc) return;
       log('ICE connection state:', State.pc.iceConnectionState);
+      
+      if (State.pc.iceConnectionState === 'failed') {
+        // Try ICE restart
+        if (State.pc.restartIce) {
+          log('Attempting ICE restart...');
+          try { State.pc.restartIce(); } catch(e) { log('ICE restart failed:', e); }
+        }
+      }
     };
     
     log('Peer connection created');
+    return Promise.resolve();
   }
   
-  async function handleOffer(payload) {
+  function handleConnectionFailure() {
+    if (State.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      State.reconnectAttempts++;
+      log('Connection failed, attempting reconnect', State.reconnectAttempts, '/', MAX_RECONNECT_ATTEMPTS);
+      
+      State.connecting = false;
+      State.ready = false;
+      
+      setTimeout(function() {
+        initializePeerConnection().then(function() {
+          sendMessage('reconnect', { attempt: State.reconnectAttempts });
+        });
+      }, RECONNECT_DELAY_MS);
+    } else {
+      errorLog('Max reconnect attempts reached');
+      rejectPendingGetUserMedia('WebRTC connection failed after ' + MAX_RECONNECT_ATTEMPTS + ' attempts');
+    }
+  }
+  
+  function resolvePendingGetUserMedia() {
+    while (State.pendingGetUserMedia.length > 0) {
+      var pending = State.pendingGetUserMedia.shift();
+      if (pending && pending.resolve && State.stream) {
+        // Clear the timeout for this request
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
+        // Clone the stream so each caller gets their own instance
+        var clonedStream = cloneStream(State.stream);
+        pending.resolve(clonedStream);
+      }
+    }
+  }
+  
+  function rejectPendingGetUserMedia(message) {
+    while (State.pendingGetUserMedia.length > 0) {
+      var pending = State.pendingGetUserMedia.shift();
+      if (pending && pending.reject) {
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
+        pending.reject(new DOMException(message, 'NotReadableError'));
+      }
+    }
+  }
+  
+  function cloneStream(original) {
+    try {
+      var cloned = original.clone();
+      spoofStreamMetadata(cloned);
+      return cloned;
+    } catch (e) {
+      log('Clone failed, returning original:', e);
+      return original;
+    }
+  }
+  
+  function handleOffer(payload) {
     log('Handling offer...');
     
     if (!State.pc) {
-      await initializePeerConnection();
+      initializePeerConnection();
     }
     
     if (State.connecting) {
-      log('Already connecting, ignoring offer');
+      log('Already connecting, ignoring duplicate offer');
       return;
     }
     
     State.connecting = true;
     
-    try {
-      const offer = new RTCSessionDescription({
-        type: payload.type,
-        sdp: payload.sdp,
-      });
-      
-      await State.pc.setRemoteDescription(offer);
+    var pc = State.pc;
+    
+    var offer = new RTCSessionDescription({
+      type: payload.type,
+      sdp: payload.sdp,
+    });
+    
+    pc.setRemoteDescription(offer).then(function() {
       log('Remote description set');
       
       // Create answer
-      const answer = await State.pc.createAnswer();
-      await State.pc.setLocalDescription(answer);
-      log('Answer created');
-      
-      // Send answer
-      sendMessage('answer', {
-        type: answer.type,
-        sdp: answer.sdp,
+      return pc.createAnswer();
+    }).then(function(answer) {
+      return pc.setLocalDescription(answer).then(function() {
+        log('Answer created');
+        
+        // Send answer
+        sendMessage('answer', {
+          type: answer.type,
+          sdp: answer.sdp,
+        });
       });
-      
+    }).then(function() {
       // Add any queued ICE candidates
+      var promises = [];
       while (State.iceCandidates.length > 0) {
-        const candidate = State.iceCandidates.shift();
-        await State.pc.addIceCandidate(new RTCIceCandidate(candidate));
+        var candidate = State.iceCandidates.shift();
+        promises.push(pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function(e) {
+          log('Failed to add queued ICE candidate:', e);
+        }));
       }
-      
-    } catch (err) {
-      error('Failed to handle offer:', err);
+      return Promise.all(promises);
+    }).catch(function(err) {
+      errorLog('Failed to handle offer:', err);
       State.connecting = false;
       sendMessage('error', { message: err.message });
-    }
+    });
   }
   
-  async function handleIceCandidate(payload) {
+  function handleIceCandidate(payload) {
     log('Handling ICE candidate...');
     
     if (!State.pc || !State.pc.remoteDescription) {
@@ -227,13 +319,12 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       return;
     }
     
-    try {
-      const candidate = new RTCIceCandidate(payload.candidate);
-      await State.pc.addIceCandidate(candidate);
+    var candidate = new RTCIceCandidate(payload.candidate);
+    State.pc.addIceCandidate(candidate).then(function() {
       log('ICE candidate added');
-    } catch (err) {
-      error('Failed to add ICE candidate:', err);
-    }
+    }).catch(function(err) {
+      errorLog('Failed to add ICE candidate:', err);
+    });
   }
   
   function handleConnectionState(payload) {
@@ -242,7 +333,7 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   
   function handleStats(payload) {
     if (DEBUG) {
-      log('Stats:', payload);
+      log('Stats:', JSON.stringify(payload).substring(0, 100));
     }
   }
   
@@ -251,18 +342,23 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   // ============================================================================
   
   function spoofStreamMetadata(stream) {
-    const videoTrack = stream.getVideoTracks()[0];
-    if (!videoTrack) {
-      error('No video track in stream');
-      return;
+    var tracks = stream.getVideoTracks();
+    for (var i = 0; i < tracks.length; i++) {
+      spoofTrack(tracks[i]);
     }
+  }
+  
+  function spoofTrack(videoTrack) {
+    if (!videoTrack) return;
     
     log('Spoofing track metadata...');
+    
+    var trackIdValue = 'track_webrtc_' + Date.now();
     
     // Spoof track ID
     try {
       Object.defineProperty(videoTrack, 'id', {
-        get: () => 'track_webrtc_' + Date.now(),
+        get: function() { return trackIdValue; },
         configurable: true,
       });
     } catch(e) {}
@@ -270,20 +366,49 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
     // Spoof label
     try {
       Object.defineProperty(videoTrack, 'label', {
-        get: () => DEVICE_LABEL,
+        get: function() { return DEVICE_LABEL; },
+        configurable: true,
+      });
+    } catch(e) {}
+    
+    // Spoof readyState
+    try {
+      Object.defineProperty(videoTrack, 'readyState', {
+        get: function() { return 'live'; },
+        configurable: true,
+      });
+    } catch(e) {}
+    
+    // Spoof enabled
+    try {
+      Object.defineProperty(videoTrack, 'enabled', {
+        get: function() { return true; },
+        set: function() {},
+        configurable: true,
+      });
+    } catch(e) {}
+    
+    // Spoof muted
+    try {
+      Object.defineProperty(videoTrack, 'muted', {
+        get: function() { return false; },
         configurable: true,
       });
     } catch(e) {}
     
     // Spoof getSettings
-    const originalGetSettings = videoTrack.getSettings ? videoTrack.getSettings.bind(videoTrack) : null;
+    var originalGetSettings = videoTrack.getSettings ? videoTrack.getSettings.bind(videoTrack) : null;
     videoTrack.getSettings = function() {
-      const settings = originalGetSettings ? originalGetSettings() : {};
+      var settings = originalGetSettings ? originalGetSettings() : {};
       return {
-        ...settings,
+        width: settings.width || 1080,
+        height: settings.height || 1920,
+        frameRate: settings.frameRate || 30,
+        aspectRatio: (settings.width || 1080) / (settings.height || 1920),
         deviceId: DEVICE_ID,
         groupId: 'webrtc_group',
         facingMode: 'user',
+        resizeMode: 'none',
       };
     };
     
@@ -301,6 +426,21 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
       };
     };
     
+    // Spoof getConstraints
+    videoTrack.getConstraints = function() {
+      return {
+        facingMode: 'user',
+        width: { ideal: 1080 },
+        height: { ideal: 1920 },
+        deviceId: { exact: DEVICE_ID },
+      };
+    };
+    
+    // Spoof applyConstraints
+    videoTrack.applyConstraints = function() {
+      return Promise.resolve();
+    };
+    
     log('Track metadata spoofed');
   }
   
@@ -308,75 +448,267 @@ export function createWebRTCInjectionScript(config: WebRTCInjectionConfig = {}):
   // GETUSERMEDIA OVERRIDE
   // ============================================================================
   
-  const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-  const originalEnumerateDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
+  var originalGetUserMedia = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+    ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : null;
+  var originalEnumerateDevices = navigator.mediaDevices && navigator.mediaDevices.enumerateDevices
+    ? navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices) : null;
   
   if (!navigator.mediaDevices) {
     navigator.mediaDevices = {};
   }
   
-  navigator.mediaDevices.getUserMedia = async function(constraints) {
-    log('getUserMedia called:', constraints);
+  // Make overridden functions appear as native code
+  function maskAsNative(fn, name) {
+    try {
+      var brand = 'function ' + name + '() { [native code] }';
+      var masked = function() { return brand; };
+      masked.toString = function() { return 'function toString() { [native code] }'; };
+      fn.toString = masked;
+      Object.defineProperty(fn, 'name', { value: name, configurable: true });
+      try {
+        var originalLength = fn.length;
+        Object.defineProperty(fn, 'length', { value: originalLength, configurable: true });
+      } catch(e) {}
+      Object.defineProperty(fn, 'length', { value: fn.length, configurable: true });
+    } catch(e) {}
+    return fn;
+  }
+  
+  // Build proper MediaDeviceInfo prototype for instanceof checks
+  var RealMediaDeviceInfo = window.MediaDeviceInfo || null;
+  var RealInputDeviceInfo = window.InputDeviceInfo || null;
+  
+  var SpoofedMediaDeviceInfo = (function() {
+    function MediaDeviceInfo() {}
+    if (RealMediaDeviceInfo) {
+      try {
+        MediaDeviceInfo.prototype = Object.create(RealMediaDeviceInfo.prototype);
+        MediaDeviceInfo.prototype.constructor = RealMediaDeviceInfo;
+      } catch(e) {}
+    }
+    MediaDeviceInfo.prototype.toJSON = function() {
+      return { deviceId: this.deviceId, kind: this.kind, label: this.label, groupId: this.groupId };
+    };
+    maskAsNative(MediaDeviceInfo.prototype.toJSON, 'toJSON');
+    return MediaDeviceInfo;
+  })();
+  
+  var SpoofedInputDeviceInfo = (function() {
+    function InputDeviceInfo() {}
+    if (RealInputDeviceInfo) {
+      try {
+        InputDeviceInfo.prototype = Object.create(RealInputDeviceInfo.prototype);
+        InputDeviceInfo.prototype.constructor = RealInputDeviceInfo;
+      } catch(e) {
+        InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+      }
+    } else {
+      InputDeviceInfo.prototype = Object.create(SpoofedMediaDeviceInfo.prototype);
+    }
+    InputDeviceInfo.prototype.getCapabilities = function() {
+      return { deviceId: this.deviceId, groupId: this.groupId, width: { min: 1, max: 7680 }, height: { min: 1, max: 4320 }, aspectRatio: { min: 0.5, max: 2.0 }, frameRate: { min: 1, max: 60 }, facingMode: [this._facingMode || 'user'], resizeMode: ['none', 'crop-and-scale'] };
+    };
+    maskAsNative(InputDeviceInfo.prototype.getCapabilities, 'getCapabilities');
+    InputDeviceInfo.prototype.toJSON = SpoofedMediaDeviceInfo.prototype.toJSON;
+    return InputDeviceInfo;
+  })();
+  
+  function createDeviceInfo(devId, kind, label, grpId, facingMode) {
+    var isInput = (kind === 'videoinput' || kind === 'audioinput');
+    var Ctor = isInput ? SpoofedInputDeviceInfo : SpoofedMediaDeviceInfo;
+    var obj = new Ctor();
+    Object.defineProperties(obj, {
+      deviceId: { get: function() { return devId; }, enumerable: true, configurable: true },
+      kind:     { get: function() { return kind; },  enumerable: true, configurable: true },
+      label:    { get: function() { return label; }, enumerable: true, configurable: true },
+      groupId:  { get: function() { return grpId; }, enumerable: true, configurable: true }
+    });
+    if (facingMode) {
+      Object.defineProperty(obj, '_facingMode', { value: facingMode, enumerable: false });
+    }
+    return obj;
+  }
+  
+  // Patch instanceof checks on global constructors
+  try {
+    if (RealMediaDeviceInfo) {
+      var origHas = RealMediaDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealMediaDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) { return inst instanceof SpoofedMediaDeviceInfo || inst instanceof SpoofedInputDeviceInfo || (origHas ? origHas.call(this, inst) : false); },
+        configurable: true
+      });
+    }
+    if (RealInputDeviceInfo) {
+      var origInputHas = RealInputDeviceInfo[Symbol.hasInstance];
+      Object.defineProperty(RealInputDeviceInfo, Symbol.hasInstance, {
+        value: function(inst) { return inst instanceof SpoofedInputDeviceInfo || (origInputHas ? origInputHas.call(this, inst) : false); },
+        configurable: true
+      });
+    }
+  } catch(e) {}
+  
+  navigator.mediaDevices.getUserMedia = function(constraints) {
+    log('getUserMedia called:', JSON.stringify(constraints));
     
-    const wantsVideo = !!(constraints && constraints.video);
+    var wantsVideo = !!(constraints && constraints.video);
     
     if (!wantsVideo) {
       // Audio only - pass through
       if (originalGetUserMedia) {
         return originalGetUserMedia(constraints);
       }
-      throw new DOMException('Audio not available', 'NotFoundError');
+      return Promise.reject(new DOMException('Audio not available', 'NotFoundError'));
     }
     
-    // Wait for WebRTC stream
+    // If stream is already ready, return a clone immediately
+    if (State.ready && State.stream) {
+      log('Returning cached WebRTC stream (cloned)');
+      return Promise.resolve(cloneStream(State.stream));
+    }
+    
+    // Otherwise, wait for the WebRTC stream with timeout
     log('Waiting for WebRTC stream...');
     
-    const maxWait = 10000; // 10 seconds
-    const startTime = Date.now();
-    
-    while (!State.ready && (Date.now() - startTime) < maxWait) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    if (!State.ready || !State.stream) {
-      error('WebRTC stream not ready');
-      throw new DOMException('Could not start video source', 'NotReadableError');
-    }
-    
-    log('Returning WebRTC stream');
-    return State.stream;
+    return new Promise(function(resolve, reject) {
+      // Queue this request
+      var entry = {
+        resolve: resolve,
+        reject: reject,
+        constraints: constraints,
+        timestamp: Date.now(),
+        timeoutId: null,
+      };
+      
+      // Set timeout for this specific request
+      var timeoutMs = 15000;
+      entry.timeoutId = setTimeout(function() {
+        // Check if still pending
+        var idx = State.pendingGetUserMedia.indexOf(entry);
+        if (idx >= 0) {
+          State.pendingGetUserMedia.splice(idx, 1);
+          errorLog('getUserMedia timed out after', timeoutMs, 'ms');
+          reject(new DOMException('Could not start video source', 'NotReadableError'));
+        }
+      }, timeoutMs);
+      
+      State.pendingGetUserMedia.push(entry);
+    });
   };
+  maskAsNative(navigator.mediaDevices.getUserMedia, 'getUserMedia');
   
-  navigator.mediaDevices.enumerateDevices = async function() {
+  navigator.mediaDevices.enumerateDevices = function() {
     log('enumerateDevices called');
     
     if (STEALTH) {
-      return [{
-        deviceId: DEVICE_ID,
-        groupId: 'webrtc_group',
-        kind: 'videoinput',
-        label: DEVICE_LABEL,
-        toJSON: function() { return this; }
-      }];
+      return Promise.resolve([
+        createDeviceInfo(DEVICE_ID, 'videoinput', DEVICE_LABEL, 'webrtc_group', 'user'),
+        createDeviceInfo('mic-' + DEVICE_ID, 'audioinput', 'Microphone', 'webrtc_group', null),
+        createDeviceInfo('speaker-default', 'audiooutput', '', 'default', null)
+      ]);
     }
     
     if (originalEnumerateDevices) {
       return originalEnumerateDevices();
     }
     
-    return [];
+    return Promise.resolve([]);
   };
+  maskAsNative(navigator.mediaDevices.enumerateDevices, 'enumerateDevices');
+  
+  // Override getSupportedConstraints to align with spoofed MediaDevices behavior
+  try {
+    var originalGetSupportedConstraints = null;
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getSupportedConstraints === 'function') {
+      originalGetSupportedConstraints = navigator.mediaDevices.getSupportedConstraints.bind(navigator.mediaDevices);
+    }
+    
+    navigator.mediaDevices.getSupportedConstraints = function() {
+      var base = originalGetSupportedConstraints ? originalGetSupportedConstraints() : {};
+      
+      // Ensure commonly-checked audio/video constraints appear supported
+      base.autoGainControl = true;
+      base.echoCancellation = true;
+      base.noiseSuppression = true;
+      base.sampleRate = true;
+      base.sampleSize = true;
+      base.channelCount = true;
+      base.displaySurface = true;
+      
+      return base;
+    };
+    maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  } catch(e) {}
+  
+  // Override getSupportedConstraints
+  navigator.mediaDevices.getSupportedConstraints = function() {
+    return {
+      aspectRatio: true,
+      autoGainControl: true,
+      channelCount: true,
+      deviceId: true,
+      displaySurface: true,
+      echoCancellation: true,
+      facingMode: true,
+      frameRate: true,
+      groupId: true,
+      height: true,
+      noiseSuppression: true,
+      sampleRate: true,
+      sampleSize: true,
+      width: true,
+      resizeMode: true
+    };
+  };
+  maskAsNative(navigator.mediaDevices.getSupportedConstraints, 'getSupportedConstraints');
+  
+  // Override permissions API to always grant camera permission
+  try {
+    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+      var originalQuery = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = function(desc) {
+        if (desc && (desc.name === 'camera' || desc.name === 'microphone')) {
+          return Promise.resolve({
+            state: 'granted',
+            name: desc.name,
+            onchange: null,
+            addEventListener: function() {},
+            removeEventListener: function() {},
+            dispatchEvent: function() { return true; },
+          });
+        }
+        return originalQuery(desc);
+      };
+      maskAsNative(navigator.permissions.query, 'query');
+    }
+  } catch(e) {}
+  
+  // Support ondevicechange event handler
+  try {
+    if (!navigator.mediaDevices.ondevicechange) {
+      Object.defineProperty(navigator.mediaDevices, 'ondevicechange', {
+        get: function() { return null; },
+        set: function() {},
+        configurable: true,
+        enumerable: true
+      });
+    }
+    if (!navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener = function() {};
+      navigator.mediaDevices.removeEventListener = function() {};
+      navigator.mediaDevices.dispatchEvent = function() { return true; };
+    }
+  } catch(e) {}
   
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
   
   // Initialize peer connection
-  initializePeerConnection().then(() => {
-    log('WebRTC injection ready');
+  initializePeerConnection().then(function() {
+    log('WebRTC injection ready, signaling React Native...');
     sendMessage('ready', { initialized: true });
-  }).catch(err => {
-    error('Initialization failed:', err);
+  }).catch(function(err) {
+    errorLog('Initialization failed:', err);
     sendMessage('error', { message: err.message });
   });
   

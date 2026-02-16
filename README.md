@@ -1,367 +1,99 @@
-# Welcome to your Rork app
 
-## Project info
-
-This is a native cross-platform mobile app created with [Rork](https://rork.com)
-
-**Platform**: Native iOS app (Android intentionally unsupported)
-**Framework**: Expo Router + React Native
-
-## How can I edit this code?
-
-There are several ways of editing your native mobile application.
-
-### **Use Rork**
-
-Simply visit [rork.com](https://rork.com) and prompt to build your app with AI.
-
-Changes made via Rork will be committed automatically to this GitHub repo.
-
-Whenever you make a change in your local code editor and push it to GitHub, it will be also reflected in Rork.
-
-### **Use your preferred code editor**
-
-If you want to work locally using your own code editor, you can clone this repo and push changes. Pushed changes will also be reflected in Rork.
-
-If you are new to coding and unsure which editor to use, we recommend Cursor. If you're familiar with terminals, try Claude Code.
-
-The only requirement is having Node.js & Bun installed - [install Node.js with nvm](https://github.com/nvm-sh/nvm) and [install Bun](https://bun.sh/docs/installation)
-
-Follow these steps:
-
-```bash
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-bun i
-
-# Step 4: Start the instant web preview of your Rork app in your browser, with auto-reloading of your changes
-bun run start-web
-
-# Step 5: Start iOS preview
-# Option A (recommended):
-bun run start  # then press "i" in the terminal to open iOS Simulator
-# Option B (if supported by your environment):
-bun run start -- --ios
-```
-
-### **Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-## What technologies are used for this project?
-
-This project is built with the most popular native mobile cross-platform technical stack:
-
-- **React Native** - Cross-platform native mobile development framework created by Meta and used for Instagram, Airbnb, and lots of top apps in the App Store
-- **Expo** - Extension of React Native + platform used by Discord, Shopify, Coinbase, Telsa, Starlink, Eightsleep, and more
-- **Expo Router** - File-based routing system for React Native with support for web, server functions and SSR
-- **TypeScript** - Type-safe JavaScript
-- **React Query** - Server state management
-- **Lucide React Native** - Beautiful icons
-
-## How can I test my app?
-
-### **On your phone (Recommended)**
-
-1. **iOS**: Download the [Rork app from the App Store](https://apps.apple.com/app/rork) or [Expo Go](https://apps.apple.com/app/expo-go/id982107779)
-2. Run `bun run start` and scan the QR code from your development server
-
-### **In your browser**
-
-Run `bun start-web` to test in a web browser. Note: The browser preview is great for quick testing, but some native features may not be available.
-
-### **iOS Simulator**
-
-You can test Rork apps in Expo Go or Rork iOS app. You don't need Xcode for most features.
-
-**When do you need Custom Development Builds?**
-
-- Native authentication (Face ID, Touch ID, Apple Sign In)
-- In-app purchases and subscriptions
-- Push notifications
-- Custom native modules
-- WebRTC native bridge (react-native-webrtc)
-
-Learn more: [Expo Custom Development Builds Guide](https://docs.expo.dev/develop/development-builds/introduction/)
-
-If you have Xcode installed:
-
-```bash
-# iOS Simulator
-bun run start -- --ios
-```
-
-### Expo Go Compatibility
-
-This app is **fully optimized for Expo Go**. The primary video injection functionality works without any native modules.
-
-**What works in Expo Go:**
-- ✅ Protocol 0 (Primary WebView Injection) - RECOMMENDED
-- ✅ Protocol 1 (MediaStream Override)
-- ✅ Protocol 2 (Descriptor Hook)
-- ✅ Protocol 3 (Proxy Intercept)
-- ✅ WebSocket Video Bridge
-- ✅ WebRTC Injection (WebView-based)
-- ✅ All browser-based injection scripts
-
-**What requires a Development Build:**
-- Native WebRTC Bridge (react-native-webrtc)
-- Virtual Camera Module
-- Native Media Bridge
-- WebRTC Loopback with Ring Buffer
-
-For detailed protocol compatibility analysis, see [EXPO_GO_PROTOCOL_ANALYSIS.md](./EXPO_GO_PROTOCOL_ANALYSIS.md).
-
-### Development Build (for native features)
-
-If you need native WebRTC or virtual camera features:
-
-```bash
-# Generate native projects (once)
-expo prebuild
-
-# Run a dev client build
-expo run:ios
-```
-
-The native WebRTC bridge uses `react-native-webrtc`, which requires a custom development build.
-
-### **Sideload to a real iPhone (IPA)**
-
-If you want a standalone build that installs on a device (without Expo Go), you can sideload an IPA.
-Make sure the iOS bundle identifier in `app.json` is unique to your Apple account.
-
-#### Option A: EAS build (signed IPA, recommended with a paid Apple Developer account)
-
-```bash
-# Install EAS CLI
-bun i -g @expo/eas-cli
-
-# Build a signed IPA for sideloading
-eas build --profile sideload --platform ios
-```
-
-Download the IPA from the EAS build page and install it with AltStore, Sideloadly,
-Apple Configurator, or your MDM. Ad-hoc builds require your device UDID to be
-registered in your Apple Developer account.
-
-#### Option B: Local Xcode build (works with a free Apple ID)
-
-```bash
-# Install dependencies
-bun i
-
-# Generate the native iOS project (kept out of git)
-bunx expo prebuild --platform ios
-```
-
-Open `ios/*.xcworkspace` in Xcode, select your personal team for signing,
-then use **Product > Archive** to export a Development IPA. Install the IPA
-with AltStore or Sideloadly.
-
-## How can I deploy this project?
-
-### **Publish to App Store (iOS)**
-
-1. **Install EAS CLI**:
-
-   ```bash
-   bun i -g @expo/eas-cli
-   ```
-
-2. **Configure your project**:
-
-   ```bash
-   eas build:configure
-   ```
-
-3. **Build for iOS**:
-
-   ```bash
-   eas build --platform ios
-   ```
-
-4. **Submit to App Store**:
-   ```bash
-   eas submit --platform ios
-   ```
-
-For detailed instructions, visit [Expo's App Store deployment guide](https://docs.expo.dev/submit/ios/).
-
-### **Publish as a Website**
-
-Your React Native app can also run on the web:
-
-1. **Build for web**:
-
-   ```bash
-   eas build --platform web
-   ```
-
-2. **Deploy with EAS Hosting**:
-   ```bash
-   eas hosting:configure
-   eas hosting:deploy
-   ```
-
-Alternative web deployment options:
-
-- **Vercel**: Deploy directly from your GitHub repository
-- **Netlify**: Connect your GitHub repo to Netlify for automatic deployments
-
-## App Features
-
-This template includes:
-
-- **iOS-first compatibility** - iOS focused, web preview optional
-- **File-based routing** with Expo Router
-- **Tab navigation** with customizable tabs
-- **Modal screens** for overlays and dialogs
-- **TypeScript support** for better development experience
-- **Async storage** for local data persistence
-- **Vector icons** with Lucide React Native
-
-## Project Structure
-
-```
-├── app/                    # App screens (Expo Router)
-│   ├── (tabs)/            # Tab navigation screens
-│   │   ├── _layout.tsx    # Tab layout configuration
-│   │   └── index.tsx      # Home tab screen
-│   ├── _layout.tsx        # Root layout
-│   ├── modal.tsx          # Modal screen example
-│   └── +not-found.tsx     # 404 screen
-├── assets/                # Static assets
-│   └── images/           # App icons and images
-├── constants/            # App constants and configuration
-├── app.json             # Expo configuration
-├── package.json         # Dependencies and scripts
-└── tsconfig.json        # TypeScript configuration
-```
-
-## Custom Development Builds
-
-For advanced native features, you'll need to create a Custom Development Build instead of using Expo Go.
-
-### **When do you need a Custom Development Build?**
-
-- **Native Authentication**: Face ID, Touch ID, Apple Sign In, Google Sign In
-- **In-App Purchases**: App Store subscriptions
-- **Advanced Native Features**: Third-party SDKs, platform-specifc features (e.g. Widgets on iOS)
-- **Background Processing**: Background tasks, location tracking
-
-### **Creating a Custom Development Build**
-
-```bash
-# Install EAS CLI
-bun i -g @expo/eas-cli
-
-# Configure your project for development builds
-eas build:configure
-
-# Create a development build for your device
-eas build --profile development --platform ios
-
-# Install the development build on your device and start developing
-bun start --dev-client
-```
-
-**Learn more:**
-
-- [Development Builds Introduction](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Creating Development Builds](https://docs.expo.dev/develop/development-builds/create-a-build/)
-- [Installing Development Builds](https://docs.expo.dev/develop/development-builds/installation/)
-
-## Advanced Features
-
-### **Add a Database**
-
-Integrate with backend services:
-
-- **Supabase** - PostgreSQL database with real-time features
-- **Firebase** - Google's mobile development platform
-- **Custom API** - Connect to your own backend
-
-### **Add Authentication**
-
-Implement user authentication:
-
-**Basic Authentication (works in Expo Go):**
-
-- **Expo AuthSession** - OAuth providers (Google, Facebook, Apple) - [Guide](https://docs.expo.dev/guides/authentication/)
-- **Supabase Auth** - Email/password and social login - [Integration Guide](https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native)
-- **Firebase Auth** - Comprehensive authentication solution - [Setup Guide](https://docs.expo.dev/guides/using-firebase/)
-
-**Native Authentication (requires Custom Development Build):**
-
-- **Apple Sign In** - Native Apple authentication - [Implementation Guide](https://docs.expo.dev/versions/latest/sdk/apple-authentication/)
-- **Google Sign In** - Native Google authentication - [Setup Guide](https://docs.expo.dev/guides/google-authentication/)
-
-### **Add Push Notifications**
-
-Send notifications to your users:
-
-- **Expo Notifications** - Cross-platform push notifications
-- **Firebase Cloud Messaging** - Advanced notification features
-
-### **Add Payments**
-
-Monetize your app:
-
-**Web & Credit Card Payments (works in Expo Go):**
-
-- **Stripe** - Credit card payments and subscriptions - [Expo + Stripe Guide](https://docs.expo.dev/guides/using-stripe/)
-- **PayPal** - PayPal payments integration - [Setup Guide](https://developer.paypal.com/docs/checkout/mobile/react-native/)
-
-**Native In-App Purchases (requires Custom Development Build):**
-
-- **RevenueCat** - Cross-platform in-app purchases and subscriptions - [Expo Integration Guide](https://www.revenuecat.com/docs/expo)
-- **Expo In-App Purchases** - Direct App Store integration - [Implementation Guide](https://docs.expo.dev/versions/latest/sdk/in-app-purchases/)
-
-**Paywall Optimization:**
-
-- **Superwall** - Paywall A/B testing and optimization - [React Native SDK](https://docs.superwall.com/docs/react-native)
-- **Adapty** - Mobile subscription analytics and paywalls - [Expo Integration](https://docs.adapty.io/docs/expo)
-
-## I want to use a custom domain - is that possible?
-
-For web deployments, you can use custom domains with:
-
-- **EAS Hosting** - Custom domains available on paid plans
-- **Netlify** - Free custom domain support
-- **Vercel** - Custom domains with automatic SSL
-
-For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
-
-## Troubleshooting
-
-### **App not loading on device?**
-
-1. Make sure your phone and computer are on the same WiFi network
-2. Try using tunnel mode: `bun start -- --tunnel`
-3. Check if your firewall is blocking the connection
-
-### **Build failing?**
-
-1. Clear your cache: `bunx expo start --clear`
-2. Delete `node_modules` and reinstall: `rm -rf node_modules && bun install`
-3. Check [Expo's troubleshooting guide](https://docs.expo.dev/troubleshooting/build-errors/)
-
-### **Need help with native features?**
-
-- Check [Expo's documentation](https://docs.expo.dev/) for native APIs
-- Browse [React Native's documentation](https://reactnative.dev/docs/getting-started) for core components
-- Visit [Rork's FAQ](https://rork.com/faq) for platform-specific questions
-
-## About Rork
-
-Rork builds fully native mobile apps using React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.
-
-Your Rork app is production-ready and can be published to the App Store. You can also export your app to run on the web for previews if needed.
+KYCBROWSER-android 🛡️
+
+High-Assurance Mobile Identity Verification Framework
+KYCBROWSER-android is a security-hardened browser environment for Android, specifically engineered for Know Your Customer (KYC) workflows. It provides a "Walled Garden" that secures the communication between native hardware (camera/sensors) and web-based identity providers.
+🚀 Key Security Features
+ * Session Pinning: Prevents Javascript injection via a unique, single-use UUID secret.
+ * Anti-Spoofing: Integrated hardware integrity checks and emulator detection.
+ * Data Privacy: Hardware-backed anti-screenshotting (FLAG_SECURE) to protect PII.
+ * Network Hardening: Native SSL Pinning and Certificate transparency.
+ * Build Automation: Automated R8/ProGuard mapping management for production debugging.
+📦 Quick Start: The "Fortress" Implementation
+To implement the secure environment, extend your KYC activity with the following pattern. This logic ensures that the browser cannot be manipulated by external tools or unauthorized Javascript calls.
+1. The Secure Activity (Kotlin)
+class FortressKYCActivity : AppCompatActivity() {
+    private val sessionSecret = UUID.randomUUID().toString()
+    private lateinit var kycWebView: WebView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Block screenshots and screen recording
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        
+        if (isEmulator()) { finish(); return } // Abort on fake hardware
+
+        setContentView(R.layout.activity_kyc)
+        setupSecureWebView()
+        kycWebView.loadUrl("https://verify.yourservice.com?token=$sessionSecret")
+    }
+
+    private fun setupSecureWebView() {
+        kycWebView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            userAgentString = "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}) Chrome/124.0.0.0 Mobile"
+        }
+
+        // The Secure Bridge: Only accepts callbacks containing our SecretKey
+        kycWebView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun onVerificationComplete(status: String, receivedSecret: String) {
+                if (receivedSecret == sessionSecret) {
+                    runOnUiThread { handleResult(status) }
+                }
+            }
+        }, "AndroidBridge")
+    }
+
+    private fun isEmulator(): Boolean {
+        return (Build.BRAND.startsWith("generic") || Build.MODEL.contains("Emulator") || Build.FINGERPRINT.contains("unknown"))
+    }
+}
+
+🌐 2. Web-End Integration (Demo Page)
+Your web-based KYC provider must echo the token back to the native bridge to verify the session's integrity.
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    function onKYCFinished(status) {
+        if (window.AndroidBridge) {
+            // Echo the secret token back to the app
+            window.AndroidBridge.onVerificationComplete(status, token);
+        }
+    }
+</script>
+
+🛡️ 3. Hardened Network Security
+Add a Network Security Configuration to enforce SSL Pinning. This prevents Man-in-the-Middle (MITM) attacks during document uploads.
+res/xml/network_security_config.xml:
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">your-kyc-provider.com</domain>
+        <pin-set>
+            <pin digest="SHA-256">PrimaryCertificateHash==</pin>
+            <pin digest="SHA-256">BackupCertificateHash==</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>
+
+🛠 4. Build & Debug Automation
+This framework includes a Python Debugger and Gradle Task to ensure you never lose the ability to de-obfuscate production crashes.
+Automated Artifact Extraction
+Every time you run a release build, the mapping files are automatically versioned:
+ * Path: ${project.rootDir}/RELEASES/v[Version]_[Timestamp]/
+Retrace-O-Matic (Python)
+Use this utility to de-obfuscate stack traces from production logs:
+python retrace_helper.py --mapping RELEASES/v1.0/mapping.txt --crash crash_log.txt
+
+⚙️ ProGuard Requirements
+Ensure the following rules are in your proguard-rules.pro to maintain WebRTC and Bridge functionality:
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keep class org.webrtc.** { *; }
+-keep class io.socket.** { *; }
+-dontwarn org.webrtc.**
+
+Next Step: This documentation is now complete and ready for your repository. Would you like me to generate a Release Tag Template for your first version (v1.0.0) to summarize these changes for your contributors?

@@ -27,7 +27,7 @@ describe('browserScripts syntax', () => {
     const script = createMediaInjectionScript(devices, {
       stealthMode: true,
       forceSimulation: true,
-      protocolId: 'standard',
+      protocolId: 'stealth',
       debugEnabled: false,
       permissionPromptEnabled: false,
     });

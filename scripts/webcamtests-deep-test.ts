@@ -14,7 +14,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 import { createMediaInjectionScript } from '../constants/browserScripts';
 import type { CaptureDevice } from '../types/device';
 
-type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
+type ProtocolId = 'stealth' | 'relay' | 'shield';
 
 interface DeepTestResult {
   protocolId: ProtocolId;
@@ -46,7 +46,7 @@ interface DeepTestResult {
 
 const TARGET_URL = 'https://webcamtests.com/recorder';
 
-const protocols: ProtocolId[] = ['standard', 'allowlist', 'protected', 'harness', 'holographic'];
+const protocols: ProtocolId[] = ['stealth', 'relay', 'shield'];
 
 const devices: CaptureDevice[] = [
   {

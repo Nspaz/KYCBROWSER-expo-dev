@@ -232,6 +232,18 @@ export function createAdvancedProtocol2Script(
       this.analyzePatterns();
     },
     
+    recordEnumerateDevicesCall: function() {
+      if (!this.enabled) return;
+      
+      this.interceptedCalls.push({
+        type: 'enumerateDevices',
+        constraints: null,
+        timestamp: Date.now(),
+      });
+      
+      this.analyzePatterns();
+    },
+    
     analyzePatterns: function() {
       const recentCalls = this.interceptedCalls.filter(
         c => Date.now() - c.timestamp < 5000
@@ -667,7 +679,7 @@ export function createAdvancedProtocol2Script(
   
   navigator.mediaDevices.enumerateDevices = async function() {
     // Record for ASI
-    ASIModule.recordGetUserMediaCall({ enumerate: true });
+    ASIModule.recordEnumerateDevicesCall();
     
     if (CONFIG.STEALTH_MODE) {
       // Return simulated devices
@@ -688,6 +700,45 @@ export function createAdvancedProtocol2Script(
     }
     
     return [];
+  };
+  
+  // Override getSupportedConstraints for completeness
+  navigator.mediaDevices.getSupportedConstraints = function() {
+    return {
+      aspectRatio: true,
+      autoGainControl: true,
+      brightness: true,
+      channelCount: true,
+      colorTemperature: true,
+      contrast: true,
+      deviceId: true,
+      echoCancellation: true,
+      exposureCompensation: true,
+      exposureMode: true,
+      exposureTime: true,
+      facingMode: true,
+      focusDistance: true,
+      focusMode: true,
+      frameRate: true,
+      groupId: true,
+      height: true,
+      iso: true,
+      latency: true,
+      noiseSuppression: true,
+      pan: true,
+      pointsOfInterest: true,
+      resizeMode: true,
+      sampleRate: true,
+      sampleSize: true,
+      saturation: true,
+      sharpness: true,
+      suppressLocalAudioPlayback: true,
+      tilt: true,
+      torch: true,
+      whiteBalanceMode: true,
+      width: true,
+      zoom: true,
+    };
   };
   
   navigator.mediaDevices.getUserMedia = async function(constraints) {
@@ -714,11 +765,36 @@ export function createAdvancedProtocol2Script(
           Logger.warn('Native bridge fallback failed:', e);
         }
       }
+      // Last-resort: try to create a canvas captureStream anyway (some
+      // environments lie about prototype support but still allow it on
+      // dynamically-created elements).
+      try {
+        var emergencyCanvas = document.createElement('canvas');
+        emergencyCanvas.width = CONFIG.PORTRAIT_WIDTH || 1280;
+        emergencyCanvas.height = CONFIG.PORTRAIT_HEIGHT || 720;
+        var eCtx = emergencyCanvas.getContext('2d');
+        if (eCtx) {
+          eCtx.fillStyle = 'green';
+          eCtx.fillRect(0, 0, emergencyCanvas.width, emergencyCanvas.height);
+        }
+        var emergencyStream = emergencyCanvas.captureStream(CONFIG.TARGET_FPS || 30);
+        if (emergencyStream && emergencyStream.getVideoTracks().length > 0) {
+          Logger.warn('Emergency canvas captureStream succeeded despite detection failure');
+          if (wantsAudio) addSilentAudio(emergencyStream);
+          spoofTrackMetadata(emergencyStream, constraints);
+          return emergencyStream;
+        }
+      } catch (ece) {
+        Logger.warn('Emergency canvas fallback also failed:', ece);
+      }
       notifyReactNative('unsupported', {
         reason: 'captureStream not supported in this WebView',
         protocol: 'advancedProtocol2',
       });
-      if (!CONFIG.STEALTH_MODE && originalGetUserMedia) {
+      // Last resort: delegate to the original getUserMedia regardless of
+      // stealth mode.  A real camera stream is better than an error when
+      // all injection methods have been exhausted.
+      if (originalGetUserMedia) {
         return originalGetUserMedia(constraints);
       }
       throw new DOMException('captureStream not supported', 'NotSupportedError');

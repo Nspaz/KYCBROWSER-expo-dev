@@ -3,7 +3,10 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolId = 'stealth' | 'relay' | 'bridge' | 'shield';
+
+/** @deprecated Use ProtocolId – old names kept for downstream compat */
+export type LegacyProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback' | 'claude-sonnet' | 'claude' | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -183,13 +186,17 @@ export interface WebRtcLoopbackSettings {
 
 // Combined Protocol Settings
 export interface ProtocolSettings {
-  standard: StandardInjectionSettings;
-  allowlist: AllowlistSettings;
-  protected: ProtectedPreviewSettings;
-  harness: TestHarnessSettings;
-  holographic: HolographicSettings;
-  websocket: WebSocketBridgeSettings;
-  webrtcLoopback: WebRtcLoopbackSettings;
+  stealth: StandardInjectionSettings;
+  relay: AllowlistSettings;
+  shield: ProtectedPreviewSettings & TestHarnessSettings;
+  bridge: WebSocketBridgeSettings & WebRtcLoopbackSettings;
+  /** @deprecated */ standard?: StandardInjectionSettings;
+  /** @deprecated */ allowlist?: AllowlistSettings;
+  /** @deprecated */ protected?: ProtectedPreviewSettings;
+  /** @deprecated */ harness?: TestHarnessSettings;
+  /** @deprecated */ holographic?: HolographicSettings;
+  /** @deprecated */ websocket?: WebSocketBridgeSettings;
+  /** @deprecated */ webrtcLoopback?: WebRtcLoopbackSettings;
 }
 
 // Developer Mode Settings
@@ -226,23 +233,23 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
     enableParallelDecoding: true,
   },
   
-  // WebRTC Relay - maximum stealth
+  // WebRTC Relay - disabled by default for reliability
   webrtc: {
-    enabled: true,
-    virtualTurnEnabled: true,
-    sdpManipulationEnabled: true,
+    enabled: false,
+    virtualTurnEnabled: false,
+    sdpManipulationEnabled: false,
     stealthMode: true,
   },
   
-  // GPU Processing - balanced quality
+  // GPU Processing - disabled by default (unreliable on Android WebView)
   gpu: {
-    enabled: true,
+    enabled: false,
     qualityPreset: 'high',
-    noiseInjection: true,
+    noiseInjection: false,
     noiseIntensity: 0.02,
   },
   
-  // ASI - intelligent adaptation
+  // ASI - intelligent adaptation (reliable, canvas-only)
   asi: {
     enabled: true,
     siteFingerprinting: true,
@@ -251,19 +258,19 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
     storeHistory: true,
   },
   
-  // Cross-Device - ready for pairing
+  // Cross-Device - disabled by default
   crossDevice: {
-    enabled: true,
+    enabled: false,
     discoveryMethod: 'qr',
     targetLatencyMs: 100,
     autoReconnect: true,
   },
   
-  // Crypto - secure by default
+  // Crypto - disabled by default for reliability
   crypto: {
-    enabled: true,
-    frameSigning: true,
-    tamperDetection: true,
+    enabled: false,
+    frameSigning: false,
+    tamperDetection: false,
     keyRotationIntervalMs: 3600000, // 1 hour
   },
   
@@ -345,6 +352,11 @@ export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
+  stealth: DEFAULT_STANDARD_SETTINGS,
+  relay: DEFAULT_ALLOWLIST_SETTINGS,
+  shield: { ...DEFAULT_PROTECTED_SETTINGS, ...DEFAULT_HARNESS_SETTINGS },
+  bridge: { ...DEFAULT_WEBSOCKET_SETTINGS, ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS },
+  // Legacy aliases
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
@@ -370,60 +382,36 @@ export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
 
 // Protocol metadata for UI display
 export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
-  standard: {
-    id: 'standard',
-    name: 'Protocol 1: Standard Injection',
-    description: 'Uses the current media injection flow inside this app for internal testing and controlled environments.',
+  stealth: {
+    id: 'stealth',
+    name: 'Stealth Protocol',
+    description: 'Standard media injection with advanced stealth mode for internal testing and controlled environments.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
   },
-  allowlist: {
-    id: 'allowlist',
-    name: 'Protocol 2: Advanced Relay',
+  relay: {
+    id: 'relay',
+    name: 'Relay Protocol',
     description: 'The most technically advanced video injection system featuring WebRTC relay, GPU processing, Adaptive Stream Intelligence, cross-device streaming, and cryptographic validation.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
   },
-  protected: {
-    id: 'protected',
-    name: 'Protocol 3: Protected Preview',
-    description: 'A consent-based local preview that swaps to a safe looping video whenever body detection is triggered.',
+  shield: {
+    id: 'shield',
+    name: 'Shield Protocol',
+    description: 'Protected preview and local test harness with body detection, safe video swap, and sandbox testing.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
   },
-  harness: {
-    id: 'harness',
-    name: 'Protocol 4: Local Test Harness',
-    description: 'A local sandbox page for safe overlay testing without touching third-party sites.',
+  bridge: {
+    id: 'bridge',
+    name: 'Bridge Protocol',
+    description: 'WebSocket and WebRTC bridge for streaming video frames directly to WebView. Most reliable method for maximum compatibility.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
-  },
-  holographic: {
-    id: 'holographic',
-    name: 'Protocol 5: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. The most advanced injection method available.',
-    enabled: true,
-    isLive: true,
-    requiresDeveloperMode: true,
-  },
-  websocket: {
-    id: 'websocket',
-    name: 'Protocol 6: WebSocket Bridge',
-    description: 'Uses React Native postMessage bridge to stream video frames directly to WebView. Most reliable method - bypasses all canvas timing issues. Recommended for maximum compatibility.',
-    enabled: true,
-    isLive: true,
-    requiresDeveloperMode: false,
-  },
-  'webrtc-loopback': {
-    id: 'webrtc-loopback',
-    name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track.',
-    enabled: true,
-    isLive: true,
-    requiresDeveloperMode: true,
   },
 };

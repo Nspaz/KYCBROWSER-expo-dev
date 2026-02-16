@@ -119,7 +119,7 @@ const PROTOCOL_TESTS: ProtocolTest[] = [
     name: 'Media Injection (Standard)',
     id: 'mediaInjection',
     createScript: () => createMediaInjectionScript(DEVICES, {
-      protocolId: 'standard',
+      protocolId: 'stealth',
       stealthMode: true,
       forceSimulation: true,
       debugEnabled: true,

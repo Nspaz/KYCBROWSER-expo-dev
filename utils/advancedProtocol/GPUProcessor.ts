@@ -8,7 +8,6 @@
 import {
   GPUProcessingConfig,
   GPUProcessingState,
-  ShaderUniform,
   DEFAULT_GPU_CONFIG,
 } from '@/types/advancedProtocol';
 
@@ -40,132 +39,6 @@ uniform sampler2D u_texture;
 
 void main() {
   fragColor = texture(u_texture, v_texCoord);
-}
-`;
-
-const FRAGMENT_SHADER_COLOR_CORRECTION = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-out vec4 fragColor;
-
-uniform sampler2D u_texture;
-uniform float u_brightness;
-uniform float u_contrast;
-uniform float u_saturation;
-uniform vec3 u_colorBalance;
-
-vec3 adjustSaturation(vec3 color, float saturation) {
-  float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-  return mix(vec3(luminance), color, saturation);
-}
-
-void main() {
-  vec4 color = texture(u_texture, v_texCoord);
-  
-  // Apply brightness
-  color.rgb += u_brightness;
-  
-  // Apply contrast
-  color.rgb = (color.rgb - 0.5) * u_contrast + 0.5;
-  
-  // Apply saturation
-  color.rgb = adjustSaturation(color.rgb, u_saturation);
-  
-  // Apply color balance
-  color.rgb *= u_colorBalance;
-  
-  // Clamp values
-  fragColor = clamp(color, 0.0, 1.0);
-}
-`;
-
-const FRAGMENT_SHADER_NOISE_INJECTION = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-out vec4 fragColor;
-
-uniform sampler2D u_texture;
-uniform float u_time;
-uniform float u_noiseIntensity;
-uniform float u_noiseSeed;
-
-// Pseudo-random noise function
-float random(vec2 st) {
-  return fract(sin(dot(st.xy + u_noiseSeed, vec2(12.9898, 78.233))) * 43758.5453123);
-}
-
-void main() {
-  vec4 color = texture(u_texture, v_texCoord);
-  
-  // Generate noise based on position and time
-  float noise = (random(v_texCoord + u_time) - 0.5) * u_noiseIntensity;
-  
-  // Add noise to color
-  color.rgb += noise;
-  
-  fragColor = clamp(color, 0.0, 1.0);
-}
-`;
-
-const FRAGMENT_SHADER_FILM_GRAIN = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-out vec4 fragColor;
-
-uniform sampler2D u_texture;
-uniform float u_time;
-uniform float u_grainAmount;
-uniform float u_grainSize;
-
-float random(vec2 co) {
-  return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
-float grain(vec2 st) {
-  vec2 ipos = floor(st * u_grainSize);
-  return random(ipos + u_time);
-}
-
-void main() {
-  vec4 color = texture(u_texture, v_texCoord);
-  
-  float noise = grain(v_texCoord) * u_grainAmount;
-  
-  // Apply luminance-weighted grain (more visible in midtones)
-  float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-  float grainWeight = 1.0 - abs(luminance - 0.5) * 2.0;
-  
-  color.rgb += (noise - 0.5) * grainWeight * 0.1;
-  
-  fragColor = clamp(color, 0.0, 1.0);
-}
-`;
-
-const FRAGMENT_SHADER_VIGNETTE = `#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-out vec4 fragColor;
-
-uniform sampler2D u_texture;
-uniform float u_vignetteAmount;
-uniform float u_vignetteRadius;
-
-void main() {
-  vec4 color = texture(u_texture, v_texCoord);
-  
-  vec2 center = vec2(0.5, 0.5);
-  float dist = distance(v_texCoord, center);
-  
-  float vignette = smoothstep(u_vignetteRadius, u_vignetteRadius - 0.3, dist);
-  vignette = mix(1.0, vignette, u_vignetteAmount);
-  
-  color.rgb *= vignette;
-  
-  fragColor = color;
 }
 `;
 
@@ -346,7 +219,7 @@ export class GPUProcessor {
       try {
         this.canvas = new OffscreenCanvas(width, height);
         console.log('[GPUProcessor] Using OffscreenCanvas');
-      } catch (e) {
+      } catch {
         console.warn('[GPUProcessor] OffscreenCanvas failed, falling back to HTMLCanvasElement');
       }
     }
@@ -688,7 +561,6 @@ export class GPUProcessor {
 
   private setUniforms(): void {
     if (!this.gl || !this.activeProgram) return;
-    const gl = this.gl;
     
     const time = (performance.now() - this.startTime) / 1000;
     
@@ -720,7 +592,7 @@ export class GPUProcessor {
   private setUniform(name: string, value: number): void {
     if (!this.gl || !this.activeProgram) return;
     
-    let location = this.uniforms.get(name);
+    let location: WebGLUniformLocation | null | undefined = this.uniforms.get(name);
     if (!location) {
       location = this.gl.getUniformLocation(this.activeProgram, name);
       if (location) {
@@ -740,7 +612,7 @@ export class GPUProcessor {
   private setUniform3f(name: string, x: number, y: number, z: number): void {
     if (!this.gl || !this.activeProgram) return;
     
-    let location = this.uniforms.get(name);
+    let location: WebGLUniformLocation | null | undefined = this.uniforms.get(name);
     if (!location) {
       location = this.gl.getUniformLocation(this.activeProgram, name);
       if (location) {

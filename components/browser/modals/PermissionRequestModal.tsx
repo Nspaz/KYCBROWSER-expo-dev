@@ -16,9 +16,7 @@ import {
   X,
   Zap,
   EyeOff,
-  Monitor,
   Wifi,
-  Globe
 } from 'lucide-react-native';
 import type { ProtocolType } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
@@ -42,7 +40,7 @@ export default function PermissionRequestModal({
   onAction,
   onSelectVideo,
 }: PermissionRequestModalProps) {
-  const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>('standard');
+  const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>('stealth');
   const [useSimulation, setUseSimulation] = useState(true);
   const enabledProtocolIds = useMemo(
     () => (Object.keys(protocols) as ProtocolType[]).filter((protocolId) => protocols[protocolId]?.enabled),
@@ -61,13 +59,10 @@ export default function PermissionRequestModal({
   }, [availableProtocolIds, hasAvailableProtocols, selectedProtocol]);
 
   const protocolIcons: Record<ProtocolType, React.ReactNode> = {
-    standard: <Zap size={18} color="#00ff88" />,
-    allowlist: <Shield size={18} color="#00aaff" />,
-    protected: <EyeOff size={18} color="#ff6b35" />,
-    harness: <Monitor size={18} color="#b388ff" />,
-    holographic: <VideoIcon size={18} color="#ff00ff" />,
-    websocket: <Globe size={18} color="#00aaff" />,
-    'webrtc-loopback': <Wifi size={18} color="#00aaff" />,
+    stealth: <Zap size={18} color="#00ff88" />,
+    relay: <Shield size={18} color="#00aaff" />,
+    bridge: <Wifi size={18} color="#00aaff" />,
+    shield: <EyeOff size={18} color="#ff6b35" />,
   };
 
   const handleSimulate = () => {

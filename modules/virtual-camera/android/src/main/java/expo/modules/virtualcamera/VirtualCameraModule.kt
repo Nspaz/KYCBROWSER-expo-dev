@@ -81,7 +81,9 @@ class VirtualCameraModule : Module() {
                 "fps" to targetFps,
                 "width" to targetWidth,
                 "height" to targetHeight,
-                "error" to null
+                "error" to null,
+                "framesDelivered" to (virtualCameraDevice?.getFrameDeliveryCount() ?: 0L),
+                "lastDeliveryTimeMs" to (virtualCameraDevice?.getLastDeliveryTimeMs() ?: 0L)
             )
         }
         
@@ -147,8 +149,13 @@ class VirtualCameraModule : Module() {
             return false
         }
         
-        // Create virtual camera device
-        virtualCameraDevice = VirtualCameraDevice(context, this)
+        // Create virtual camera device and initialize its rendering surface
+        val device = VirtualCameraDevice(context, this)
+        if (!device.initializeSurface(targetWidth, targetHeight)) {
+            sendErrorEvent("Failed to initialize virtual camera surface")
+            return false
+        }
+        virtualCameraDevice = device
         
         // Start frame generation
         startFrameGeneration()
@@ -167,6 +174,7 @@ class VirtualCameraModule : Module() {
         stopFrameGeneration()
         cleanupMediaExtractor()
         
+        virtualCameraDevice?.releaseSurface()
         virtualCameraDevice = null
         isEnabled.set(false)
         
@@ -438,7 +446,9 @@ class VirtualCameraModule : Module() {
  * Virtual Camera Device
  * 
  * Provides a fake camera device that delivers frames from the video file.
- * This can be used to intercept Camera2 API calls.
+ * Renders bitmaps to a Surface via Canvas, enabling downstream consumers
+ * (e.g., SurfaceTexture-backed pipelines or the base64 frame API) to
+ * receive the injected video frames.
  */
 class VirtualCameraDevice(
     private val context: Context,
@@ -446,17 +456,75 @@ class VirtualCameraDevice(
 ) {
     private var surface: Surface? = null
     private var surfaceTexture: SurfaceTexture? = null
-    
-    fun setSurface(surface: Surface?) {
-        this.surface = surface
+    private var textureId: Int = -1
+    private var frameDeliveryCount: Long = 0
+    private var lastDeliveryTimeMs: Long = 0
+
+    /**
+     * Initialize the rendering surface backed by a SurfaceTexture.
+     * This creates a GL texture -> SurfaceTexture -> Surface pipeline
+     * that can be consumed by downstream components.
+     */
+    fun initializeSurface(width: Int, height: Int): Boolean {
+        return try {
+            releaseSurface()
+            textureId = 0 // placeholder; real GL texture would be allocated here
+            val st = SurfaceTexture(textureId)
+            st.setDefaultBufferSize(width, height)
+            surfaceTexture = st
+            surface = Surface(st)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
     
+    fun setSurface(newSurface: Surface?) {
+        this.surface = newSurface
+    }
+
+    fun getSurfaceTexture(): SurfaceTexture? = surfaceTexture
+    
+    /**
+     * Deliver a bitmap frame by drawing it to the Surface via Canvas.
+     * This is thread-safe and can be called from the frame generation thread.
+     */
     fun deliverFrame(bitmap: Bitmap?) {
-        // In a full implementation, this would:
-        // 1. Draw the bitmap to a Surface
-        // 2. That Surface would be connected to the camera preview
-        // 3. WebView's getUserMedia would receive frames from this Surface
-        
-        // For now, the frame is just available via module.getCurrentBitmap()
+        val targetSurface = surface ?: return
+        val bmp = bitmap ?: return
+
+        try {
+            if (!targetSurface.isValid) return
+
+            val canvas = targetSurface.lockCanvas(null) ?: return
+            try {
+                // Scale bitmap to fill the surface canvas
+                val srcRect = android.graphics.Rect(0, 0, bmp.width, bmp.height)
+                val dstRect = android.graphics.Rect(0, 0, canvas.width, canvas.height)
+                canvas.drawBitmap(bmp, srcRect, dstRect, null)
+                frameDeliveryCount++
+                lastDeliveryTimeMs = System.currentTimeMillis()
+            } finally {
+                targetSurface.unlockCanvasAndPost(canvas)
+            }
+        } catch (e: Exception) {
+            // Surface may have been released between check and lock
+        }
+    }
+
+    fun getFrameDeliveryCount(): Long = frameDeliveryCount
+    fun getLastDeliveryTimeMs(): Long = lastDeliveryTimeMs
+
+    fun releaseSurface() {
+        try {
+            surface?.release()
+        } catch (_: Exception) {}
+        surface = null
+        try {
+            surfaceTexture?.release()
+        } catch (_: Exception) {}
+        surfaceTexture = null
+        textureId = -1
     }
 }

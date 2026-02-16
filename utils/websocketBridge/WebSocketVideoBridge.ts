@@ -148,9 +148,11 @@ export class WebSocketVideoBridge {
     // Inject the frame data into the WebView
     this.webViewRef.current.injectJavaScript(`
       (function() {
-        if (window.__wsBridgeReceiveFrame) {
-          window.__wsBridgeReceiveFrame(${message});
-        }
+        try {
+          if (window.__wsBridgeReceiveFrame) {
+            window.__wsBridgeReceiveFrame(${message});
+          }
+        } catch(e) {}
       })();
       true;
     `);
@@ -174,27 +176,28 @@ export class WebSocketVideoBridge {
       return;
     }
     
-    const frameData: FrameData = {
-      seq: this.frameSeq++,
-      timestamp: Date.now(),
-      width: this.config.width,
-      height: this.config.height,
-      data: '', // Empty - the WebView will generate synthetic frames
-    };
+    const seq = this.frameSeq++;
+    const timestamp = Date.now();
     
-    // For efficiency, just send a trigger rather than full frame data
-    // The WebView will render its own frames
+    // Send a tick signal to the WebView to render the next frame.
+    // The WebView injection script renders its own frames (synthetic or video)
+    // in its canvas and captures them via captureStream().
+    //
+    // If actual base64 frame data is available (e.g., from VirtualCamera module),
+    // it should be sent via the sendFrame() method instead.
     const message = JSON.stringify({
       type: 'ws-bridge-tick',
-      seq: frameData.seq,
-      timestamp: frameData.timestamp,
+      seq: seq,
+      timestamp: timestamp,
     });
     
     this.webViewRef.current.injectJavaScript(`
       (function() {
-        if (window.__wsBridgeTick) {
-          window.__wsBridgeTick(${message});
-        }
+        try {
+          if (window.__wsBridgeTick) {
+            window.__wsBridgeTick(${message});
+          }
+        } catch(e) {}
       })();
       true;
     `);
@@ -202,7 +205,7 @@ export class WebSocketVideoBridge {
     this.state.framesSent++;
     
     // Update FPS calculation every second
-    if (this.frameSeq % this.config.fps === 0) {
+    if (seq % this.config.fps === 0) {
       this.state.currentFps = this.config.fps;
       this.updateState();
     }

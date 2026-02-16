@@ -24,6 +24,7 @@ interface TestResult {
     videoSettings?: any;
     canPlayVideo: boolean;
     recordingStarted: boolean;
+    recordingSuccess?: boolean;
     recordedDataSize?: number;
     errors: string[];
     pageErrors: string[];
@@ -298,9 +299,9 @@ async function main() {
     // Protocol 1: Standard
     {
       name: 'Protocol 1: Standard (browserScripts)',
-      id: 'standard',
+      id: 'stealth',
       createScript: () => createMediaInjectionScript(devices, {
-        protocolId: 'standard',
+        protocolId: 'stealth',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -314,9 +315,9 @@ async function main() {
     // Protocol 2: Allowlist
     {
       name: 'Protocol 2: Allowlist (browserScripts)',
-      id: 'allowlist',
+      id: 'relay',
       createScript: () => createMediaInjectionScript(devices, {
-        protocolId: 'allowlist',
+        protocolId: 'relay',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -348,9 +349,9 @@ async function main() {
     // Protocol 3: Protected
     {
       name: 'Protocol 3: Protected (browserScripts)',
-      id: 'protected',
+      id: 'shield',
       createScript: () => createMediaInjectionScript(devices, {
-        protocolId: 'protected',
+        protocolId: 'shield',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -364,9 +365,9 @@ async function main() {
     // Protocol 4: Harness
     {
       name: 'Protocol 4: Harness (browserScripts)',
-      id: 'harness',
+      id: 'shield',
       createScript: () => createMediaInjectionScript(devices, {
-        protocolId: 'harness',
+        protocolId: 'shield',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -380,9 +381,9 @@ async function main() {
     // Protocol 5: Holographic
     {
       name: 'Protocol 5: Holographic (browserScripts)',
-      id: 'holographic',
+      id: 'stealth',
       createScript: () => createMediaInjectionScript(devices, {
-        protocolId: 'holographic',
+        protocolId: 'stealth',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -396,7 +397,7 @@ async function main() {
     // Protocol 5: Sonnet (AI-Powered)
     {
       name: 'Protocol 5: Sonnet (AI-Powered Adaptive)',
-      id: 'sonnet',
+      id: 'stealth',
       createScript: () => {
         const config: SonnetProtocolConfig = {
           enabled: true,

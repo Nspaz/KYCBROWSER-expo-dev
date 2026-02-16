@@ -35,7 +35,7 @@ export default function ProtocolTesterScreen() {
   
   const [currentTest, setCurrentTest] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [diagnosticResults, setDiagnosticResults] = useState<any>(null);
+  const [, setDiagnosticResults] = useState<any>(null);
   
   const [tests, setTests] = useState<ProtocolTest[]>([
     {
@@ -52,25 +52,25 @@ export default function ProtocolTesterScreen() {
     },
     {
       id: 'protocol1',
-      name: 'Protocol 1: Standard Injection',
+      name: 'Stealth Protocol',
       description: 'Standard media injection with stealth mode',
       status: 'pending',
     },
     {
       id: 'protocol2',
-      name: 'Protocol 2: Advanced Relay',
+      name: 'Relay Protocol',
       description: 'WebRTC relay with GPU processing and ASI',
       status: 'pending',
     },
     {
       id: 'protocol5',
-      name: 'Protocol 5: Holographic',
-      description: 'Holographic stream injection with SDP masquerade',
+      name: 'Bridge Protocol',
+      description: 'Bridge stream injection with SDP masquerade',
       status: 'pending',
     },
     {
       id: 'sonnet',
-      name: 'Sonnet Protocol',
+      name: 'Stealth (AI-Enhanced)',
       description: 'AI-powered adaptive injection with behavioral mimicry',
       status: 'pending',
     },
@@ -220,8 +220,8 @@ export default function ProtocolTesterScreen() {
       } else if (data.type === 'console') {
         console.log(`[WebView ${data.level}]`, data.message);
       }
-    } catch (e) {
-      // Not JSON or not our message
+    } catch {
+      // Intentionally ignore non-JSON or unrelated messages from the WebView.
     }
   }, [updateTestStatus]);
   

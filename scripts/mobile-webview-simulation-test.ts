@@ -83,7 +83,7 @@ async function testMobileWebViewSimulation() {
 
   // Create the injection script
   const injectionScript = createMediaInjectionScript(SIM_DEVICES as any, {
-    protocolId: 'standard',
+    protocolId: 'stealth',
     protocolLabel: 'Mobile WebView Test',
     stealthMode: true,
     forceSimulation: true,

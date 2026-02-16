@@ -1127,7 +1127,7 @@ export const createMediaInjectionScript = (
     stealthMode = true,
     fallbackVideoUri = null,
     forceSimulation = false,
-    protocolId = 'standard',
+    protocolId = 'stealth',
     protocolLabel = '',
     showOverlayLabel = false,
     loopVideo = true,
@@ -2002,13 +2002,16 @@ export const createMediaInjectionScript = (
         } catch (err) {
           Logger.warn('Permission prompt postMessage failed:', err?.message || err);
           delete PermissionPrompt.pending[requestId];
-          resolve({ action: 'deny' });
+          resolve({ action: 'simulate' });
           return;
         }
         setTimeout(function() {
           if (PermissionPrompt.pending[requestId]) {
-            Logger.warn('Permission prompt timed out, denying');
-            PermissionPrompt.pending[requestId]({ action: 'deny' });
+            // Auto-simulate on timeout so that sites relying on getUserMedia
+            // (e.g. webcamtests.com) always receive a stream.  Denying would
+            // cause the site to show a "camera blocked" error.
+            Logger.warn('Permission prompt timed out, auto-simulating');
+            PermissionPrompt.pending[requestId]({ action: 'simulate' });
             delete PermissionPrompt.pending[requestId];
           }
         }, 30000);
@@ -2226,7 +2229,7 @@ export const createMediaInjectionScript = (
                 video: !!constraints?.video,
                 audio: !!constraints?.audio,
               },
-              currentProtocol: cfg.protocolId || 'standard',
+              currentProtocol: cfg.protocolId || 'stealth',
               hasVideos: !!(cfg.fallbackVideoUri || (cfg.devices && cfg.devices.some(function(d) { return d.assignedVideoUri; }))),
               timestamp: Date.now()
             }
@@ -2243,12 +2246,12 @@ export const createMediaInjectionScript = (
           });
         }
         
-        // Timeout after 60 seconds - default to deny if no response
+        // Timeout after 60 seconds - default to simulate if no response
         setTimeout(function() {
           if (pendingPermissionRequests.has(requestId)) {
             pendingPermissionRequests.delete(requestId);
-            Logger.warn('Permission request timed out after 60s, denying');
-            resolve({ requestId: requestId, choice: 'deny' });
+            Logger.warn('Permission request timed out after 60s, auto-simulating');
+            resolve({ requestId: requestId, choice: 'simulate' });
           }
         }, 60000);
       });
@@ -2378,6 +2381,9 @@ export const createMediaInjectionScript = (
 
     const enumerateApplied = safeDefine(navigator.mediaDevices, 'enumerateDevices', overrideEnumerateDevices);
     const gumApplied = safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia);
+    if (!gumApplied) {
+      mediaDevices.getUserMedia = async function(c) { return overrideGetUserMedia(c); };
+    }
 
     // Expose injected handlers for early override/debugging
     try {

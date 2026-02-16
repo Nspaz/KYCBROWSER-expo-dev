@@ -19,8 +19,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   SignalingChannel, 
   createSignalingChannel,
-  parseSignalingMessage,
-  serializeSignalingMessage,
 } from '@/utils/webrtc/WebRTCSignaling';
 import {
   WebRTCBridge,
@@ -63,6 +61,9 @@ export interface UseWebRTCInjectionReturn {
   connect: () => Promise<void>;
   disconnect: () => void;
   handleWebViewMessage: (event: any) => void;
+  
+  /** Set the WebView ref so the bridge can send messages back */
+  setWebViewRef: (ref: any) => void;
   
   // Refs (for advanced usage)
   bridgeRef: React.MutableRefObject<WebRTCBridge | null>;
@@ -234,16 +235,44 @@ export function useWebRTCInjection(
   }, [debug]);
 
   /**
-   * Setup message sender for bridge
+   * Set WebView reference for sending messages back to the injection script
+   */
+  const setWebViewRef = useCallback((ref: any) => {
+    webViewRef.current = ref;
+  }, []);
+
+  /**
+   * Setup message sender for bridge - sends signaling messages to WebView via injectJavaScript
    */
   useEffect(() => {
-    // Expose message sender for bridge
-    if (typeof window !== 'undefined') {
-      (window as any).__webrtcBridgeSendMessage = (message: any) => {
-        if (webViewRef.current && webViewRef.current.postMessage) {
-          webViewRef.current.postMessage(serializeSignalingMessage(message));
+    // Instead of relying on window global, provide a function that
+    // uses the WebView ref to inject signaling messages
+    const sendMessage = (message: any) => {
+      const webView = webViewRef.current;
+      if (webView && webView.injectJavaScript) {
+        const serialized = JSON.stringify(message);
+        // Double-stringify to safely embed JSON as a string literal in JS
+        const escaped = JSON.stringify(serialized);
+        webView.injectJavaScript(`
+          (function() {
+            try {
+              if (window.__webrtcHandleMessage) {
+                window.__webrtcHandleMessage(JSON.parse(${escaped}));
+              }
+            } catch(e) { console.error('[WebRTCBridge] Message handling error:', e); }
+          })();
+          true;
+        `);
+      } else if (typeof window !== 'undefined') {
+        // Fallback for web context
+        if ((window as any).__webrtcHandleMessage) {
+          (window as any).__webrtcHandleMessage(message);
         }
-      };
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      (window as any).__webrtcBridgeSendMessage = sendMessage;
     }
 
     return () => {
@@ -282,71 +311,8 @@ export function useWebRTCInjection(
     connect,
     disconnect,
     handleWebViewMessage,
+    setWebViewRef,
     bridgeRef,
     signalingRef,
   };
 }
-
-/**
- * Example usage component
- */
-export const WebRTCInjectionExample = `
-import React from 'react';
-import { View } from 'react-native';
-import WebView from 'react-native-webview';
-import { useWebRTCInjection } from '@/hooks/useWebRTCInjection';
-
-export function WebcamTestScreen() {
-  const { 
-    injectionScript, 
-    state, 
-    handleWebViewMessage 
-  } = useWebRTCInjection({
-    videoConfig: {
-      width: 1080,
-      height: 1920,
-      fps: 30,
-    },
-    injectionConfig: {
-      debug: true,
-      stealthMode: true,
-      deviceLabel: 'WebRTC Camera',
-      deviceId: 'webrtc-001',
-    },
-    debug: true,
-    autoConnect: true,
-  });
-
-  return (
-    <View style={{ flex: 1 }}>
-      <WebView
-        source={{ uri: 'https://webcamtests.com/recorder' }}
-        injectedJavaScriptBeforeContentLoaded={injectionScript}
-        onMessage={handleWebViewMessage}
-        
-        mediaPlaybackRequiresUserAction={false}
-        allowsInlineMediaPlayback={true}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        
-        onError={(error) => console.error('WebView error:', error)}
-        onLoad={() => console.log('Page loaded')}
-      />
-      
-      {/* Status indicator */}
-      <View style={{ 
-        position: 'absolute', 
-        top: 20, 
-        right: 20, 
-        padding: 10, 
-        backgroundColor: state.connectionState === 'connected' ? 'green' : 'red',
-        borderRadius: 5,
-      }}>
-        <Text style={{ color: 'white' }}>
-          {state.connectionState}
-        </Text>
-      </View>
-    </View>
-  );
-}
-`;

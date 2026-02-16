@@ -327,10 +327,10 @@ async function main() {
   const protocols: ProtocolTest[] = [
     {
       name: 'Protocol 1: Standard',
-      id: 'standard',
+      id: 'stealth',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'standard',
-        protocolLabel: 'standard',
+        protocolId: 'stealth',
+        protocolLabel: 'stealth',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -342,10 +342,10 @@ async function main() {
     },
     {
       name: 'Protocol 2: Allowlist',
-      id: 'allowlist',
+      id: 'relay',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'allowlist',
-        protocolLabel: 'allowlist',
+        protocolId: 'relay',
+        protocolLabel: 'relay',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -357,10 +357,10 @@ async function main() {
     },
     {
       name: 'Protocol 3: Protected',
-      id: 'protected',
+      id: 'shield',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'protected',
-        protocolLabel: 'protected',
+        protocolId: 'shield',
+        protocolLabel: 'shield',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -372,10 +372,10 @@ async function main() {
     },
     {
       name: 'Protocol 4: Harness',
-      id: 'harness',
+      id: 'shield',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'harness',
-        protocolLabel: 'harness',
+        protocolId: 'shield',
+        protocolLabel: 'shield',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
@@ -387,10 +387,10 @@ async function main() {
     },
     {
       name: 'Protocol 5: Holographic',
-      id: 'holographic',
+      id: 'stealth',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'holographic',
-        protocolLabel: 'holographic',
+        protocolId: 'stealth',
+        protocolLabel: 'stealth',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,

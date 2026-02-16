@@ -60,7 +60,7 @@ async function testWithPermissionFlow() {
       id: 'standard-no-prompt',
       permissionPromptEnabled: false,
       script: createMediaInjectionScript(SIM_DEVICES as any, {
-        protocolId: 'standard',
+        protocolId: 'stealth',
         protocolLabel: 'Standard',
         stealthMode: true,
         forceSimulation: true,
@@ -76,7 +76,7 @@ async function testWithPermissionFlow() {
       id: 'standard-with-prompt',
       permissionPromptEnabled: true,
       script: createMediaInjectionScript(SIM_DEVICES as any, {
-        protocolId: 'standard',
+        protocolId: 'stealth',
         protocolLabel: 'Standard',
         stealthMode: true,
         forceSimulation: true,

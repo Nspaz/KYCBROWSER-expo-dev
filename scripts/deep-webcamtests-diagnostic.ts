@@ -374,7 +374,7 @@ async function main() {
     {
       name: 'Protocol 2: Standard (createMediaInjectionScript)',
       script: createMediaInjectionScript(DEVICES as any, {
-        protocolId: 'standard',
+        protocolId: 'stealth',
         stealthMode: true,
         forceSimulation: true,
         debugEnabled: true,
