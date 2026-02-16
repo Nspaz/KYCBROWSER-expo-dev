@@ -32,6 +32,8 @@ function RootLayoutNav() {
       <Stack.Screen name="protected-preview" options={{ presentation: "modal" }} />
       <Stack.Screen name="test-harness" options={{ presentation: "modal" }} />
       <Stack.Screen name="remote-browser" options={{ presentation: "modal" }} />
+      <Stack.Screen name="protocol-tester" options={{ presentation: "modal" }} />
+      <Stack.Screen name="webcamtests-diagnostic" options={{ presentation: "modal" }} />
     </Stack>
   );
 }
