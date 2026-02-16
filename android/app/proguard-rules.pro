@@ -11,4 +11,16 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
 
+# WebView JavaScript Interface - required for KYC functionality
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# WebRTC - required for camera/video functionality
+-keep class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
+
+# Socket.IO - required for real-time communication
+-keep class io.socket.** { *; }
+
 # Add any project specific keep options here:
