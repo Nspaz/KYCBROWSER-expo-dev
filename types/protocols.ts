@@ -184,7 +184,7 @@ export interface WebRtcLoopbackSettings {
   cacheMaxSizeMB: number;
 }
 
-// Protocol 7: Sentinel Protocol Settings
+// Protocol 5: Sentinel Protocol Settings
 // Zero-trust environment virtualization with multi-layer verification,
 // adaptive fallback orchestration, and hardened stream integrity.
 export interface SentinelProtocolSettings {

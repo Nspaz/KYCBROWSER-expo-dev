@@ -15,6 +15,20 @@
 import { Platform } from 'react-native';
 
 // ────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Platforms recognised as valid runtime environments for attestation. */
+const SUPPORTED_PLATFORMS: ReadonlyArray<string> = ['ios', 'android', 'web'];
+
+/**
+ * Maximum elapsed time (ms) for a trivial computation before the timing
+ * consistency check treats the environment as instrumented (e.g. debugger,
+ * profiler, or heavy breakpoints attached).
+ */
+const TIMING_ANOMALY_THRESHOLD_MS = 500;
+
+// ────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -40,6 +54,10 @@ export interface SentinelConfig {
     jitterBufferMs: number;
     maxFrameSkip: number;
     replayProtection: boolean;
+    /** High-water mark – prune the replay set when it exceeds this size. */
+    replaySetMaxSize: number;
+    /** After pruning, keep only the most recent N frame IDs. */
+    replaySetRetainSize: number;
   };
   environmentMasking: {
     enabled: boolean;
@@ -132,6 +150,8 @@ export const DEFAULT_SENTINEL_CONFIG: SentinelConfig = {
     jitterBufferMs: 50,
     maxFrameSkip: 5,
     replayProtection: true,
+    replaySetMaxSize: 10000,
+    replaySetRetainSize: 5000,
   },
   environmentMasking: {
     enabled: true,
@@ -252,7 +272,7 @@ export class SentinelEngine {
     // Check 1: Platform verification
     checks.push({
       name: 'platform_verification',
-      passed: Platform.OS === 'ios' || Platform.OS === 'android' || Platform.OS === 'web',
+      passed: SUPPORTED_PLATFORMS.includes(Platform.OS),
       score: 20,
       details: `Platform: ${Platform.OS}`,
     });
@@ -354,9 +374,9 @@ export class SentinelEngine {
       this.seenFrameIds.add(frameId);
 
       // Bound the set size to prevent memory leaks
-      if (this.seenFrameIds.size > 10000) {
+      if (this.seenFrameIds.size > this.config.streamIntegrity.replaySetMaxSize) {
         const entries = Array.from(this.seenFrameIds);
-        this.seenFrameIds = new Set(entries.slice(-5000));
+        this.seenFrameIds = new Set(entries.slice(-this.config.streamIntegrity.replaySetRetainSize));
       }
     }
 
@@ -622,10 +642,10 @@ export class SentinelEngine {
     // that are not present in Expo Go or production builds.
     try {
       // Check if we're running on a supported platform
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        return true; // Assume dev build in native context
+      if (SUPPORTED_PLATFORMS.includes(Platform.OS)) {
+        return true; // Assume dev build in native/web context
       }
-      return true; // Web is always accessible
+      return false;
     } catch {
       return false;
     }
@@ -657,10 +677,10 @@ export class SentinelEngine {
       }
       const elapsed = Date.now() - start;
 
-      // If a trivial loop takes more than 500ms, something is instrumenting us
-      // (debugger, profiler, heavy breakpoints).
+      // If a trivial loop takes longer than the anomaly threshold, something is
+      // instrumenting us (debugger, profiler, heavy breakpoints).
       // Use sum to prevent dead-code elimination.
-      return elapsed < 500 && sum >= 0;
+      return elapsed < TIMING_ANOMALY_THRESHOLD_MS && sum >= 0;
     } catch {
       return false;
     }
