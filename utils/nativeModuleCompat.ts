@@ -313,8 +313,7 @@ export function safeRequireWebRTC(): any | null {
  * Wrap a function — in dev build mode all functions execute directly.
  */
 export function requireDevelopmentBuild<T extends (...args: any[]) => any>(
-  fn: T,
-  _fallbackFn?: T
+  fn: T
 ): T {
   return fn;
 }
