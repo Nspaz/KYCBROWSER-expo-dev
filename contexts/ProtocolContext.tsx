@@ -487,7 +487,6 @@ const clampBridgeSettings = (
 ): BridgeProtocolSettings => {
   return settings;
 };
-};
 
 const resolveActiveProtocol = (
   candidate: ProtocolType | null | undefined,
