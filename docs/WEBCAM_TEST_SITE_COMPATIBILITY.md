@@ -273,7 +273,7 @@ If the goal is long-term product success, this project should be positioned as a
 
 ### What Must Change to Win in the Real World
 
-To be realistically successful, the project should shift from “beat protected pages” to:
+To be realistically successful, the project should shift from "beat protected pages" to:
 - **provider partnership**
 - **compliance-first architecture**
 - **transparent testing workflows**
