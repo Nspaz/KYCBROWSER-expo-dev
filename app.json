@@ -94,9 +94,6 @@
     "owner": "nspaz",
     "runtimeVersion": {
       "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/"
     }
   }
 }

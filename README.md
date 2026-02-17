@@ -24,9 +24,15 @@ This project uses [Expo Application Services (EAS)](https://expo.dev/eas) for na
    ```bash
    eas init
    ```
-   This will populate `extra.eas.projectId` in `app.json`.
+   This populates `extra.eas.projectId` in `app.json`.
 
-4. **Install dependencies**:
+4. **Configure OTA updates** (optional):
+   ```bash
+   eas update:configure
+   ```
+   This adds the `updates.url` with your project ID to `app.json`.
+
+5. **Install dependencies**:
    ```bash
    npm install
    ```
@@ -64,6 +70,12 @@ To add the secret:
 4. Click **Add secret**
 
 > ⚠️ **Never commit access tokens to source code.** Always use GitHub Secrets.
+
+### Production Submissions
+
+To submit to app stores, update `eas.json` with your credentials:
+- **iOS**: Set `appleId` and `ascAppId` in `submit.production.ios`
+- **Android**: Configure `track` in `submit.production.android`
 
 ### Running the Dev Client
 
