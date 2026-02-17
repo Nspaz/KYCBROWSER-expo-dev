@@ -1,9 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'stealth' | 'relay' | 'bridge' | 'shield';
+export type ProtocolId = 'stealth' | 'relay' | 'bridge' | 'shield' | 'sentinel';
 
 /** @deprecated Use ProtocolId – old names kept for downstream compat */
 export type LegacyProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback' | 'claude-sonnet' | 'claude' | 'sonnet';
@@ -184,12 +184,68 @@ export interface WebRtcLoopbackSettings {
   cacheMaxSizeMB: number;
 }
 
+// Protocol 5: Sentinel Protocol Settings
+// Zero-trust environment virtualization with multi-layer verification,
+// adaptive fallback orchestration, and hardened stream integrity.
+export interface SentinelProtocolSettings {
+  enabled: boolean;
+
+  // Zero-trust verification layer
+  zeroTrust: {
+    enabled: boolean;
+    environmentValidation: boolean;
+    continuousAttestation: boolean;
+    attestationIntervalMs: number;
+    trustScoreThreshold: number; // 0-100, minimum trust score to continue injection
+  };
+
+  // Adaptive fallback orchestration
+  fallbackChain: {
+    enabled: boolean;
+    strategy: 'waterfall' | 'race' | 'weighted';
+    maxFallbackAttempts: number;
+    fallbackTimeoutMs: number;
+    protocolPriority: ProtocolId[];
+  };
+
+  // Hardened stream integrity
+  streamIntegrity: {
+    enabled: boolean;
+    frameSignatureVerification: boolean;
+    sequenceEnforcement: boolean;
+    jitterBufferMs: number;
+    maxFrameSkip: number;
+    replayProtection: boolean;
+  };
+
+  // Environment fingerprint masking
+  environmentMasking: {
+    enabled: boolean;
+    spoofWebGLRenderer: boolean;
+    spoofCanvasFingerprint: boolean;
+    spoofAudioContext: boolean;
+    spoofNavigatorProperties: boolean;
+    rotateFingerprint: boolean;
+    rotationIntervalMs: number;
+  };
+
+  // Telemetry & diagnostics
+  telemetry: {
+    enabled: boolean;
+    collectPerformanceMetrics: boolean;
+    collectThreatIntelligence: boolean;
+    metricsIntervalMs: number;
+    maxStoredSessions: number;
+  };
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   stealth: StandardInjectionSettings;
   relay: AllowlistSettings;
   shield: ProtectedPreviewSettings & TestHarnessSettings;
   bridge: WebSocketBridgeSettings & WebRtcLoopbackSettings;
+  sentinel: SentinelProtocolSettings;
   /** @deprecated */ standard?: StandardInjectionSettings;
   /** @deprecated */ allowlist?: AllowlistSettings;
   /** @deprecated */ protected?: ProtectedPreviewSettings;
@@ -351,11 +407,59 @@ export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
   cacheMaxSizeMB: 1024,
 };
 
+export const DEFAULT_SENTINEL_SETTINGS: SentinelProtocolSettings = {
+  enabled: true,
+
+  zeroTrust: {
+    enabled: true,
+    environmentValidation: true,
+    continuousAttestation: true,
+    attestationIntervalMs: 5000,
+    trustScoreThreshold: 70,
+  },
+
+  fallbackChain: {
+    enabled: true,
+    strategy: 'waterfall',
+    maxFallbackAttempts: 3,
+    fallbackTimeoutMs: 8000,
+    protocolPriority: ['bridge', 'relay', 'stealth', 'shield'],
+  },
+
+  streamIntegrity: {
+    enabled: true,
+    frameSignatureVerification: true,
+    sequenceEnforcement: true,
+    jitterBufferMs: 50,
+    maxFrameSkip: 5,
+    replayProtection: true,
+  },
+
+  environmentMasking: {
+    enabled: true,
+    spoofWebGLRenderer: true,
+    spoofCanvasFingerprint: true,
+    spoofAudioContext: true,
+    spoofNavigatorProperties: true,
+    rotateFingerprint: false,
+    rotationIntervalMs: 300000, // 5 minutes
+  },
+
+  telemetry: {
+    enabled: true,
+    collectPerformanceMetrics: true,
+    collectThreatIntelligence: true,
+    metricsIntervalMs: 2000,
+    maxStoredSessions: 50,
+  },
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   stealth: DEFAULT_STANDARD_SETTINGS,
   relay: DEFAULT_ALLOWLIST_SETTINGS,
   shield: { ...DEFAULT_PROTECTED_SETTINGS, ...DEFAULT_HARNESS_SETTINGS },
   bridge: { ...DEFAULT_WEBSOCKET_SETTINGS, ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS },
+  sentinel: DEFAULT_SENTINEL_SETTINGS,
   // Legacy aliases
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
@@ -413,5 +517,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  sentinel: {
+    id: 'sentinel',
+    name: 'Sentinel Protocol',
+    description: 'Zero-trust environment virtualization with multi-layer verification, adaptive fallback orchestration, hardened stream integrity, and environment fingerprint masking.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };

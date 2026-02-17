@@ -4,7 +4,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
 // ─── Protocol Types (consolidated from 10 → 4) ─────────────────────────────
-export type ProtocolType = 'stealth' | 'relay' | 'bridge' | 'shield';
+export type ProtocolType = 'stealth' | 'relay' | 'bridge' | 'shield' | 'sentinel';
 
 /** @deprecated Use ProtocolType – old 10-protocol union kept for downstream compat */
 export type LegacyProtocolType =
@@ -171,6 +171,59 @@ export interface ShieldProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
+/** Sentinel – zero-trust environment virtualization with multi-layer hardening */
+export interface SentinelProtocolSettings {
+  enabled: boolean;
+
+  // Zero-trust verification layer
+  zeroTrust: {
+    enabled: boolean;
+    environmentValidation: boolean;
+    continuousAttestation: boolean;
+    attestationIntervalMs: number;
+    trustScoreThreshold: number;
+  };
+
+  // Adaptive fallback orchestration
+  fallbackChain: {
+    enabled: boolean;
+    strategy: 'waterfall' | 'race' | 'weighted';
+    maxFallbackAttempts: number;
+    fallbackTimeoutMs: number;
+    protocolPriority: ProtocolType[];
+  };
+
+  // Hardened stream integrity
+  streamIntegrity: {
+    enabled: boolean;
+    frameSignatureVerification: boolean;
+    sequenceEnforcement: boolean;
+    jitterBufferMs: number;
+    maxFrameSkip: number;
+    replayProtection: boolean;
+  };
+
+  // Environment fingerprint masking
+  environmentMasking: {
+    enabled: boolean;
+    spoofWebGLRenderer: boolean;
+    spoofCanvasFingerprint: boolean;
+    spoofAudioContext: boolean;
+    spoofNavigatorProperties: boolean;
+    rotateFingerprint: boolean;
+    rotationIntervalMs: number;
+  };
+
+  // Telemetry & diagnostics
+  telemetry: {
+    enabled: boolean;
+    collectPerformanceMetrics: boolean;
+    collectThreatIntelligence: boolean;
+    metricsIntervalMs: number;
+    maxStoredSessions: number;
+  };
+}
+
 // ─── Backward-compatible type aliases (deprecated) ──────────────────────────
 /** @deprecated Use StealthProtocolSettings */
 export type StandardProtocolSettings = StealthProtocolSettings;
@@ -215,11 +268,13 @@ export interface ProtocolContextValue {
   relaySettings: RelayProtocolSettings;
   bridgeSettings: BridgeProtocolSettings;
   shieldSettings: ShieldProtocolSettings;
+  sentinelSettings: SentinelProtocolSettings;
 
   updateStealthSettings: (settings: Partial<StealthProtocolSettings>) => Promise<void>;
   updateRelaySettings: (settings: Partial<RelayProtocolSettings>) => Promise<void>;
   updateBridgeSettings: (settings: Partial<BridgeProtocolSettings>) => Promise<void>;
   updateShieldSettings: (settings: Partial<ShieldProtocolSettings>) => Promise<void>;
+  updateSentinelSettings: (settings: Partial<SentinelProtocolSettings>) => Promise<void>;
 
   // ── Backward-compatible aliases (deprecated – point to new settings) ──
   /** @deprecated Use stealthSettings */
@@ -280,6 +335,7 @@ const STORAGE_KEYS = {
   RELAY_SETTINGS: '@protocol_allowlist_settings', // reuse old key for backward compat
   BRIDGE_SETTINGS: '@protocol_bridge_settings',
   SHIELD_SETTINGS: '@protocol_shield_settings',
+  SENTINEL_SETTINGS: '@protocol_sentinel_settings',
   // Legacy keys – read during migration only
   STANDARD_SETTINGS: '@protocol_standard_settings',
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
@@ -425,6 +481,53 @@ const DEFAULT_SHIELD_SETTINGS: ShieldProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+const DEFAULT_SENTINEL_SETTINGS: SentinelProtocolSettings = {
+  enabled: true,
+
+  zeroTrust: {
+    enabled: true,
+    environmentValidation: true,
+    continuousAttestation: true,
+    attestationIntervalMs: 5000,
+    trustScoreThreshold: 70,
+  },
+
+  fallbackChain: {
+    enabled: true,
+    strategy: 'waterfall',
+    maxFallbackAttempts: 3,
+    fallbackTimeoutMs: 8000,
+    protocolPriority: ['bridge', 'relay', 'stealth', 'shield'],
+  },
+
+  streamIntegrity: {
+    enabled: true,
+    frameSignatureVerification: true,
+    sequenceEnforcement: true,
+    jitterBufferMs: 50,
+    maxFrameSkip: 5,
+    replayProtection: true,
+  },
+
+  environmentMasking: {
+    enabled: true,
+    spoofWebGLRenderer: true,
+    spoofCanvasFingerprint: true,
+    spoofAudioContext: true,
+    spoofNavigatorProperties: true,
+    rotateFingerprint: false,
+    rotationIntervalMs: 300000,
+  },
+
+  telemetry: {
+    enabled: true,
+    collectPerformanceMetrics: true,
+    collectThreatIntelligence: true,
+    metricsIntervalMs: 2000,
+    maxStoredSessions: 50,
+  },
+};
+
 const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = 'stealth';
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
@@ -456,10 +559,17 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  sentinel: {
+    id: 'sentinel',
+    name: 'Sentinel Protocol',
+    description: 'Zero-trust environment virtualization with multi-layer verification, adaptive fallback orchestration, hardened stream integrity, and environment fingerprint masking.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 export const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'stealth' || value === 'relay' || value === 'bridge' || value === 'shield';
+  return value === 'stealth' || value === 'relay' || value === 'bridge' || value === 'shield' || value === 'sentinel';
 };
 
 const clampProtocolsForExpoGo = (
@@ -524,6 +634,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [relaySettings, setRelaySettings] = useState<RelayProtocolSettings>(DEFAULT_RELAY_SETTINGS);
   const [bridgeSettings, setBridgeSettings] = useState<BridgeProtocolSettings>(DEFAULT_BRIDGE_SETTINGS);
   const [shieldSettings, setShieldSettings] = useState<ShieldProtocolSettings>(DEFAULT_SHIELD_SETTINGS);
+  const [sentinelSettings, setSentinelSettings] = useState<SentinelProtocolSettings>(DEFAULT_SENTINEL_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -540,6 +651,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           relayStored,
           bridgeStored,
           shieldStored,
+          sentinelStored,
           // Legacy keys for migration
           legacyStandard,
           legacyHolographic,
@@ -560,6 +672,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.RELAY_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.BRIDGE_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.SHIELD_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.SENTINEL_SETTINGS),
           // Legacy keys
           AsyncStorage.getItem(STORAGE_KEYS.STANDARD_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
@@ -689,6 +802,15 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             console.log('[Protocol] Migrated legacy protected/harness → shield settings');
           } catch (e) {
             console.warn('[Protocol] Failed to migrate shield settings:', e);
+          }
+        }
+
+        // ── Sentinel settings ──
+        if (sentinelStored) {
+          try {
+            setSentinelSettings({ ...DEFAULT_SENTINEL_SETTINGS, ...JSON.parse(sentinelStored) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse sentinel settings:', e);
           }
         }
 
@@ -835,6 +957,32 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.SHIELD_SETTINGS, JSON.stringify(newSettings));
   }, [shieldSettings]);
 
+  const updateSentinelSettings = useCallback(async (settings: Partial<SentinelProtocolSettings>) => {
+    // Deep-merge nested objects so callers can update a single sub-key without
+    // wiping sibling sub-objects. Only merge nested keys when provided.
+    const merged: SentinelProtocolSettings = {
+      ...sentinelSettings,
+      ...settings,
+      zeroTrust: settings.zeroTrust
+        ? { ...sentinelSettings.zeroTrust, ...settings.zeroTrust }
+        : sentinelSettings.zeroTrust,
+      fallbackChain: settings.fallbackChain
+        ? { ...sentinelSettings.fallbackChain, ...settings.fallbackChain }
+        : sentinelSettings.fallbackChain,
+      streamIntegrity: settings.streamIntegrity
+        ? { ...sentinelSettings.streamIntegrity, ...settings.streamIntegrity }
+        : sentinelSettings.streamIntegrity,
+      environmentMasking: settings.environmentMasking
+        ? { ...sentinelSettings.environmentMasking, ...settings.environmentMasking }
+        : sentinelSettings.environmentMasking,
+      telemetry: settings.telemetry
+        ? { ...sentinelSettings.telemetry, ...settings.telemetry }
+        : sentinelSettings.telemetry,
+    };
+    setSentinelSettings(merged);
+    await AsyncStorage.setItem(STORAGE_KEYS.SENTINEL_SETTINGS, JSON.stringify(merged));
+  }, [sentinelSettings]);
+
   // Allowlist helpers (operate on relaySettings)
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
@@ -892,10 +1040,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     relaySettings,
     bridgeSettings,
     shieldSettings,
+    sentinelSettings,
     updateStealthSettings,
     updateRelaySettings,
     updateBridgeSettings,
     updateShieldSettings,
+    updateSentinelSettings,
 
     // Backward-compatible aliases
     standardSettings: stealthSettings,
