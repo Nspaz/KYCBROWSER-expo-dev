@@ -45,6 +45,7 @@ import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -258,7 +259,7 @@ export default function MotionBrowserScreen() {
       return;
     }
     const fallback =
-      enabledProtocolOptions[0]?.id ?? 'stealth';
+      enabledProtocolOptions[0]?.id ?? (IS_EXPO_GO ? 'bridge' : 'stealth');
     if (fallback && fallback !== activeProtocol) {
       setActiveProtocol(fallback as ProtocolType);
     }
@@ -394,7 +395,7 @@ export default function MotionBrowserScreen() {
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'shield' && shieldSettings.mirrorVideo;
   const enterpriseWebKitActive = Platform.OS === 'ios'
-    ? enterpriseWebKitEnabled
+    ? enterpriseWebKitEnabled && !IS_EXPO_GO
     : true;
 
   const protocolOverlayLabel = useMemo(() => {

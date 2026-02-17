@@ -1,19 +1,9 @@
-/**
- * Expo Environment Detection
- *
- * This app is configured as a 100% Expo Dev Build.
- * Expo Go is not supported – all native modules are always available.
- */
+import Constants from 'expo-constants';
 
-/** Always false – this app only runs as a development build. */
-export const IS_EXPO_GO = false;
+const appOwnership = Constants.appOwnership ?? 'unknown';
 
-/** Always true in a dev build. */
-export const IS_DEV_CLIENT = true;
-
-export const IS_STANDALONE = false;
-
-/** Always true – custom native modules are available in dev builds. */
-export const SUPPORTS_CUSTOM_NATIVE_MODULES = true;
-
-export const EXPO_RUNTIME = 'dev-client';
+export const IS_EXPO_GO = appOwnership === 'expo';
+export const IS_DEV_CLIENT = (appOwnership as string) === 'guest';
+export const IS_STANDALONE = (appOwnership as string) === 'standalone';
+export const SUPPORTS_CUSTOM_NATIVE_MODULES = appOwnership !== 'expo';
+export const EXPO_RUNTIME = appOwnership;
