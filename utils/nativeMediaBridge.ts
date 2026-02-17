@@ -34,18 +34,10 @@ type WebRTCModule = {
 let webrtcModule: WebRTCModule | null | undefined = undefined;
 
 /**
- * Get the WebRTC module with Expo Go compatibility
- * In Expo Go, react-native-webrtc is not available
+ * Get the WebRTC module
  */
 const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
-    return webrtcModule;
-  }
-  
-  // In Expo Go, WebRTC native module is not available
-  if (IS_EXPO_GO) {
-    console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
-    webrtcModule = null;
     return webrtcModule;
   }
   
@@ -64,12 +56,11 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
-// Only try to load native bridge if not in Expo Go
+// Load native bridge
 if (!IS_EXPO_GO) {
   try {
     nativeBridge = NativeModules.NativeMediaBridge || null;
     
-    // Also try expo-modules-core if NativeModules didn't work
     if (!nativeBridge) {
       try {
         const { requireNativeModule } = require('expo-modules-core');
@@ -81,8 +72,6 @@ if (!IS_EXPO_GO) {
   } catch {
     nativeBridge = null;
   }
-} else {
-  console.log('[NativeMediaBridge] Skipping native bridge in Expo Go - use Protocol 0 for video injection');
 }
 
 let nativeEmitter: NativeEventEmitter | null = null;
@@ -154,12 +143,12 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (IS_EXPO_GO) {
+  if (!nativeBridge?.createSession && !getWebRTCModule()) {
     handlers.onError(
       buildError(
         requestId,
-        'Native WebRTC bridge is not available in Expo Go. Use the WebSocket protocol.',
-        'expo_go'
+        'Native WebRTC bridge and react-native-webrtc are not available.',
+        'missing_dependency'
       )
     );
     return;
