@@ -1,5 +1,4 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -57,21 +56,19 @@ let nativeBridge: {
 } | null = null;
 
 // Load native bridge
-if (!IS_EXPO_GO) {
-  try {
-    nativeBridge = NativeModules.NativeMediaBridge || null;
-    
-    if (!nativeBridge) {
-      try {
-        const { requireNativeModule } = require('expo-modules-core');
-        nativeBridge = requireNativeModule('NativeMediaBridge');
-      } catch {
-        // Module not available
-      }
+try {
+  nativeBridge = NativeModules.NativeMediaBridge || null;
+  
+  if (!nativeBridge) {
+    try {
+      const { requireNativeModule } = require('expo-modules-core');
+      nativeBridge = requireNativeModule('NativeMediaBridge');
+    } catch {
+      // Module not available
     }
-  } catch {
-    nativeBridge = null;
   }
+} catch {
+  nativeBridge = null;
 }
 
 let nativeEmitter: NativeEventEmitter | null = null;

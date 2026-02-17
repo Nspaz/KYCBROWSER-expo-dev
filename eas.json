@@ -60,10 +60,6 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": ""
-      },
       "android": {
         "track": "internal"
       }
