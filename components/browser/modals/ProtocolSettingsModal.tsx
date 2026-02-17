@@ -33,6 +33,7 @@ import {
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -85,6 +86,13 @@ export default function ProtocolSettingsModal({
   const [domainInput, setDomainInput] = useState('');
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
+    if (IS_EXPO_GO) {
+      Alert.alert(
+        'Enterprise WebKit Unavailable',
+        'Expo Go cannot enable enterprise WebKit flags. Use a custom dev build.'
+      );
+      return;
+    }
     if (!developerModeEnabled) {
       Alert.alert('Developer Mode Required', 'Enable developer mode to modify enterprise WebKit settings.');
       return;
@@ -172,6 +180,17 @@ export default function ProtocolSettingsModal({
   };
 
   const renderProtocolSettings = (protocol: ProtocolType) => {
+    if (protocol === 'bridge' && IS_EXPO_GO) {
+      return (
+        <View style={styles.infoNotice}>
+          <AlertTriangle size={14} color="#ffcc00" />
+          <Text style={styles.infoNoticeText}>
+            Native WebRTC features in bridge mode require a custom dev build with native modules. They are unavailable in Expo Go.
+          </Text>
+        </View>
+      );
+    }
+
     if (!developerModeEnabled) {
       return (
         <View style={styles.lockedNotice}>
@@ -1032,7 +1051,7 @@ export default function ProtocolSettingsModal({
               )}
             </View>
             
-            {Platform.OS === 'ios' && (
+            {Platform.OS === 'ios' && !IS_EXPO_GO && (
               <View style={styles.enterpriseSection}>
                 <Text style={styles.sectionTitle}>Enterprise iOS WebKit</Text>
                 <View style={styles.settingRow}>
@@ -1142,7 +1161,9 @@ export default function ProtocolSettingsModal({
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
                 const isDisabled = !protocol.enabled;
-                const disabledReason = null;
+                const disabledReason = protocolId === 'bridge' && IS_EXPO_GO
+                  ? 'Requires a custom dev build with native WebRTC modules.'
+                  : null;
 
                 return (
                   <View

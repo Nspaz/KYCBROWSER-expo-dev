@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // ─── Protocol Types (consolidated from 10 → 4) ─────────────────────────────
 export type ProtocolType = 'stealth' | 'relay' | 'bridge' | 'shield';
@@ -382,10 +383,10 @@ const DEFAULT_RELAY_SETTINGS: RelayProtocolSettings = {
 
 const DEFAULT_BRIDGE_SETTINGS: BridgeProtocolSettings = {
   enabled: true,
-  preferNativeBridge: true,
+  preferNativeBridge: !IS_EXPO_GO,
   autoStart: true,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !IS_EXPO_GO,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -425,7 +426,7 @@ const DEFAULT_SHIELD_SETTINGS: ShieldProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
-const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = 'stealth';
+const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = IS_EXPO_GO ? 'bridge' : 'stealth';
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   stealth: {
@@ -445,7 +446,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   bridge: {
     id: 'bridge',
     name: 'Native Bridge',
-    description: 'Native WebRTC when available (iOS dev builds), postMessage bridge fallback for Android.',
+    description: 'Native WebRTC when available (iOS dev builds), postMessage bridge fallback for Android/Expo Go.',
     enabled: true,
     settings: {},
   },
@@ -465,6 +466,10 @@ export const isProtocolType = (value: string): value is ProtocolType => {
 const clampProtocolsForExpoGo = (
   nextProtocols: Record<ProtocolType, ProtocolConfig>
 ): Record<ProtocolType, ProtocolConfig> => {
+  if (!IS_EXPO_GO) {
+    return nextProtocols;
+  }
+  // In Expo Go, bridge still works but native-only features are limited
   return nextProtocols;
 };
 
@@ -485,7 +490,14 @@ export const mergeProtocolsWithDefaults = (
 const clampBridgeSettings = (
   settings: BridgeProtocolSettings
 ): BridgeProtocolSettings => {
-  return settings;
+  if (!IS_EXPO_GO) {
+    return settings;
+  }
+  return {
+    ...settings,
+    requireNativeBridge: false,
+    preferNativeBridge: false,
+  };
 };
 
 const resolveActiveProtocol = (
@@ -517,7 +529,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
-  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!IS_EXPO_GO);
 
   // Consolidated protocol settings (4 total)
   const [stealthSettings, setStealthSettings] = useState<StealthProtocolSettings>(DEFAULT_STEALTH_SETTINGS);
@@ -669,6 +681,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           } catch (e) {
             console.warn('[Protocol] Failed to migrate bridge settings:', e);
           }
+        } else if (IS_EXPO_GO) {
+          setBridgeSettings(clampBridgeSettings(DEFAULT_BRIDGE_SETTINGS));
         }
 
         // ── Shield settings (merge from legacy protected/harness if no new key) ──
@@ -695,7 +709,16 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (https !== null) setHttpsEnforcedState(https === 'true');
         if (mlSafety !== null) setMlSafetyEnabledState(mlSafety === 'true');
         if (enterpriseWebKit !== null) {
-          setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
+          if (IS_EXPO_GO) {
+            setEnterpriseWebKitEnabledState(false);
+            if (enterpriseWebKit !== 'false') {
+              await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, 'false');
+            }
+          } else {
+            setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
+          }
+        } else if (IS_EXPO_GO) {
+          setEnterpriseWebKitEnabledState(false);
         }
 
         console.log('[Protocol] Settings loaded successfully');
@@ -868,6 +891,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
 
   const setEnterpriseWebKitEnabled = useCallback(async (enabled: boolean) => {
+    if (IS_EXPO_GO) {
+      setEnterpriseWebKitEnabledState(false);
+      await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, 'false');
+      return;
+    }
     setEnterpriseWebKitEnabledState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, String(enabled));
   }, []);

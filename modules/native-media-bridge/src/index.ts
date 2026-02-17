@@ -4,16 +4,30 @@
  * This module provides native media bridge functionality for WebRTC-based
  * video injection at the native level.
  * 
- * This module requires a development build (Expo Go is not supported).
+ * EXPO GO COMPATIBILITY:
+ * This module requires a development build and is NOT available in Expo Go.
+ * When running in Expo Go, use Protocol 0 (WebView-based injection) instead.
  */
 
+// Safe import with Expo Go detection
 let NativeMediaBridgeModule: any = null;
+let isExpoGoEnvironment = false;
 
 try {
-  const { requireNativeModule } = require('expo-modules-core');
-  NativeMediaBridgeModule = requireNativeModule('NativeMediaBridge');
+  // Check if we're in Expo Go
+  const Constants = require('expo-constants').default;
+  const executionEnvironment = Constants.executionEnvironment;
+  isExpoGoEnvironment = executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo';
+  
+  if (!isExpoGoEnvironment) {
+    const { requireNativeModule } = require('expo-modules-core');
+    NativeMediaBridgeModule = requireNativeModule('NativeMediaBridge');
+  } else {
+    console.log('[NativeMediaBridge] Running in Expo Go - native module not available');
+    console.log('[NativeMediaBridge] Use Protocol 0 (WebView injection) for video injection');
+  }
 } catch (e) {
-  // Module not available in this build
+  // Module not available
   console.warn('[NativeMediaBridge] Native module not available:', e);
 }
 
@@ -21,20 +35,23 @@ try {
  * Check if the native media bridge is available
  */
 export function isAvailable(): boolean {
-  return NativeMediaBridgeModule !== null;
+  return !isExpoGoEnvironment && NativeMediaBridgeModule !== null;
 }
 
 /**
- * Always returns false – this app only runs as a development build.
+ * Check if running in Expo Go
  */
 export function isExpoGo(): boolean {
-  return false;
+  return isExpoGoEnvironment;
 }
 
 /**
  * Get a message explaining why the module is unavailable
  */
 export function getUnavailableReason(): string | null {
+  if (isExpoGoEnvironment) {
+    return 'Native Media Bridge requires a development build and is not available in Expo Go. Use Protocol 0 (WebView injection) instead.';
+  }
   if (!NativeMediaBridgeModule) {
     return 'Native Media Bridge module is not installed.';
   }
