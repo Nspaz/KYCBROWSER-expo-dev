@@ -10,10 +10,7 @@
  * 2. Android: Uses Camera2 API to create a virtual camera device that
  *    provides frames from a video file
  * 
- * EXPO GO COMPATIBILITY:
- * This module requires a development build and is NOT available in Expo Go.
- * When running in Expo Go, use Protocol 0 (WebView-based injection) instead
- * for camera simulation functionality.
+ * This module requires a development build (Expo Go is not supported).
  * 
  * Usage:
  * ```typescript
@@ -21,7 +18,7 @@
  * 
  * // Check if available first
  * if (!VirtualCamera.isAvailable()) {
- *   console.log('Virtual Camera not available - use Protocol 0 instead');
+ *   console.log('Virtual Camera not available');
  *   return;
  * }
  * 
@@ -40,29 +37,13 @@
 
 import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 
-// Safe import of VirtualCameraModule with Expo Go detection
+// Load VirtualCameraModule directly (dev build only)
 let VirtualCameraModule: any = null;
-let isExpoGoEnvironment = false;
 
 try {
-  // Check if we're in Expo Go
-  const Constants = require('expo-constants').default;
-  const executionEnvironment = Constants.executionEnvironment;
-  isExpoGoEnvironment = executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo';
-  
-  if (!isExpoGoEnvironment) {
-    VirtualCameraModule = require('./VirtualCameraModule').default;
-  } else {
-    console.log('[VirtualCamera] Running in Expo Go - native module not available');
-    console.log('[VirtualCamera] Use Protocol 0 (WebView injection) for camera simulation');
-  }
+  VirtualCameraModule = require('./VirtualCameraModule').default;
 } catch (e) {
-  // If we can't determine, assume module might not be available
-  try {
-    VirtualCameraModule = require('./VirtualCameraModule').default;
-  } catch {
-    console.warn('[VirtualCamera] Native module not available');
-  }
+  console.warn('[VirtualCamera] Native module not available:', e);
 }
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
@@ -118,30 +99,22 @@ if (VirtualCameraNative) {
 export const VirtualCamera = {
   /**
    * Check if the virtual camera module is available
-   * 
-   * NOTE: Returns false in Expo Go - use Protocol 0 for camera simulation instead
    */
   isAvailable(): boolean {
-    if (isExpoGoEnvironment) {
-      return false;
-    }
     return VirtualCameraNative !== null && VirtualCameraNative !== undefined;
   },
   
   /**
-   * Check if running in Expo Go (where this module is unavailable)
+   * Always returns false – this app only runs as a development build.
    */
   isExpoGo(): boolean {
-    return isExpoGoEnvironment;
+    return false;
   },
   
   /**
    * Get a message explaining why the module is unavailable
    */
   getUnavailableReason(): string | null {
-    if (isExpoGoEnvironment) {
-      return 'Virtual Camera requires a development build and is not available in Expo Go. Use Protocol 0 (WebView injection) for camera simulation instead.';
-    }
     if (!VirtualCameraNative) {
       return 'Virtual Camera native module is not installed. Make sure the virtual-camera package is properly linked.';
     }

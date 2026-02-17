@@ -5,6 +5,13 @@
   "build": {
     "development": {
       "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "development-device": {
+      "developmentClient": true,
       "distribution": "internal"
     },
     "sideload": {
@@ -21,6 +28,9 @@
       "env": {
         "RNC_ENTERPRISE_WEBKIT": "1"
       }
+    },
+    "preview": {
+      "distribution": "internal"
     },
     "production": {
       "autoIncrement": true
