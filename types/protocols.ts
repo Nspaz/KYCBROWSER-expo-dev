@@ -1,6 +1,6 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
 export type ProtocolId = 'stealth' | 'relay' | 'bridge' | 'shield' | 'sentinel';

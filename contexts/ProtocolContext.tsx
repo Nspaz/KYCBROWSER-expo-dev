@@ -959,15 +959,25 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
 
   const updateSentinelSettings = useCallback(async (settings: Partial<SentinelProtocolSettings>) => {
     // Deep-merge nested objects so callers can update a single sub-key without
-    // wiping sibling sub-objects.
+    // wiping sibling sub-objects. Only merge nested keys when provided.
     const merged: SentinelProtocolSettings = {
       ...sentinelSettings,
       ...settings,
-      zeroTrust: { ...sentinelSettings.zeroTrust, ...settings.zeroTrust },
-      fallbackChain: { ...sentinelSettings.fallbackChain, ...settings.fallbackChain },
-      streamIntegrity: { ...sentinelSettings.streamIntegrity, ...settings.streamIntegrity },
-      environmentMasking: { ...sentinelSettings.environmentMasking, ...settings.environmentMasking },
-      telemetry: { ...sentinelSettings.telemetry, ...settings.telemetry },
+      zeroTrust: settings.zeroTrust
+        ? { ...sentinelSettings.zeroTrust, ...settings.zeroTrust }
+        : sentinelSettings.zeroTrust,
+      fallbackChain: settings.fallbackChain
+        ? { ...sentinelSettings.fallbackChain, ...settings.fallbackChain }
+        : sentinelSettings.fallbackChain,
+      streamIntegrity: settings.streamIntegrity
+        ? { ...sentinelSettings.streamIntegrity, ...settings.streamIntegrity }
+        : sentinelSettings.streamIntegrity,
+      environmentMasking: settings.environmentMasking
+        ? { ...sentinelSettings.environmentMasking, ...settings.environmentMasking }
+        : sentinelSettings.environmentMasking,
+      telemetry: settings.telemetry
+        ? { ...sentinelSettings.telemetry, ...settings.telemetry }
+        : sentinelSettings.telemetry,
     };
     setSentinelSettings(merged);
     await AsyncStorage.setItem(STORAGE_KEYS.SENTINEL_SETTINGS, JSON.stringify(merged));
