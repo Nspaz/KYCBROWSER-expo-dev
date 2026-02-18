@@ -1179,7 +1179,7 @@ export default function MotionBrowserScreen() {
     && isProtocolEnabled
     && !allowlistBlocked;
   const mixedContentMode = Platform.OS === 'android'
-    ? 'never' as const
+    ? (httpsEnforced ? 'never' as const : 'always' as const)
     : undefined;
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
