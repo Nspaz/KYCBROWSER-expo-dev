@@ -18,6 +18,9 @@ import {
   DEFAULT_SENTINEL_SETTINGS,
   PROTOCOL_METADATA,
 } from '@/types/protocols';
+import type {
+  SentinelProtocolSettings,
+} from '@/types/protocols';
 
 import { getFallbackProtocol } from '@/utils/errorHandling';
 import { protocolMonitor } from '@/utils/protocolMonitoring';
