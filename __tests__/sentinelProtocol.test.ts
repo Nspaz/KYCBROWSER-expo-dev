@@ -154,7 +154,7 @@ describe('SentinelEngine: lifecycle', () => {
     engine.destroy();
   });
 
-  it('starts uninitialised', () => {
+  it('starts uninitialized', () => {
     const state = engine.getState();
     expect(state.isInitialized).toBe(false);
     expect(state.isActive).toBe(false);
