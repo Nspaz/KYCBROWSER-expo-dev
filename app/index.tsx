@@ -1179,7 +1179,7 @@ export default function MotionBrowserScreen() {
     && isProtocolEnabled
     && !allowlistBlocked;
   const mixedContentMode = Platform.OS === 'android'
-    ? (httpsEnforced ? 'never' : 'always')
+    ? (httpsEnforced ? 'never' as const : 'always' as const)
     : undefined;
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
@@ -1670,6 +1670,7 @@ export default function MotionBrowserScreen() {
                 onNavigationStateChange={(navState) => {
                   setCanGoBack(navState.canGoBack);
                   setCanGoForward(navState.canGoForward);
+                  setWebViewError(null);
                   
                   if (navState.url) {
                     const normalizedUrl = httpsEnforced ? forceHttps(navState.url) : navState.url;
@@ -1787,11 +1788,18 @@ export default function MotionBrowserScreen() {
                 }}
                 onError={(syntheticEvent) => {
                   const { nativeEvent } = syntheticEvent;
-                  console.error('[WebView Load Error]', nativeEvent.description || nativeEvent);
+                  const errorMsg = nativeEvent.description || "Unknown WebView error";
+                  console.error("[WebView Load Error]", errorMsg);
+                  setWebViewError(errorMsg);
                 }}
                 onHttpError={(syntheticEvent) => {
                   const { nativeEvent } = syntheticEvent;
-                  console.error('[WebView HTTP Error]', nativeEvent.statusCode, nativeEvent.url);
+                  const statusCode = nativeEvent.statusCode;
+                  const errorUrl = nativeEvent.url;
+                  console.error('[WebView HTTP Error]', statusCode, errorUrl);
+                  if (statusCode >= 400) {
+                    setWebViewError(`HTTP ${statusCode} at ${errorUrl}`);
+                  }
                 }}
                 onShouldStartLoadWithRequest={(request) => {
                   const requestUrl = request.url || '';

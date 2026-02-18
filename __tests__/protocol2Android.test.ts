@@ -856,7 +856,8 @@ describe('Protocol2 Default Configurations', () => {
     expect(DEFAULT_CRYPTO_CONFIG.frameSigning.enabled).toBe(true);
     expect(DEFAULT_CRYPTO_CONFIG.frameSigning.algorithm).toBe('hmac-sha256');
     expect(DEFAULT_CRYPTO_CONFIG.streamIntegrity.sequenceValidation).toBe(true);
-    expect(DEFAULT_CRYPTO_CONFIG.tamperDetection.blockOnDetection).toBe(false);
+    expect(DEFAULT_CRYPTO_CONFIG.tamperDetection.blockOnDetection).toBe(true);
+    expect(DEFAULT_CRYPTO_CONFIG.originValidation.validateCertificates).toBe(true);
   });
 
   it('global config should have metrics collection', () => {

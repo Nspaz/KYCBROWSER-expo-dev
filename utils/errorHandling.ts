@@ -796,6 +796,7 @@ const FALLBACK_PROTOCOL_MAP: Readonly<Record<string, string>> = {
   relay: 'stealth',
   shield: 'stealth',
   bridge: 'stealth',
+  sentinel: 'bridge', // Sentinel falls back to bridge (most reliable)
 };
 
 /**

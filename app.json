@@ -85,6 +85,13 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "//easNote": "Run `eas init` locally to add `extra.eas.projectId` before enabling EAS-related GitHub Actions checks."
+    },
+    "owner": "nspaz",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

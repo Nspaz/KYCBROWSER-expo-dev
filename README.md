@@ -3,6 +3,88 @@ KYCBROWSER-android 🛡️
 
 High-Assurance Mobile Identity Verification Framework
 KYCBROWSER-android is a security-hardened browser environment for Android, specifically engineered for Know Your Customer (KYC) workflows. It provides a "Walled Garden" that secures the communication between native hardware (camera/sensors) and web-based identity providers.
+
+## 📱 EAS Dev Build
+
+This project uses [Expo Application Services (EAS)](https://expo.dev/eas) for native builds. It is configured as a **100% EAS Dev Build** — Expo Go is not supported.
+
+### Setup
+
+1. **Install EAS CLI** globally:
+   ```bash
+   npm install -g eas-cli
+   ```
+
+2. **Log in** to your Expo account:
+   ```bash
+   eas login
+   ```
+
+3. **Link the project** (first time only):
+   ```bash
+   eas init
+   ```
+   This populates `extra.eas.projectId` in `app.json`.
+
+4. **Configure OTA updates** (optional):
+   ```bash
+   eas update:configure
+   ```
+   This adds the `updates.url` with your project ID to `app.json`.
+
+5. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+### Building Locally
+
+```bash
+# Development build (iOS simulator)
+eas build --profile development --platform ios
+
+# Development build (physical device)
+eas build --profile development-device --platform all
+
+# Preview build
+eas build --profile preview --platform all
+
+# Production build
+eas build --profile production --platform all
+```
+
+### CI/CD with GitHub Actions
+
+Builds are triggered automatically on push to `main`, or can be triggered manually from the Actions tab.
+
+> ⚠️ **CI builds will fail until the project is linked.** Run `eas init` locally, commit the generated `projectId` in `app.json`, then push. Until then, use manual dispatch only.
+
+**Required GitHub repository secret:**
+
+| Secret Name   | Description                          |
+|---------------|--------------------------------------|
+| `EXPO_TOKEN`  | Expo personal access token           |
+
+To add the secret:
+1. Go to your repository **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Name: `EXPO_TOKEN`, Value: your Expo access token
+4. Click **Add secret**
+
+> ⚠️ **Never commit access tokens to source code.** Always use GitHub Secrets.
+
+### Production Submissions
+
+To submit to app stores, update `eas.json` with your credentials:
+- **iOS**: Set `appleId` and `ascAppId` in `submit.production.ios`
+- **Android**: Configure `track` in `submit.production.android`
+
+### Running the Dev Client
+
+```bash
+npx expo start --dev-client
+```
+
 🚀 Key Security Features
  * Session Pinning: Prevents Javascript injection via a unique, single-use UUID secret.
  * Anti-Spoofing: Integrated hardware integrity checks and emulator detection.
