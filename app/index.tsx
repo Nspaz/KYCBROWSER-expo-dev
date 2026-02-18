@@ -222,7 +222,6 @@ export default function MotionBrowserScreen() {
   const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
   const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
   const [enterpriseHookReport, setEnterpriseHookReport] = useState<any | null>(null);
-  const [webViewError, setWebViewError] = useState<string | null>(null);
 
   const protocolOptions = useMemo(() => {
     return Object.values(protocols).map(protocol => ({
