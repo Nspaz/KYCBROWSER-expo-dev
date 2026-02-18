@@ -40,8 +40,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "",
-        "ascAppId": ""
+        "appleId": "YOUR_APPLE_ID_EMAIL_HERE",
+        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID_HERE"
       },
       "android": {
         "track": "internal"
