@@ -667,13 +667,13 @@ export const DEFAULT_CRYPTO_CONFIG: CryptoConfig = {
   originValidation: {
     enabled: true,
     trustedOrigins: ['localhost', '127.0.0.1'],
-    validateCertificates: false,
+    validateCertificates: true,
   },
   tamperDetection: {
     enabled: true,
     sensitivity: 'medium',
     alertOnDetection: true,
-    blockOnDetection: false,
+    blockOnDetection: true,
   },
 };
 

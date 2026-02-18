@@ -85,6 +85,13 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {}
+    },
+    "owner": "nspaz",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }
