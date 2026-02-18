@@ -57,6 +57,8 @@ eas build --profile production --platform all
 
 Builds are triggered automatically on push to `main`, or can be triggered manually from the Actions tab.
 
+> ⚠️ **CI builds will fail until the project is linked.** Run `eas init` locally, commit the generated `projectId` in `app.json`, then push. Until then, use manual dispatch only.
+
 **Required GitHub repository secret:**
 
 | Secret Name   | Description                          |

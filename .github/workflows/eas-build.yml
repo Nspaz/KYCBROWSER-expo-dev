@@ -56,7 +56,15 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Check EAS project is linked
+        run: |
+          PROJECT_ID=$(node -e "const c = require('./app.json'); console.log(c.expo?.extra?.eas?.projectId || '')")
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::error::EAS project is not linked. Run 'eas init' locally and commit the generated projectId in app.json."
+            exit 1
+          fi
 
       - name: Build (push trigger)
         if: github.event_name == 'push'

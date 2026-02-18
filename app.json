@@ -87,9 +87,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "eas": {
-        "projectId": ""
-      }
+      "eas": {}
     },
     "owner": "nspaz",
     "runtimeVersion": {
