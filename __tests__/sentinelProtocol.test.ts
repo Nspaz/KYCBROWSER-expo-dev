@@ -19,7 +19,6 @@ import {
   PROTOCOL_METADATA,
 } from '@/types/protocols';
 import type {
-  ProtocolId,
   SentinelProtocolSettings,
 } from '@/types/protocols';
 
