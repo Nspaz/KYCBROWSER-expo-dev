@@ -547,3 +547,68 @@ describe('Sentinel: protocol monitoring integration', () => {
     expect(comparison['sentinel'].successRate).toBe(100);
   });
 });
+
+// ─── Singleton Tests ────────────────────────────────────────────────────────
+
+describe('Sentinel: singleton pattern', () => {
+  beforeEach(() => {
+    // Import directly to access destroySentinelEngine
+    const { destroySentinelEngine } = require('@/utils/sentinelProtocol');
+    destroySentinelEngine();
+  });
+
+  afterEach(() => {
+    const { destroySentinelEngine } = require('@/utils/sentinelProtocol');
+    destroySentinelEngine();
+  });
+
+  it('getSentinelEngine returns the same instance on multiple calls', () => {
+    const { getSentinelEngine } = require('@/utils/sentinelProtocol');
+    
+    const instance1 = getSentinelEngine();
+    const instance2 = getSentinelEngine();
+    const instance3 = getSentinelEngine();
+
+    expect(instance1).toBe(instance2);
+    expect(instance2).toBe(instance3);
+  });
+
+  it('getSentinelEngine ignores config on subsequent calls', () => {
+    const { getSentinelEngine } = require('@/utils/sentinelProtocol');
+    
+    const config1 = { maxFallbackAttempts: 5, trustScoreThreshold: 0.6 };
+    const config2 = { maxFallbackAttempts: 10, trustScoreThreshold: 0.9 };
+
+    const instance1 = getSentinelEngine(config1);
+    const instance2 = getSentinelEngine(config2);
+
+    // Should return the same instance
+    expect(instance1).toBe(instance2);
+    
+    // Config from second call should be ignored
+    const state = instance1.getState();
+    expect(state).toBeDefined();
+  });
+
+  it('destroySentinelEngine cleans up the instance', () => {
+    const { getSentinelEngine, destroySentinelEngine } = require('@/utils/sentinelProtocol');
+    
+    const instance1 = getSentinelEngine();
+    expect(instance1).toBeDefined();
+
+    destroySentinelEngine();
+
+    // After destroy, a new call should create a new instance
+    const instance2 = getSentinelEngine();
+    expect(instance2).toBeDefined();
+    expect(instance2).not.toBe(instance1);
+  });
+
+  it('destroySentinelEngine is safe to call when no instance exists', () => {
+    const { destroySentinelEngine } = require('@/utils/sentinelProtocol');
+    
+    // Should not throw
+    expect(() => destroySentinelEngine()).not.toThrow();
+    expect(() => destroySentinelEngine()).not.toThrow();
+  });
+});
