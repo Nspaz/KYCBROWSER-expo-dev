@@ -1788,10 +1788,9 @@ export default function MotionBrowserScreen() {
                 }}
                 onError={(syntheticEvent) => {
                   const { nativeEvent } = syntheticEvent;
-                  const errorMsg = nativeEvent.description || 'Unknown WebView error';
-                  console.error('[WebView Load Error]', errorMsg);
+                  const errorMsg = nativeEvent.description || "Unknown WebView error";
+                  console.error("[WebView Load Error]", errorMsg);
                   setWebViewError(errorMsg);
-                  Alert.alert('Security Error', `WebView failed to load securely: ${errorMsg}`);
                 }}
                 onHttpError={(syntheticEvent) => {
                   const { nativeEvent } = syntheticEvent;
