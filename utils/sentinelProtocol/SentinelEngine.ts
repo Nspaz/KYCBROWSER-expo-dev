@@ -706,6 +706,14 @@ export class SentinelEngine {
 
 let sentinelInstance: SentinelEngine | null = null;
 
+/**
+ * Returns the singleton SentinelEngine instance.
+ * 
+ * @param config - Optional partial configuration for the engine. 
+ *                 Note: This parameter is only used when creating a new instance.
+ *                 If an instance already exists, the config parameter is ignored.
+ * @returns The singleton SentinelEngine instance
+ */
 export function getSentinelEngine(config?: Partial<SentinelConfig>): SentinelEngine {
   if (!sentinelInstance) {
     sentinelInstance = new SentinelEngine(config);

@@ -22,7 +22,7 @@ on:
         type: choice
         options:
           - development
-          - development-device
+          - development-simulator
           - preview
           - production
 
@@ -57,6 +57,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify code quality
+        run: npm run verify
 
       - name: Check EAS project is linked
         run: |

@@ -44,7 +44,7 @@ This project uses [Expo Application Services (EAS)](https://expo.dev/eas) for na
 eas build --profile development --platform ios
 
 # Development build (physical device)
-eas build --profile development-device --platform all
+eas build --profile development --platform all
 
 # Preview build
 eas build --profile preview --platform all
