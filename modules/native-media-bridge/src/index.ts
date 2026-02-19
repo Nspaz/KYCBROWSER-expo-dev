@@ -4,7 +4,7 @@
  * This module provides native media bridge functionality for WebRTC-based
  * video injection at the native level.
  * 
- * This module requires a development build (Expo Go is not supported).
+ * Requires an EAS Development Build with native modules.
  */
 
 let NativeMediaBridgeModule: any = null;
@@ -13,7 +13,6 @@ try {
   const { requireNativeModule } = require('expo-modules-core');
   NativeMediaBridgeModule = requireNativeModule('NativeMediaBridge');
 } catch (e) {
-  // Module not available in this build
   console.warn('[NativeMediaBridge] Native module not available:', e);
 }
 
@@ -25,7 +24,7 @@ export function isAvailable(): boolean {
 }
 
 /**
- * Always returns false – this app only runs as a development build.
+ * Check if running in Expo Go (always false — dev build only)
  */
 export function isExpoGo(): boolean {
   return false;
@@ -36,7 +35,7 @@ export function isExpoGo(): boolean {
  */
 export function getUnavailableReason(): string | null {
   if (!NativeMediaBridgeModule) {
-    return 'Native Media Bridge module is not installed.';
+    return 'Native Media Bridge module is not installed. Ensure the native module is linked in your dev build.';
   }
   return null;
 }

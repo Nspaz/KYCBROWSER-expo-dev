@@ -10,7 +10,7 @@
  * 2. Android: Uses Camera2 API to create a virtual camera device that
  *    provides frames from a video file
  * 
- * This module requires a development build (Expo Go is not supported).
+ * Requires an EAS Development Build with native modules.
  * 
  * Usage:
  * ```typescript
@@ -37,7 +37,6 @@
 
 import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 
-// Load VirtualCameraModule directly (dev build only)
 let VirtualCameraModule: any = null;
 
 try {
@@ -105,7 +104,7 @@ export const VirtualCamera = {
   },
   
   /**
-   * Always returns false – this app only runs as a development build.
+   * Check if running in Expo Go (always false — dev build only)
    */
   isExpoGo(): boolean {
     return false;
@@ -116,7 +115,7 @@ export const VirtualCamera = {
    */
   getUnavailableReason(): string | null {
     if (!VirtualCameraNative) {
-      return 'Virtual Camera native module is not installed. Make sure the virtual-camera package is properly linked.';
+      return 'Virtual Camera native module is not installed. Make sure the virtual-camera package is properly linked in your dev build.';
     }
     return null;
   },
@@ -265,12 +264,10 @@ export const VirtualCamera = {
 
   /**
    * Subscribe to virtual camera events
-   * 
-   * NOTE: Returns a no-op subscription in Expo Go
    */
   addListener(callback: (event: VirtualCameraEvent) => void): EventSubscription {
     if (!emitter) {
-      // Return a no-op subscription for Expo Go
+      // Return a no-op subscription when native module unavailable
       return {
         remove: () => {},
       };

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
-import { safeRequireWebRTC } from './expoGoCompat';
+import { safeRequireWebRTC } from './nativeModuleCompat';
 
 type Session = {
   pc: any;
@@ -11,7 +11,7 @@ type Session = {
 /**
  * Native WebRTC Bridge
  * 
- * This bridge provides native WebRTC functionality for dev builds.
+ * This bridge provides native WebRTC functionality for EAS dev builds.
  */
 export class NativeWebRTCBridge {
   private webViewRef: RefObject<WebView | null>;

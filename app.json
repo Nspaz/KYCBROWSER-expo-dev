@@ -53,9 +53,9 @@
           "origin": "https://rork.com/"
         }
       ],
-      "expo-dev-client",
       "expo-font",
       "expo-web-browser",
+      "expo-dev-client",
       [
         "expo-image-picker",
         {

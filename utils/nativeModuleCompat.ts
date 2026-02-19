@@ -1,14 +1,13 @@
 /**
- * Environment Compatibility Layer
- *
- * This app runs exclusively as an Expo Dev Build.
- * Expo Go is NOT supported. All native modules are always available.
- *
- * The public API surface is preserved for backward compatibility with
- * call-sites that still import from this module.
+ * Dev Build Environment Layer
+ * 
+ * This module provides utilities for environment detection and native module
+ * availability. The app targets EAS Development Builds exclusively — Expo Go
+ * is not supported. All native modules and protocols are assumed available.
  */
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 /**
  * Expo Go environment types
@@ -49,17 +48,38 @@ export interface ProtocolCompatibility {
 }
 
 /**
- * Always returns false – this app only runs as a development build.
+ * Check if the app is running in Expo Go.
+ * Always returns false — this app targets EAS Development Builds only.
  */
 export function isExpoGo(): boolean {
   return false;
 }
 
 /**
- * Always returns 'development-build' – this app only runs as a dev build.
+ * Get the current Expo environment type.
+ * Returns 'development-build' by default for EAS dev builds.
  */
 export function getExpoEnvironment(): ExpoEnvironment {
-  return 'development-build';
+  try {
+    const executionEnvironment = Constants.executionEnvironment;
+    
+    if (executionEnvironment === 'standalone') {
+      return 'standalone';
+    }
+    
+    if (executionEnvironment === 'bare') {
+      return 'development-build';
+    }
+    
+    const appOwnership = Constants.appOwnership;
+    if (appOwnership === 'standalone') {
+      return 'standalone';
+    }
+    
+    return 'development-build';
+  } catch {
+    return 'development-build';
+  }
 }
 
 /**
@@ -109,13 +129,14 @@ export function getNativeModuleStatus(): NativeModuleStatus {
     reactNativeWebrtc: {
       available: isWebRTCAvailable(),
       fallbackAvailable: true,
-      fallbackDescription: 'WebView-based WebRTC APIs available as fallback',
+      fallbackDescription: 'WebView-based WebRTC APIs work as fallback',
     },
   };
 }
 
 /**
- * Get the compatibility status of all protocols
+ * Get the compatibility status of all protocols.
+ * All protocols are fully available in the dev build.
  */
 export function getProtocolCompatibility(): ProtocolCompatibility {
   return {
@@ -142,12 +163,12 @@ export function getProtocolCompatibility(): ProtocolCompatibility {
     advancedProtocol: {
       available: true,
       fallbackAvailable: true,
-      fallbackDescription: 'JavaScript-based processing with WebView injection',
+      fallbackDescription: 'Full native acceleration with JavaScript fallback',
     },
     webrtcBridge: {
       available: true,
       fallbackAvailable: true,
-      fallbackDescription: 'Native WebRTC available in dev build',
+      fallbackDescription: 'Native WebRTC bridge with WebView fallback',
     },
     websocketBridge: {
       available: true,
@@ -176,7 +197,6 @@ export function getCompatibilitySummary(): {
   const unavailableFeatures: string[] = [];
   const warnings: string[] = [];
   
-  // Check protocols
   if (protocolCompat.protocol0.available) {
     availableFeatures.push('Protocol 0 (Primary WebView Injection)');
   }
@@ -189,25 +209,32 @@ export function getCompatibilitySummary(): {
   if (protocolCompat.protocol3.available) {
     availableFeatures.push('Protocol 3 (Proxy Intercept)');
   }
-  if (protocolCompat.websocketBridge.available) {
-    availableFeatures.push('WebSocket Video Bridge');
-  }
   if (protocolCompat.webrtcBridge.available) {
     availableFeatures.push('Native WebRTC Bridge');
   }
+  if (protocolCompat.websocketBridge.available) {
+    availableFeatures.push('WebSocket Video Bridge');
+  }
   
-  // Check native modules
   if (!moduleStatus.nativeMediaBridge.available) {
-    unavailableFeatures.push('Native Media Bridge (module not found)');
+    unavailableFeatures.push('Native Media Bridge (use Protocol 0 instead)');
+  } else {
+    availableFeatures.push('Native Media Bridge');
   }
   if (!moduleStatus.virtualCamera.available) {
-    unavailableFeatures.push('Virtual Camera (module not found)');
+    unavailableFeatures.push('Virtual Camera (use WebView injection instead)');
+  } else {
+    availableFeatures.push('Virtual Camera');
   }
   if (!moduleStatus.webrtcLoopback.available) {
-    unavailableFeatures.push('Native WebRTC Loopback (module not found)');
+    unavailableFeatures.push('Native WebRTC Loopback (use Protocol 0 instead)');
+  } else {
+    availableFeatures.push('Native WebRTC Loopback');
   }
   if (!moduleStatus.reactNativeWebrtc.available) {
-    unavailableFeatures.push('react-native-webrtc (module not found)');
+    unavailableFeatures.push('react-native-webrtc (use WebView WebRTC instead)');
+  } else {
+    availableFeatures.push('react-native-webrtc');
   }
   
   return {
@@ -227,7 +254,7 @@ export function logCompatibilityInfo(): void {
   const summary = getCompatibilitySummary();
   
   console.log('====================================');
-  console.log('Environment Compatibility Check');
+  console.log('EAS Dev Build Environment Check');
   console.log('====================================');
   console.log(`Environment: ${summary.environment}`);
   console.log(`Platform: ${Platform.OS}`);
@@ -248,7 +275,7 @@ export function logCompatibilityInfo(): void {
 }
 
 /**
- * Safely require a native module with fallback
+ * Helper to safely require a native module with fallback
  */
 export function safeRequireNativeModule<T>(
   moduleName: string,
@@ -271,7 +298,7 @@ export function safeRequireNativeModule<T>(
 }
 
 /**
- * Safely require react-native-webrtc with fallback
+ * Helper to safely require react-native-webrtc with fallback
  */
 export function safeRequireWebRTC(): any | null {
   try {
@@ -283,12 +310,10 @@ export function safeRequireWebRTC(): any | null {
 }
 
 /**
- * Execute a function (no environment gating in dev build).
- * Kept for API compatibility with call-sites.
+ * Wrap a function — in dev build mode all functions execute directly.
  */
 export function requireDevelopmentBuild<T extends (...args: any[]) => any>(
-  fn: T,
-  _fallbackFn?: T
+  fn: T
 ): T {
   return fn;
 }

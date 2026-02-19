@@ -8,12 +8,33 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "simulator": true
+        "simulator": false
+      },
+      "env": {
+        "APP_ENV": "development"
       }
     },
-    "development-device": {
+    "development-simulator": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "APP_ENV": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_ENV": "preview"
+      }
     },
     "sideload": {
       "distribution": "internal",
@@ -27,14 +48,22 @@
         "buildConfiguration": "Release"
       },
       "env": {
-        "RNC_ENTERPRISE_WEBKIT": "1"
+        "RNC_ENTERPRISE_WEBKIT": "1",
+        "APP_ENV": "enterprise"
       }
     },
-    "preview": {
-      "distribution": "internal"
-    },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "APP_ENV": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
+      }
     }
   },
   "submit": {
