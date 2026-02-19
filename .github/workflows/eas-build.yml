@@ -22,7 +22,7 @@ on:
         type: choice
         options:
           - development
-          - development-device
+          - development-simulator
           - preview
           - production
 
