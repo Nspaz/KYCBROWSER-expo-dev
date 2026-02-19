@@ -2,7 +2,7 @@ import { NativeEventEmitter, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
-import { safeRequireNativeModule } from './expoGoCompat';
+import { safeRequireNativeModule } from './nativeModuleCompat';
 
 type LoopbackOfferPayload = {
   offerId?: string;

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { safeRequireNativeModule } from './expoGoCompat';
+import { safeRequireNativeModule } from './nativeModuleCompat';
 
 const LoopbackModule = safeRequireNativeModule<{ exportRingBufferToPhotos?: () => Promise<void> } | null>('WebRtcLoopback', null);
 

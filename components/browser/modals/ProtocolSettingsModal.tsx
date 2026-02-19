@@ -1142,7 +1142,7 @@ export default function ProtocolSettingsModal({
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
                 const isDisabled = !protocol.enabled;
-                const disabledReason = null;
+                const disabledReason: string | null = null;
 
                 return (
                   <View

@@ -55,10 +55,10 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
+// Load native bridge
 try {
   nativeBridge = NativeModules.NativeMediaBridge || null;
   
-  // Also try expo-modules-core if NativeModules didn't work
   if (!nativeBridge) {
     try {
       const { requireNativeModule } = require('expo-modules-core');
@@ -138,6 +138,17 @@ export async function handleNativeGumOffer(
       handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'native'));
       return;
     }
+  }
+
+  if (!nativeBridge?.createSession && !getWebRTCModule()) {
+    handlers.onError(
+      buildError(
+        requestId,
+        'Native WebRTC bridge and react-native-webrtc are not available.',
+        'missing_dependency'
+      )
+    );
+    return;
   }
 
   const webrtc = getWebRTCModule();

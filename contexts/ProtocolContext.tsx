@@ -548,7 +548,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   bridge: {
     id: 'bridge',
     name: 'Native Bridge',
-    description: 'Native WebRTC when available (iOS dev builds), postMessage bridge fallback for Android.',
+    description: 'Native WebRTC when available (iOS/Android dev builds), postMessage bridge fallback.',
     enabled: true,
     settings: {},
   },
@@ -572,12 +572,6 @@ export const isProtocolType = (value: string): value is ProtocolType => {
   return value === 'stealth' || value === 'relay' || value === 'bridge' || value === 'shield' || value === 'sentinel';
 };
 
-const clampProtocolsForExpoGo = (
-  nextProtocols: Record<ProtocolType, ProtocolConfig>
-): Record<ProtocolType, ProtocolConfig> => {
-  return nextProtocols;
-};
-
 export const mergeProtocolsWithDefaults = (
   storedProtocols?: Record<string, ProtocolConfig>
 ): Record<ProtocolType, ProtocolConfig> => {
@@ -589,13 +583,7 @@ export const mergeProtocolsWithDefaults = (
       }
     });
   }
-  return clampProtocolsForExpoGo(merged);
-};
-
-const clampBridgeSettings = (
-  settings: BridgeProtocolSettings
-): BridgeProtocolSettings => {
-  return settings;
+  return merged;
 };
 
 const resolveActiveProtocol = (
@@ -766,17 +754,15 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (bridgeStored) {
           try {
             const parsed = { ...DEFAULT_BRIDGE_SETTINGS, ...JSON.parse(bridgeStored) };
-            const sanitized = clampBridgeSettings(parsed);
-            setBridgeSettings(sanitized);
+            setBridgeSettings(parsed);
           } catch (e) {
             console.warn('[Protocol] Failed to parse bridge settings:', e);
           }
         } else if (legacyWebrtcLoopback) {
           try {
             const base = { ...DEFAULT_BRIDGE_SETTINGS, ...JSON.parse(legacyWebrtcLoopback) };
-            const sanitized = clampBridgeSettings(base);
-            setBridgeSettings(sanitized);
-            await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(sanitized));
+            setBridgeSettings(base);
+            await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(base));
             await AsyncStorage.removeItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS);
             console.log('[Protocol] Migrated legacy webrtc-loopback → bridge settings');
           } catch (e) {
@@ -901,10 +887,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     protocol: T,
     updates: Partial<ProtocolConfig>
   ) => {
-    const updatedProtocols = clampProtocolsForExpoGo({
+    const updatedProtocols = {
       ...protocols,
       [protocol]: { ...protocols[protocol], ...updates },
-    });
+    };
     setProtocols(updatedProtocols);
     await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(updatedProtocols));
     const resolved = resolveActiveProtocol(activeProtocol, updatedProtocols);
@@ -946,7 +932,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, [relaySettings]);
 
   const updateBridgeSettings = useCallback(async (settings: Partial<BridgeProtocolSettings>) => {
-    const newSettings = clampBridgeSettings({ ...bridgeSettings, ...settings });
+    const newSettings = { ...bridgeSettings, ...settings };
     setBridgeSettings(newSettings);
     await AsyncStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify(newSettings));
   }, [bridgeSettings]);
