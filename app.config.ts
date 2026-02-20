@@ -8,7 +8,7 @@ const easConfig =
 const envProjectId = process.env.EAS_PROJECT_ID?.trim();
 const projectId = envProjectId || easConfig.projectId;
 let eas: { projectId?: string } | undefined;
-if (projectId && projectId !== "") {
+if (projectId) {
   eas = { ...easConfig, projectId };
 } else if (Object.keys(easConfig).length > 0) {
   eas = easConfig;

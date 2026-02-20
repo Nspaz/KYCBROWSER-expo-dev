@@ -84,7 +84,7 @@ try {
   }
   console.log(cfg?.extra?.eas?.projectId || '');
 } catch (error) {
-  const stderr = error?.stderr ? String(error.stderr) : '';
+  const stderr = error?.stderr ? error.stderr.toString() : '';
   console.error(
     'Failed to read Expo config for projectId:',
     error instanceof Error ? error.message : String(error),
