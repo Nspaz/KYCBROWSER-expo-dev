@@ -1,10 +1,13 @@
 import type { ExpoConfig } from "expo/config";
 import appJson from "./app.json";
 
+const easConfig =
+  (appJson.expo?.extra as { eas?: { projectId?: string } } | undefined)?.eas ??
+  {};
+
 const projectId =
   process.env.EAS_PROJECT_ID ??
-  (appJson.expo?.extra as { eas?: { projectId?: string } } | undefined)?.eas
-    ?.projectId ??
+  easConfig.projectId ??
   "";
 
 if (!projectId) {
@@ -20,8 +23,7 @@ const config: ExpoConfig = {
   extra: {
     ...appJson.expo.extra,
     eas: {
-      ...(appJson.expo.extra as { eas?: { projectId?: string } } | undefined)
-        ?.eas,
+      ...easConfig,
       projectId,
     },
   },
