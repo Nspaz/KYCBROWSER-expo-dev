@@ -10,8 +10,12 @@ const projectId = envProjectId || easConfig.projectId;
 let eas: { projectId?: string } | undefined;
 if (projectId) {
   eas = { ...easConfig, projectId };
-} else if (Object.keys(easConfig).length > 0) {
+}
+if (!projectId) {
   eas = easConfig;
+}
+if (eas && Object.keys(eas).length === 0) {
+  eas = undefined;
 }
 
 if (!projectId) {
