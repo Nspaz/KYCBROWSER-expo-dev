@@ -69,10 +69,8 @@ Builds are triggered automatically on push to `main`, or can be triggered manual
 
 To add the secrets:
 1. Go to your repository **Settings → Secrets and variables → Actions**
-2. Click **New repository secret**
-3. Name: `EXPO_TOKEN`, Value: your Expo access token
-4. Repeat for `EAS_PROJECT_ID`, Value: your Expo project ID
-5. Click **Add secret**
+2. Click **New repository secret** and create `EXPO_TOKEN` with your Expo access token
+3. Repeat to add `EAS_PROJECT_ID` with your Expo project ID
 
 > ⚠️ **Never commit access tokens to source code.** Always use GitHub Secrets.
 
