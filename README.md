@@ -60,7 +60,7 @@ Builds are triggered automatically on push to `main`, or can be triggered manual
 
 > ⚠️ **CI builds will fail until the project is linked.** Run `eas init` locally and commit the generated `projectId` in `app.json`, or set the `EAS_PROJECT_ID` secret so the workflow can inject it.
 
-**Required GitHub repository secret:**
+**GitHub repository secrets** (`EAS_PROJECT_ID` is optional if `extra.eas.projectId` is committed):
 
 | Secret Name      | Description                                   |
 |------------------|-----------------------------------------------|
