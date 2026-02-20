@@ -69,7 +69,7 @@ jobs:
         env:
           EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           PROJECT_ID=$(node <<'NODE'
 const { execSync } = require('child_process');
 try {
@@ -80,15 +80,10 @@ try {
     'Failed to read Expo config for projectId:',
     error instanceof Error ? error.message : String(error),
   );
-  process.exit(2);
+  process.exit(1);
 }
 NODE
 )
-          STATUS=$?
-          if [ "$STATUS" -eq 2 ]; then
-            echo "::error::Unable to read Expo config (see logs above)."
-            exit 1
-          fi
           if [ -z "$PROJECT_ID" ]; then
             echo "::error::EAS project is not linked. Set EAS_PROJECT_ID as a secret or add extra.eas.projectId to app.json."
             exit 1

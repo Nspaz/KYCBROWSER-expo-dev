@@ -6,6 +6,12 @@ const easConfig =
   {};
 
 const projectId = process.env.EAS_PROJECT_ID ?? easConfig.projectId;
+const eas =
+  projectId !== undefined && projectId !== null && projectId !== ""
+    ? { ...easConfig, projectId }
+    : Object.keys(easConfig).length > 0
+      ? easConfig
+      : undefined;
 
 if (!projectId) {
   // Surface missing configuration early for local dev and CI
@@ -17,13 +23,13 @@ if (!projectId) {
 
 const config: ExpoConfig = {
   ...appJson.expo,
-  extra: {
-    ...appJson.expo.extra,
-    eas: {
-      ...easConfig,
-      ...(projectId ? { projectId } : {}),
-    },
-  },
+  extra:
+    eas && Object.keys(eas).length > 0
+      ? {
+          ...appJson.expo.extra,
+          eas,
+        }
+      : appJson.expo.extra,
 };
 
 export default config;
