@@ -5,7 +5,8 @@ const easConfig =
   (appJson.expo?.extra as { eas?: { projectId?: string } } | undefined)?.eas ??
   {};
 
-const projectId = process.env.EAS_PROJECT_ID ?? easConfig.projectId;
+const envProjectId = process.env.EAS_PROJECT_ID?.trim();
+const projectId = envProjectId || easConfig.projectId;
 const eas =
   projectId && projectId !== ""
     ? { ...easConfig, projectId }

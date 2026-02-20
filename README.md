@@ -65,7 +65,9 @@ Builds are triggered automatically on push to `main`, or can be triggered manual
 | Secret Name      | Description                                   |
 |------------------|-----------------------------------------------|
 | `EXPO_TOKEN`     | Expo personal access token                     |
-| `EAS_PROJECT_ID` | Expo project UUID (from `eas project:list`)    |
+| `EAS_PROJECT_ID` | Expo project UUID (from `eas project:list`) — set this unless `extra.eas.projectId` is already in app.json |
+
+If you commit `extra.eas.projectId` to `app.json`, the `EAS_PROJECT_ID` secret is optional.
 
 To add the secrets:
 1. Go to your repository **Settings → Secrets and variables → Actions**
