@@ -24,7 +24,7 @@ if (!projectId) {
 
 const config: ExpoConfig = {
   ...appJson.expo,
-  extra: eas ? { ...appJson.expo.extra, eas } : appJson.expo.extra,
+  extra: eas ? { ...(appJson.expo.extra ?? {}), eas } : appJson.expo.extra,
 };
 
 export default config;
