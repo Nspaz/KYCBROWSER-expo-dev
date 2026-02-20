@@ -1,15 +1,18 @@
 import type { ExpoConfig } from "expo/config";
 import appJson from "./app.json";
 
-const easConfig =
-  (appJson.expo?.extra as { eas?: { projectId?: string } } | undefined)?.eas ??
-  {};
+type ExtraWithEas = {
+  eas?: { projectId?: string };
+  [key: string]: unknown;
+};
+
+const extra = (appJson.expo?.extra as ExtraWithEas | undefined) ?? {};
+const easConfig = extra.eas ?? {};
 
 const envProjectId = process.env.EAS_PROJECT_ID?.trim();
 const projectId = envProjectId || easConfig.projectId;
 const easBase = projectId ? { ...easConfig, projectId } : easConfig;
-const eas =
-  easBase && Object.keys(easBase).length > 0 ? easBase : undefined;
+const eas = Object.keys(easBase).length > 0 ? easBase : undefined;
 
 if (!projectId) {
   // Surface missing configuration early for local dev and CI
@@ -21,7 +24,7 @@ if (!projectId) {
 
 const config: ExpoConfig = {
   ...appJson.expo,
-  extra: eas ? { ...(appJson.expo.extra ?? {}), eas } : appJson.expo.extra,
+  extra: eas ? { ...extra, eas } : extra,
 };
 
 export default config;
