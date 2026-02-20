@@ -5,10 +5,7 @@ const easConfig =
   (appJson.expo?.extra as { eas?: { projectId?: string } } | undefined)?.eas ??
   {};
 
-const projectId =
-  process.env.EAS_PROJECT_ID ??
-  easConfig.projectId ??
-  "";
+const projectId = process.env.EAS_PROJECT_ID ?? easConfig.projectId;
 
 if (!projectId) {
   // Surface missing configuration early for local dev and CI
@@ -24,7 +21,7 @@ const config: ExpoConfig = {
     ...appJson.expo.extra,
     eas: {
       ...easConfig,
-      projectId,
+      ...(projectId ? { projectId } : {}),
     },
   },
 };
