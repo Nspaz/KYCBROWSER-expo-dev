@@ -7,16 +7,9 @@ const easConfig =
 
 const envProjectId = process.env.EAS_PROJECT_ID?.trim();
 const projectId = envProjectId || easConfig.projectId;
-let eas: { projectId?: string } | undefined;
-if (projectId) {
-  eas = { ...easConfig, projectId };
-}
-if (!projectId) {
-  eas = easConfig;
-}
-if (eas && Object.keys(eas).length === 0) {
-  eas = undefined;
-}
+const easBase = projectId ? { ...easConfig, projectId } : easConfig;
+const eas =
+  easBase && Object.keys(easBase).length > 0 ? easBase : undefined;
 
 if (!projectId) {
   // Surface missing configuration early for local dev and CI
