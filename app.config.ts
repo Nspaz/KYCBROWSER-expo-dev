@@ -7,6 +7,14 @@ const projectId =
     ?.projectId ??
   "";
 
+if (!projectId) {
+  // Surface missing configuration early for local dev and CI
+  // eslint-disable-next-line no-console
+  console.warn(
+    "EAS projectId is not set. Provide EAS_PROJECT_ID or run `eas init` to write it into app.json."
+  );
+}
+
 const config: ExpoConfig = {
   ...appJson.expo,
   extra: {

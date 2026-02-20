@@ -69,7 +69,9 @@ jobs:
         env:
           EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
         run: |
-          PROJECT_ID=$(npx expo config --json | node -e "const c = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(c?.extra?.eas?.projectId || '')")
+          set -euo pipefail
+          CONFIG_JSON=$(npx expo config --json)
+          PROJECT_ID=$(printf "%s" "$CONFIG_JSON" | node -e "const c = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(c?.extra?.eas?.projectId || '')")
           if [ -z "$PROJECT_ID" ]; then
             echo "::error::EAS project is not linked. Set EAS_PROJECT_ID as a secret or add extra.eas.projectId to app.json."
             exit 1
