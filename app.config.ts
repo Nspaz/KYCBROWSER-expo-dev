@@ -7,7 +7,7 @@ const easConfig =
 
 const projectId = process.env.EAS_PROJECT_ID ?? easConfig.projectId;
 const eas =
-  projectId !== undefined && projectId !== null && projectId !== ""
+  projectId && projectId !== ""
     ? { ...easConfig, projectId }
     : Object.keys(easConfig).length > 0
       ? easConfig
@@ -23,13 +23,7 @@ if (!projectId) {
 
 const config: ExpoConfig = {
   ...appJson.expo,
-  extra:
-    eas && Object.keys(eas).length > 0
-      ? {
-          ...appJson.expo.extra,
-          eas,
-        }
-      : appJson.expo.extra,
+  extra: eas ? { ...appJson.expo.extra, eas } : appJson.expo.extra,
 };
 
 export default config;
