@@ -24,7 +24,8 @@ This project uses [Expo Application Services (EAS)](https://expo.dev/eas) for na
    ```bash
    eas init
    ```
-   This populates `extra.eas.projectId` in `app.json`.
+   This populates `extra.eas.projectId` in `app.json`.  
+   Alternatively, set `EAS_PROJECT_ID` as an environment variable/secret (the workflow reads it from `app.config.ts`).
 
 4. **Configure OTA updates** (optional):
    ```bash
@@ -57,19 +58,21 @@ eas build --profile production --platform all
 
 Builds are triggered automatically on push to `main`, or can be triggered manually from the Actions tab.
 
-> ⚠️ **CI builds will fail until the project is linked.** Run `eas init` locally, commit the generated `projectId` in `app.json`, then push. Until then, use manual dispatch only.
+> ⚠️ **CI builds will fail until the project is linked.** Run `eas init` locally and commit the generated `projectId` in `app.json`, or set the `EAS_PROJECT_ID` secret so the workflow can inject it.
 
 **Required GitHub repository secret:**
 
-| Secret Name   | Description                          |
-|---------------|--------------------------------------|
-| `EXPO_TOKEN`  | Expo personal access token           |
+| Secret Name      | Description                                   |
+|------------------|-----------------------------------------------|
+| `EXPO_TOKEN`     | Expo personal access token                     |
+| `EAS_PROJECT_ID` | Expo project UUID (from `eas project:list`)    |
 
-To add the secret:
+To add the secrets:
 1. Go to your repository **Settings → Secrets and variables → Actions**
 2. Click **New repository secret**
 3. Name: `EXPO_TOKEN`, Value: your Expo access token
-4. Click **Add secret**
+4. Repeat for `EAS_PROJECT_ID`, Value: your Expo project ID
+5. Click **Add secret**
 
 > ⚠️ **Never commit access tokens to source code.** Always use GitHub Secrets.
 

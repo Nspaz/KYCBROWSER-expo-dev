@@ -66,10 +66,12 @@ jobs:
         run: bun run verify
 
       - name: Check EAS project is linked
+        env:
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
         run: |
-          PROJECT_ID=$(node -e "const c = require('./app.json'); console.log(c.expo?.extra?.eas?.projectId || '')")
+          PROJECT_ID=$(npx expo config --json | node -e "const c = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(c?.extra?.eas?.projectId || '')")
           if [ -z "$PROJECT_ID" ]; then
-            echo "::error::EAS project is not linked. Run 'eas init' locally and commit the generated projectId in app.json."
+            echo "::error::EAS project is not linked. Set EAS_PROJECT_ID as a secret or add extra.eas.projectId to app.json."
             exit 1
           fi
 
