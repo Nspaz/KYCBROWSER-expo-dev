@@ -1,7 +1,10 @@
 const { execSync } = require("child_process");
 
 try {
-  const raw = execSync("npx expo config --json", { stdio: "pipe" }).toString();
+  const raw = execSync("npx --no-install expo config --json", {
+    stdio: "pipe",
+    env: { ...process.env, EXPO_NO_TELEMETRY: "1" },
+  }).toString();
   let cfg;
   try {
     cfg = JSON.parse(raw);
@@ -12,6 +15,12 @@ try {
   }
 
   const projectId = cfg?.extra?.eas?.projectId ?? "";
+  if (!projectId) {
+    console.error(
+      "EAS projectId is missing. Set EAS_PROJECT_ID env/secret or add extra.eas.projectId to app.json."
+    );
+    process.exit(1);
+  }
   process.stdout.write(projectId);
 } catch (error) {
   const stderr = error.stderr ? error.stderr.toString() : "";
