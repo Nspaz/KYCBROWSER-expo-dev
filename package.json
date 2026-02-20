@@ -2,6 +2,7 @@
   "name": "expo-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "packageManager": "bun@1.x",
   "scripts": {
     "start": "npx expo start --dev-client",
     "start:dev": "npx expo start --dev-client",

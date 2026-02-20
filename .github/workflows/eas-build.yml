@@ -47,7 +47,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Setup EAS CLI
         uses: expo/expo-github-action@v8
@@ -56,10 +60,10 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Verify code quality
-        run: npm run verify
+        run: bun run verify
 
       - name: Check EAS project is linked
         run: |
